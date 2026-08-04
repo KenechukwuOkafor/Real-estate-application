@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-04
 **Status:** Approved
-**Revision:** 2 — incorporates review findings F1–F6 (see Review log)
+**Revision:** 3 — incorporates review findings F1–F6, plus F7 found during execution (see Review log)
 **Scope:** Close the live privilege-escalation hole, gate the dev-auth backdoor, fix broken
 view tracking, put the pending work under version control, and establish CI.
 
@@ -79,8 +79,8 @@ Branch `chore/phase-0-stabilization` off `main`, merged via one self-reviewed PR
 |---|---|---|
 | 1 | `chore(git): ignore supabase local cli state` | `supabase/.temp/`, `supabase/.branches/` |
 | 2 | `chore(agent): remove duplicated cdp bridge` | Delete `docs/agent/`; move `express` and `ws` to devDependencies |
-| 3 | `feat(api): add shared error mapping and route protection` | `src/lib/api/errors.ts`, `src/middleware.ts` |
-| 4 | `feat(auth): add dev auth harness` | `src/lib/auth/dev-auth.ts`, `src/lib/auth/use-effective-auth.ts`, `src/app/api/dev-auth/`, `src/app/dev-login/` |
+| 3 | `feat(auth): add dev auth harness` | `src/lib/auth/dev-auth.ts`, `src/lib/auth/use-effective-auth.ts`, `src/app/api/dev-auth/`, `src/app/dev-login/` |
+| 4 | `feat(api): add shared error mapping and route protection` | `src/lib/api/errors.ts`, `src/middleware.ts` |
 | 5 | `feat(chats): add chat threads and messaging slice` | `src/app/api/chats/`, `src/app/chats/`, chat repository/service, chat components |
 | 6 | `feat(inspections): add inspection request slice` | `src/app/api/inspection-requests/`, inspection repository/service, request form |
 | 7 | `feat(listings): add reports and saved listings` | `src/app/api/reports/`, `src/app/api/saved-listings/`, `src/app/api/listings/[slugOrPublicId]/views/`, related repositories/services |
@@ -101,8 +101,11 @@ which it can pass; from commit 15 onward it gates everything.
 
 Commits 3–8 are pre-existing work being brought under version control, not new development.
 
-**Two dependency constraints drive this ordering; neither is optional.**
+**Three dependency constraints drive this ordering; none is optional.**
 
+0. `src/middleware.ts:3` imports `@/lib/auth/dev-auth`, so the dev-auth harness must land
+   before it. Revision 2 ordered these the other way around and produced a commit that did not
+   typecheck standalone; see finding F7 in the review log.
 1. `src/app/api/reports/route.ts` and both `saved-listings` routes import `@/lib/api/errors`.
    If `errors.ts` shipped after them, those commits would not typecheck — an unbuildable commit
    in history defeats the purpose of atomic commits.
@@ -372,6 +375,15 @@ blocking: the design was internally sound but not executable as written.
 | F4 | Moderate | Commits 3–5 added routes that `middleware.ts` protects, before `middleware.ts` itself | Middleware moved to commit 3, ahead of the routes it guards |
 | F5 | Moderate | `parseListingIdentifier` performs no validation, so malformed input reached Postgres as an invalid uuid (`22P02`) on every crawler hit | Section 3A step 2 adds a UUID-shape guard before the query |
 | F6 | Moderate | The new denial audit write could throw and convert signup into a 500, extending a known latent flaw to account creation | Section 2A requires the write to be non-blocking; a test asserts it |
+
+### Revision 3 — found during execution
+
+| ID | Severity | Finding | Resolution |
+|---|---|---|---|
+| F7 | Blocking | `src/middleware.ts:3` imports `@/lib/auth/dev-auth`, but revision 2 committed `errors.ts` + `middleware.ts` *before* the dev-auth harness. That commit did not typecheck standalone. Missed when applying F3/F4, which fixed `errors.ts`→routes and `middleware.ts`→routes but not `middleware.ts`→`dev-auth`. | Commits 3 and 4 swapped; `dev-auth.ts` has no imports, so the harness commit is self-contained |
+| F8 | Blocking | The stated verification — "run `npm run typecheck` before each commit" — cannot prove per-commit isolation. `tsc` resolves from disk regardless of git state, so with uncommitted files present it passes even for a broken commit. Every isolation claim made under revision 2 was vacuous, which is why F7 survived two "verified" checks. | Replaced with a git-worktree check that compiles the commit alone. `git stash -u` is explicitly forbidden: the working tree holds dozens of uncommitted files and a failed `pop` could destroy them |
+
+F7 and F8 were caught by a task reviewer during execution, not by design review — the reviewer built an isolated worktree and actually compiled the commit instead of trusting the reported check.
 
 Findings were verified against the code rather than reasoned about abstractly:
 `node_modules/server-only/package.json`, `user-sync-service.ts:44`, the import graph of

@@ -16,7 +16,21 @@
 - Work on branch `chore/phase-0-stabilization`. **Never commit to `main`.**
 - Package manager is **npm**. Do not migrate to pnpm — that is Phase 2.
 - Node 24 (local: v24.11.1). CI pins Node 24.
-- **Every commit must typecheck in isolation.** Run `npm run typecheck` before each commit.
+- **Every commit must typecheck in isolation**, verified with the worktree method below. Running
+  `npm run typecheck` in the working tree does **not** prove this and must never be claimed as
+  proof: `tsc` resolves modules from disk regardless of git state, so with uncommitted files
+  present it passes even when the commit itself is broken. Revision 1 of this plan made that
+  mistake and shipped a dependency inversion past two "verified" checks.
+
+  ```bash
+  git worktree add /tmp/ruvo-iso <COMMIT_SHA>
+  ln -s "/home/kenechukwu-okafor/Ruvo real estate app/node_modules" /tmp/ruvo-iso/node_modules
+  cd /tmp/ruvo-iso && npm run typecheck ; cd -
+  git worktree remove --force /tmp/ruvo-iso
+  ```
+
+  Use a worktree, never `git stash -u`: the working tree holds dozens of uncommitted files of
+  real work, and a failed `stash pop` could destroy them. A worktree cannot touch them.
 - Tests use **no database and no secrets**. The repository layer is always mocked.
 - Test files are colocated: `foo.ts` → `foo.test.ts` in the same directory.
 - Do not add RLS policies, transactions, or a service-role retrofit — all Phase 1.
@@ -214,11 +228,15 @@ EOF
 
 ## Task 2: Shared infrastructure and dev-auth harness
 
-Covers spec commits 3–4. **Ordering here is load-bearing.** `src/lib/api/errors.ts` must precede the routes that import it, or those commits will not typecheck. `src/middleware.ts` must precede the routes it protects, so no commit in history contains a protected route without middleware-layer protection.
+Covers spec commits 3–4. **Ordering here is load-bearing**, and revision 1 of this plan got it wrong. Three constraints apply simultaneously:
 
-**Files:**
-- Commit: `src/lib/api/errors.ts`, `src/middleware.ts`
-- Commit: `src/lib/auth/dev-auth.ts`, `src/lib/auth/use-effective-auth.ts`, `src/app/api/dev-auth/`, `src/app/dev-login/`, `src/features/auth/components/dev-login-panel.tsx`
+1. `src/middleware.ts:3` imports `@/lib/auth/dev-auth`, so the **dev-auth harness must land first**. Revision 1 ordered these the other way around, producing a commit that did not typecheck standalone. `dev-auth.ts` has no imports of its own, so the harness commit is self-contained.
+2. `src/lib/api/errors.ts` must precede the Task 3 routes that import it (`src/app/api/reports/route.ts`, both `saved-listings` routes), or those commits will not compile.
+3. `src/middleware.ts` must precede the routes it protects, so no commit in history contains a protected route without middleware-layer protection.
+
+**Files (in commit order):**
+- Commit 1: `src/lib/auth/dev-auth.ts`, `src/lib/auth/use-effective-auth.ts`, `src/app/api/dev-auth/`, `src/app/dev-login/`, `src/features/auth/components/dev-login-panel.tsx`
+- Commit 2: `src/lib/api/errors.ts`, `src/middleware.ts`
 
 **Interfaces:**
 - Consumes: Task 1's clean lint baseline.
