@@ -22,7 +22,15 @@ body {
   box-sizing: border-box;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/*
+ * Layered deliberately. Unlayered rules beat layered ones in the CSS cascade,
+ * so a bare `a { color: inherit }` overrides Tailwind's .text-white (which
+ * lives in @layer utilities) and renders every dark link-button as an
+ * unlabelled block. Keeping the reset in @layer base lets utilities win.
+ */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
