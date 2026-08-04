@@ -188,10 +188,15 @@ ensureUserRoles(adminClient, submission.agent_profiles.user_id, ["agent"])
 needed.
 
 **The role grant executes last, deliberately.** These are three unbatched writes with no
-transaction (transactions are Phase 1). If the grant fails after the status write, the user is
-verified but not yet an agent — locked out, and recoverable by re-running the approval. The
-reverse ordering would leave a user holding the `agent` role without an approved verification.
+transaction (transactions are Phase 1). Ordering the grant last means a failure there leaves the
+user verified but not yet an agent — never an agent without an approved verification.
 `security-checklist.md` requires failing closed; this ordering is that rule applied.
+
+Note what that failure state actually costs, because an earlier revision of this document got it
+wrong: re-running the approval does **not** repair it. `requirePendingVerificationState` rejects
+any submission whose `verification_status` has moved off `pending_review`, and the status write
+has already done so. Recovery is an out-of-band grant of the `agent` role to that user. Phase 1's
+transaction work closes the window.
 
 The existing audit entry for `agent_verification.approved` gains `roleGranted: "agent"` in its
 metadata.

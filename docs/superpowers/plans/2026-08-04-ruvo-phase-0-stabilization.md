@@ -1404,10 +1404,13 @@ In `approveAgentVerificationAsAdmin`, after the `markVerificationSubmissionRevie
 
 ```typescript
   // Granted last, deliberately. These are three unbatched writes with no
-  // transaction (Phase 1 adds transactions). If this fails after the status
-  // write, the user is verified but not yet an agent: locked out, recoverable
-  // by re-running the approval. The reverse ordering would leave a user
-  // holding the agent role without an approved verification.
+  // transaction (Phase 1 adds transactions). Ordering the grant last means a
+  // failure here leaves the user verified but not yet an agent — never an
+  // agent without an approved verification. Note that re-running the approval
+  // will NOT repair it: requirePendingVerificationState rejects any submission
+  // whose status has already moved off pending_review, and the status write
+  // above has already done so. Recovery is an out-of-band grant of the agent
+  // role for that user. Phase 1's transaction work removes this window.
   await ensureUserRoles(adminClient, submission.agent_profiles.user_id, [
     "agent",
   ]);
