@@ -2,6 +2,7 @@
 
 **Date:** 2026-08-04
 **Status:** Approved
+**Revision:** 2 — incorporates review findings F1–F6 (see Review log)
 **Scope:** Close the live privilege-escalation hole, gate the dev-auth backdoor, fix broken
 view tracking, put the pending work under version control, and establish CI.
 
@@ -78,25 +79,38 @@ Branch `chore/phase-0-stabilization` off `main`, merged via one self-reviewed PR
 |---|---|---|
 | 1 | `chore(git): ignore supabase local cli state` | `supabase/.temp/`, `supabase/.branches/` |
 | 2 | `chore(agent): remove duplicated cdp bridge` | Delete `docs/agent/`; move `express` and `ws` to devDependencies |
-| 3 | `feat(chats): add chat threads and messaging slice` | `src/app/api/chats/`, `src/app/chats/`, chat repository/service, chat components |
-| 4 | `feat(inspections): add inspection request slice` | `src/app/api/inspection-requests/`, inspection repository/service, request form |
-| 5 | `feat(listings): add reports and saved listings` | `src/app/api/reports/`, `src/app/api/saved-listings/`, `src/app/api/listings/[slugOrPublicId]/views/`, related repositories/services |
-| 6 | `feat(auth): add dev auth harness` | `src/lib/auth/dev-auth.ts`, `src/lib/auth/use-effective-auth.ts`, `src/app/api/dev-auth/`, `src/app/dev-login/`, `src/middleware.ts` |
-| 7 | `feat(admin): add verification review and moderation actions` | `src/app/admin/verification/`, `src/app/api/admin/verification-submissions/`, flag/dispute routes, `src/lib/api/errors.ts`, migrations 0004–0007 |
-| 8 | `fix(lint): resolve remaining eslint errors` | 2 unescaped entities in `src/app/page.tsx:149-150`; `react-hooks/set-state-in-effect` at `src/lib/auth/use-effective-auth.ts:15` |
-| 9 | `test(setup): add vitest runner and config` | Vitest, config, `"test": "vitest run"` |
-| 10 | `fix(auth): restrict self-service roles to student` | Section 2A, with tests |
-| 11 | `fix(auth): hard-gate dev auth to non-production` | Section 2D, with tests |
-| 12 | `feat(agents): grant agent role on verification approval` | Sections 2B and 2C, with tests |
-| 13 | `fix(listings): resolve public id before recording view` | Section 3A, with tests |
-| 14 | `ci: add typecheck, lint and test workflow` | `.github/workflows/ci.yml` |
+| 3 | `feat(api): add shared error mapping and route protection` | `src/lib/api/errors.ts`, `src/middleware.ts` |
+| 4 | `feat(auth): add dev auth harness` | `src/lib/auth/dev-auth.ts`, `src/lib/auth/use-effective-auth.ts`, `src/app/api/dev-auth/`, `src/app/dev-login/` |
+| 5 | `feat(chats): add chat threads and messaging slice` | `src/app/api/chats/`, `src/app/chats/`, chat repository/service, chat components |
+| 6 | `feat(inspections): add inspection request slice` | `src/app/api/inspection-requests/`, inspection repository/service, request form |
+| 7 | `feat(listings): add reports and saved listings` | `src/app/api/reports/`, `src/app/api/saved-listings/`, `src/app/api/listings/[slugOrPublicId]/views/`, related repositories/services |
+| 8 | `feat(admin): add verification review and moderation actions` | `src/app/admin/verification/`, `src/app/api/admin/verification-submissions/`, flag/dispute routes, migrations 0004–0007 |
+| 9 | `fix(lint): resolve remaining eslint errors` | 2 unescaped entities in `src/app/page.tsx:149-150`; `react-hooks/set-state-in-effect` at `src/lib/auth/use-effective-auth.ts:15` |
+| 10 | `test(setup): add vitest runner and config` | Vitest, `vitest.config.ts` (see 3B), `"test": "vitest run"` |
+| 11 | `fix(auth): restrict self-service roles to student` | Section 2A, with tests |
+| 12 | `fix(auth): hard-gate dev auth to non-production` | Section 2D, with tests |
+| 13 | `feat(agents): grant agent role on verification approval` | Sections 2B and 2C, with tests |
+| 14 | `fix(listings): resolve public id before recording view` | Section 3A, with tests |
+| 15 | `ci: add typecheck, lint and test workflow` | `.github/workflows/ci.yml` |
 
-**Ordering rationale.** Cleanup and the untracked baseline land first so lint *can* be fixed;
-lint is fixed so CI *can* be green; the test runner precedes the fixes so each ships with its
-regression test; CI lands last because that is the first point at which it can pass. From
-commit 14 onward it gates everything.
+**Ordering rationale.** Cleanup lands first, then shared infrastructure, then the slices that
+depend on it, so that *every commit typechecks in isolation* and `git bisect` stays meaningful.
+Lint is fixed once the baseline is tracked, so CI *can* be green. The test runner precedes the
+fixes so each ships with its regression test. CI lands last because that is the first point at
+which it can pass; from commit 15 onward it gates everything.
 
-Commits 3–7 are pre-existing work being brought under version control, not new development.
+Commits 3–8 are pre-existing work being brought under version control, not new development.
+
+**Two dependency constraints drive this ordering; neither is optional.**
+
+1. `src/app/api/reports/route.ts` and both `saved-listings` routes import `@/lib/api/errors`.
+   If `errors.ts` shipped after them, those commits would not typecheck — an unbuildable commit
+   in history defeats the purpose of atomic commits.
+2. `src/middleware.ts:13-17` is what protects `/api/chats`, `/api/inspection-requests`,
+   `/api/reports` and `/api/saved-listings`. It must land *before* the routes it guards, so no
+   commit ever contains a protected route without its middleware-layer protection. (The service
+   layer checks authentication independently, so the interim state was never exploitable — but
+   it should not be committed to history.)
 
 ---
 
@@ -110,6 +124,12 @@ The supported-role set collapses to `["student"]`. Non-grantable roles are **fil
 silently**; the caller receives a normal 200 with `roles: ["student"]`. Rejecting with 422 and
 a message naming `admin` would confirm to an attacker that the role exists.
 
+**`deriveRequestedRoles` must be exported.** It is currently a module-private function
+(`user-sync-service.ts:44`, bare `function`), so it cannot be imported by a test. It is the
+single most security-critical unit in Phase 0 and its behaviour is a pure input/output mapping;
+exporting it to assert that mapping directly is preferable to reaching it only through
+`syncCurrentUserToDatabase` behind mocked Clerk and Supabase clients.
+
 To retain the security signal that silent filtering discards, a request containing any
 non-grantable role writes an audit entry:
 
@@ -119,6 +139,14 @@ non-grantable role writes an audit entry:
 - `metadata: { requestedRoles, grantedRoles }`
 
 ADR-011 requires audit entries for role and permission changes and for manual overrides.
+
+**This audit write must be non-blocking** — wrapped so a failure is logged and swallowed rather
+than propagated. The codebase already has a latent flaw where audit writes occur after the
+mutation and can throw, converting a succeeded operation into a 500. Adding an audit write to
+the signup path without isolating it would extend that flaw to account creation. A missing
+audit line is a degraded security signal; a failed signup is a broken product. The general fix
+for audit-write failure handling belongs to Phase 1; this one call site is hardened now because
+Phase 0 introduces it.
 
 The onboarding UI needs no change — `role-selection-form.tsx` only ever offered student and
 agent. `POST /api/me/bootstrap` needs no change; it delegates.
@@ -219,25 +247,59 @@ key.
    inside the service: `parseListingIdentifier()` then `getPublicListingIdByUuid()` — the
    pattern `saved-listings-service.ts:19` already uses. The rename is the substantive fix; it
    turns a recurrence of this bug into a compile error.
-2. **Stop returning 500.** An unresolvable listing returns `200 {tracked: false}` — a no-op,
+2. **Guard the UUID shape before querying.** `parseListingIdentifier` (`parsers.ts:72`) never
+   fails: given input containing no `--`, it returns `{ publicId: <input>, slug: null }` with no
+   validation. Passing that straight to `getPublicListingIdByUuid` produces
+   `.eq("public_uuid", "<garbage>")`, which Postgres rejects with `22P02 invalid input syntax
+   for type uuid`. The fail-soft handler in step 3 would absorb it, but every crawler or scanner
+   hitting `/listings/anything/views` would still cost a database round-trip and an error. A
+   UUID-shape check before the query returns `{ tracked: false }` without touching the database,
+   and gives the "malformed input" test case a defined behaviour to assert.
+3. **Stop returning 500.** An unresolvable listing returns `200 {tracked: false}` — a no-op,
    not an error. Genuine infrastructure failures are logged server-side and still return
    success to the caller. BR-ANA-003 ("analytics collection must not block user actions") is
    Critical, and the caller is a fire-and-forget beacon from `listings-view-tracker.tsx`.
 
+Note that `getPublicListingIdByUuid` filters on `status = 'approved'`, so a view of a listing
+that has since been flagged or archived records nothing and returns `{ tracked: false }`. That
+is consistent with BR-SEARCH-001 and is intended.
+
 ### 3B. Tests
 
-Vitest, colocated `*.test.ts` beside their subjects per ADR-005 ("each feature owns its
-tests"). All unit-level; the repository layer is mocked; no database.
+Vitest, colocated `*.test.ts` beside their subjects. All unit-level; the repository layer is
+mocked; no database.
+
+#### Required Vitest configuration — the suite cannot run without it
+
+**`server-only` must be aliased to an empty module.** The `server-only` package resolves `main`
+to an `index.js` whose entire body is a `throw`; it is inert only under Next's `react-server`
+export condition, which Vitest does not supply. All ten files in `src/server/services/` import
+it, including four of the seven subjects below. Without the alias every one of those test files
+fails at import time, before any assertion runs.
+
+**Path aliases must be registered.** The codebase imports via `@/`. Vitest needs either
+`vite-tsconfig-paths` or an equivalent manual `resolve.alias` entry, or every import fails to
+resolve.
+
+Both belong in `vitest.config.ts` in commit 10. Verify the config by running the suite before
+writing any production change in commits 11–14.
+
+#### Subjects
 
 | Subject | Assertions |
 |---|---|
-| `deriveRequestedRoles` | `["admin"]→[]`; `["student","admin"]→["student"]`; `["agent"]→[]`; `undefined→[]`; `[]→[]` |
-| `syncCurrentUserToDatabase` | `ensureUserRoles` is never called with `admin`; an audit entry is written when a role is denied |
+| `deriveRequestedRoles` | `["admin"]→[]`; `["student","admin"]→["student"]`; `["agent"]→[]`; `undefined→[]`; `[]→[]`. Requires the export added in 2A |
+| `syncCurrentUserToDatabase` | `ensureUserRoles` is never called with `admin`; an audit entry is written when a role is denied; **a throwing audit write does not fail the sync** |
 | `isDevAuthEnabled` | production + `ENABLE_DEV_AUTH=true` → false; development + `ENABLE_DEV_AUTH=true` → true; development + unset → false; `NEXT_PUBLIC_ENABLE_DEV_AUTH=true` alone → false |
-| `trackListingView` | inserts `listings.id`, never the slug; unknown listing does not throw |
-| `parseListingIdentifier` | `slug--uuid`; bare uuid; malformed input |
+| `trackListingView` | inserts `listings.id`, never the slug; unknown listing does not throw; **malformed identifier never reaches the repository** |
+| `parseListingIdentifier` | `slug--uuid`; bare uuid; input with no `--` returns the input as `publicId` and `slug: null` (documents existing behaviour — the UUID guard lives in `trackListingView`, not here) |
 | `approveAgentVerificationAsAdmin` | grants `["agent"]`; grant occurs after the status write |
 | `resolveRouteError` | pins current status-code mapping before Phase 1 replaces string matching with thrown `AppError`s |
+
+Colocation follows ADR-005's principle that a slice owns its tests. Four of these subjects live
+in `src/server/`, which is not a feature slice — colocation is still correct there, but it is a
+Vitest convention rather than ADR-005 compliance. This is another instance of the unresolved
+`AGENT_RULES.md` / ADR-005 structural conflict recorded below.
 
 ### 3C. CI
 
@@ -279,6 +341,10 @@ an ADR before the Phase 2 refactor.
 
 - Branch merged to `main` through a pull request; no direct commits to `main`.
 - `npm run typecheck`, `npm run lint`, `npm test` green locally and in GitHub Actions.
+- **Every commit typechecks in isolation**, verified by checking out each and running
+  `npm run typecheck`. This is what makes the atomic-commit split worth doing.
+- The Vitest suite runs — proving the `server-only` alias and path aliases are correctly
+  configured — before any production change in commits 11–14 is written.
 - `POST /api/me/bootstrap {"roles":["admin"]}` grants only `student` and writes a
   `user.role_request_denied` audit entry.
 - `isDevAuthEnabled()` returns false under `NODE_ENV=production` regardless of either flag.
@@ -290,3 +356,24 @@ an ADR before the Phase 2 refactor.
   `listings.id`, and returns 200 rather than 500 for an unknown listing.
 - The accepted-debt entry for the unsigned dev-auth cookie is recorded here and carried into
   the Phase 1 plan.
+
+---
+
+## Review log
+
+Revision 2 incorporates six findings from an adversarial review of revision 1. Three were
+blocking: the design was internally sound but not executable as written.
+
+| ID | Severity | Finding | Resolution |
+|---|---|---|---|
+| F1 | Blocking | `server-only` resolves to a module whose body is a bare `throw` outside Next's `react-server` condition. Four of seven test subjects import it, so the suite failed at import time. Path aliases (`@/`) were also unconfigured. | Section 3B now mandates a `server-only` alias and path-alias registration in `vitest.config.ts`, verified before any production change |
+| F2 | Blocking | `deriveRequestedRoles` is module-private and cannot be imported by a test, yet had its own test row | Section 2A now requires exporting it, with rationale |
+| F3 | Blocking | Commit 5 imported `@/lib/api/errors` from commit 7 — an unbuildable commit in history, defeating the atomic-commit split | Shared infrastructure moved to commit 3; sequence renumbered to 15 commits |
+| F4 | Moderate | Commits 3–5 added routes that `middleware.ts` protects, before `middleware.ts` itself | Middleware moved to commit 3, ahead of the routes it guards |
+| F5 | Moderate | `parseListingIdentifier` performs no validation, so malformed input reached Postgres as an invalid uuid (`22P02`) on every crawler hit | Section 3A step 2 adds a UUID-shape guard before the query |
+| F6 | Moderate | The new denial audit write could throw and convert signup into a 500, extending a known latent flaw to account creation | Section 2A requires the write to be non-blocking; a test asserts it |
+
+Findings were verified against the code rather than reasoned about abstractly:
+`node_modules/server-only/package.json`, `user-sync-service.ts:44`, the import graph of
+`src/app/api/reports/` and `src/app/api/saved-listings/`, `middleware.ts:13-17`, and
+`parsers.ts:72`.
