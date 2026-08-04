@@ -10,6 +10,13 @@ insert into public.users (
 )
 values
   (
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464000',
+    'seed_clerk_student_001',
+    'student1@ruvo.local',
+    'Ruvo Student One',
+    '+2348000000000'
+  ),
+  (
     '6d5ec8a0-a70a-4974-b8b7-1c833f464001',
     'seed_clerk_agent_001',
     'agent1@ruvo.local',
@@ -22,6 +29,13 @@ values
     'agent2@ruvo.local',
     'Campus Keys Property',
     '+2348000000002'
+  ),
+  (
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464003',
+    'seed_clerk_admin_001',
+    'admin1@ruvo.local',
+    'Ruvo Admin One',
+    '+2348000000003'
   )
 on conflict (clerk_user_id) do nothing;
 
@@ -32,6 +46,11 @@ insert into public.user_roles (
 )
 values
   (
+    '1dd56053-7f52-43da-90f3-6c9dd1f4c000',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464000',
+    'student'
+  ),
+  (
     '1dd56053-7f52-43da-90f3-6c9dd1f4c001',
     '6d5ec8a0-a70a-4974-b8b7-1c833f464001',
     'agent'
@@ -40,6 +59,11 @@ values
     '1dd56053-7f52-43da-90f3-6c9dd1f4c002',
     '6d5ec8a0-a70a-4974-b8b7-1c833f464002',
     'agent'
+  ),
+  (
+    '1dd56053-7f52-43da-90f3-6c9dd1f4c003',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464003',
+    'admin'
   )
 on conflict (user_id, role) do nothing;
 
