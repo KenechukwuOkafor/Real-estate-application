@@ -308,30 +308,105 @@ EOF
 
 ---
 
-## Task 3: Application slices
+## Task 3: Foundation and application slices
 
-Covers spec commits 5–8. All four are pre-existing work being brought under version control, not new development. Each is staged, typechecked, then committed.
+Covers spec commits 5–8. All of this is pre-existing work being brought under version control,
+not new development.
 
-**Files:** listed per step below.
+**Revision 2 of this plan specified a five-way vertical-slice split. It could not compile.** A
+dependency analysis of the pending files showed why: `src/types/database.ts` is imported by
+every repository; `audit-service.ts` and `audit-repository.ts` are imported by five services;
+`agents-repository.ts` is imported by `chat-service` and `inspection-service`. None of those
+were staged until the final step, so all four slice commits would have failed.
+
+The code beneath these "slices" is horizontally layered (`src/server/services` +
+`src/server/repositories`) — the `AGENT_RULES.md` versus ADR-005 conflict, showing up as a
+concrete blocker. You cannot have both compilable commits and slice-shaped commits here.
+
+**Resolution (approved):** one foundation commit for the layered core, then genuine slice
+commits at the route/page/component level, where independence is real.
+
+**Files:** see per-step staging lists below.
 
 **Interfaces:**
 - Consumes: `@/lib/api/errors` and `src/middleware.ts` from Task 2.
-- Produces: `trackListingView` in `@/server/services/public-listings-service` (Task 9 rewrites it); `approveAgentVerificationAsAdmin` in `@/server/services/admin-service` (Task 8 modifies it).
+- Produces: `trackListingView` in `@/server/services/public-listings-service` (Task 9 rewrites
+  it); `approveAgentVerificationAsAdmin` in `@/server/services/admin-service` (Task 8 modifies
+  it); `deriveRequestedRoles` in `@/server/services/user-sync-service` (Task 6 modifies it).
 
-> **What `npm run typecheck` proves here, and what it does not.** It compiles the *working
-> tree*, which still contains every uncommitted file. It therefore confirms the code is sound;
-> it does **not** confirm that the commit being created typechecks on its own. Per-commit
-> isolation is genuinely verified in Task 10 Step 4, by checking out each commit in turn. If
-> that check reports a failure, the fix is to reorder these commits — not to weaken the check.
+**Verify every commit in this task with the worktree method from Global Constraints.** Running
+`npm run typecheck` in the working tree proves nothing about a commit — that mistake is what
+produced the broken ordering in Tasks 2 and 3.
 
-- [ ] **Step 1: Commit the chats slice**
+- [ ] **Step 1: Remove the relocated root middleware**
+
+`middleware.ts` at the repository root is a pending deletion; the file now lives at
+`src/middleware.ts`, committed in Task 2.
 
 ```bash
-git add src/app/api/chats src/app/chats \
+git rm --cached middleware.ts 2>/dev/null || git add -u middleware.ts
+git commit -m "$(cat <<'EOF'
+chore(middleware): remove relocated root middleware
+
+Clerk middleware now lives at src/middleware.ts, committed alongside the
+shared error mapping. This removes the superseded root copy.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **Step 2: Commit the layered foundation**
+
+These 20 files form a connected graph and cannot be split further without breaking compilation.
+
+```bash
+git add src/types/database.ts \
+        src/lib/env.ts src/lib/auth/clerk.ts \
+        src/features/agents/types.ts \
+        src/features/listings/format.ts \
+        src/server/repositories/agents-repository.ts \
+        src/server/repositories/audit-repository.ts \
         src/server/repositories/chat-repository.ts \
+        src/server/repositories/inspection-repository.ts \
+        src/server/repositories/listings-repository.ts \
+        src/server/repositories/reports-repository.ts \
+        src/server/repositories/subscriptions-repository.ts \
+        src/server/services/admin-service.ts \
+        src/server/services/agent-service.ts \
+        src/server/services/audit-service.ts \
         src/server/services/chat-service.ts \
-        src/features/chats
-npm run typecheck
+        src/server/services/inspection-service.ts \
+        src/server/services/listing-media-service.ts \
+        src/server/services/reports-service.ts \
+        src/server/services/saved-listings-service.ts
+```
+
+Verify in isolation, then commit:
+
+```bash
+git commit -m "$(cat <<'EOF'
+feat(server): add shared types, repositories and services
+
+The layered core the route and page slices build on: generated database
+types, Supabase repositories for agents, listings, chats, inspections,
+reports, subscriptions and audit logs, and the services that compose them.
+
+Committed as one unit because these files form a connected import graph.
+database.ts is imported by every repository, audit-service by five
+services, and agents-repository by both chat and inspection services, so
+no smaller split compiles. The underlying structure is layered rather than
+sliced; reconciling that with ADR-005 is Phase 2 work.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **Step 3: Commit the chats slice**
+
+```bash
+git add src/app/api/chats src/app/chats src/features/chats
 git commit -m "$(cat <<'EOF'
 feat(chats): add chat threads and messaging slice
 
@@ -344,16 +419,11 @@ EOF
 )"
 ```
 
-Expected: typecheck exits 0 before the commit runs.
-
-- [ ] **Step 2: Commit the inspections slice**
+- [ ] **Step 4: Commit the inspections slice**
 
 ```bash
 git add src/app/api/inspection-requests \
-        src/server/repositories/inspection-repository.ts \
-        src/server/services/inspection-service.ts \
         src/features/listings/components/request-inspection-form.tsx
-npm run typecheck
 git commit -m "$(cat <<'EOF'
 feat(inspections): add inspection request slice
 
@@ -365,85 +435,90 @@ EOF
 )"
 ```
 
-- [ ] **Step 3: Commit reports, saved listings and view tracking**
+- [ ] **Step 5: Commit reports, saved listings and view tracking**
+
+This step also deletes the superseded `[listingId]` view route, replaced by `[slugOrPublicId]`.
 
 ```bash
 git add src/app/api/reports src/app/api/saved-listings \
         "src/app/api/listings/[slugOrPublicId]/views" \
-        src/server/repositories/reports-repository.ts \
-        src/server/services/reports-service.ts \
-        src/server/services/saved-listings-service.ts \
-        src/features/listings/components/copy-url-button.tsx \
-        src/features/listings/components/listings-view-tracker.tsx
-npm run typecheck
+        src/features/listings/components/copy-url-button.tsx
+git add -u "src/app/api/listings/[listingId]/views/route.ts"
 git commit -m "$(cat <<'EOF'
 feat(listings): add reports, saved listings and view tracking
 
-Report submission, save/unsave, and the listing view beacon. The view
-endpoint currently passes the URL identifier where a listings.id UUID is
-required and therefore always fails; Task 9 of the Phase 0 plan fixes it.
+Report submission, save/unsave, and the listing view beacon. Removes the
+superseded [listingId] view route in favour of [slugOrPublicId].
+
+The view endpoint passes the URL identifier where a listings.id UUID is
+required and therefore always fails. Task 9 of the Phase 0 plan fixes it
+with a regression test; it is committed here as-is so the fix lands as its
+own reviewable change.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-The known-broken behaviour is named in the commit message deliberately: the commit records existing work, and the defect is fixed under its own commit with a regression test.
-
-- [ ] **Step 4: Commit the admin slice and migrations**
+- [ ] **Step 6: Commit the admin slice and migrations**
 
 ```bash
-git add src/app/admin/verification \
-        src/app/api/admin/verification-submissions \
-        "src/app/api/admin/listings/[listingId]/flag" \
-        "src/app/api/admin/listings/[listingId]/dispute" \
-        src/features/admin/components/verification-review-actions.tsx \
+git add src/app/admin \
+        src/app/api/admin \
+        src/features/admin \
         supabase/migrations/0004_listing_media_bucket.sql \
         supabase/migrations/0005_inspection_requests_and_chats.sql \
         supabase/migrations/0006_subscriptions.sql \
-        supabase/migrations/0007_reports.sql
-npm run typecheck
+        supabase/migrations/0007_reports.sql \
+        supabase/seed.sql
 git commit -m "$(cat <<'EOF'
 feat(admin): add verification review and moderation actions
 
 Admin verification queue with approve and reject, plus listing flag and
-dispute transitions. Includes migrations 0004-0007: listing media bucket,
-inspection requests and chats, subscriptions, and reports.
+dispute transitions. Includes migrations 0004-0007 (listing media bucket,
+inspection requests and chats, subscriptions, reports) and the seed data
+that backs the dev-auth test accounts.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-- [ ] **Step 5: Commit whatever pending files remain**
+- [ ] **Step 7: Commit the remaining agent and public surfaces**
 
 ```bash
 git status --porcelain
 ```
 
-Review the remainder (modified tracked files such as `src/app/page.tsx`, `README.md`, `SCHEMA.md`, `src/types/database.ts`, `supabase/seed.sql`, and the remaining untracked agent/listing routes). Stage and commit them:
+Review the remainder — agent listing management and profile pages, agent API routes, the
+public listing pages, dashboard, layout, shared components, and the documentation updates.
+Stage and commit them:
 
 ```bash
 git add -A
-npm run typecheck
 git commit -m "$(cat <<'EOF'
-feat(app): add remaining agent and listing surfaces
+feat(app): add remaining agent and public surfaces
 
-Agent listing management, image upload targets, public listing detail and
-filters, dashboard, and the accompanying schema and documentation updates.
+Agent listing management, image upload targets, the public listing browse
+and detail pages, dashboard, shell header, and the accompanying schema and
+architecture documentation updates.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-- [ ] **Step 6: Verify the working tree is clean**
+- [ ] **Step 8: Verify the working tree is clean and every commit compiles**
 
 ```bash
 git status --porcelain | wc -l
 ```
 
 Expected: `0`.
+
+Then run the worktree isolation check from Global Constraints against every commit this task
+created. All must exit 0. If any fails, the staging lists above need adjusting — report which
+commit failed and what it could not resolve rather than improvising a different split.
 
 ---
 
