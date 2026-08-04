@@ -15,12 +15,27 @@ type DbClient = SupabaseClient<Database>;
 type ListingImageRow = Database["public"]["Tables"]["listing_images"]["Row"];
 type AgentProfileRow = Database["public"]["Tables"]["agent_profiles"]["Row"];
 type ListingRow = Database["public"]["Tables"]["listings"]["Row"];
+type AgentVerificationSubmissionRow =
+  Database["public"]["Tables"]["agent_verification_submissions"]["Row"];
+type AgentProfileWithSubscriptionRow = AgentProfileRow & {
+  subscriptions:
+    | Array<
+        Pick<
+          Database["public"]["Tables"]["subscriptions"]["Row"],
+          "expires_at" | "id" | "plan" | "starts_at" | "status"
+        >
+      >
+    | null;
+};
 type OwnedListingRow = ListingRow & {
   listing_images: ListingImageRow[] | null;
 };
 type ModerationQueueRow = ListingRow & {
   agent_profiles: AgentProfileRow | null;
   listing_images: ListingImageRow[] | null;
+};
+type VerificationQueueRow = AgentVerificationSubmissionRow & {
+  agent_profiles: AgentProfileRow | null;
 };
 
 export async function getAgentProfileByUserId(client: DbClient, userId: string) {
@@ -36,6 +51,35 @@ export async function getAgentProfileByUserId(client: DbClient, userId: string) 
   }
 
   return data;
+}
+
+export async function getAgentProfileWithSubscriptionsByUserId(
+  client: DbClient,
+  userId: string,
+) {
+  const { data, error } = await client
+    .from("agent_profiles")
+    .select(
+      `
+        *,
+        subscriptions (
+          id,
+          plan,
+          status,
+          starts_at,
+          expires_at
+        )
+      `,
+    )
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as unknown as AgentProfileWithSubscriptionRow | null;
 }
 
 export async function upsertAgentProfile(
@@ -109,6 +153,50 @@ export async function markAgentVerificationPending(
   return data;
 }
 
+export async function updateAgentVerificationStatus(
+  client: DbClient,
+  agentProfileId: string,
+  status: Database["public"]["Enums"]["agent_verification_status"],
+  extras?: Partial<Database["public"]["Tables"]["agent_profiles"]["Update"]>,
+) {
+  const { data, error } = await client
+    .from("agent_profiles")
+    .update({
+      ...extras,
+      verification_status: status,
+    })
+    .eq("id", agentProfileId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function updateAgentFreeListingQuota(
+  client: DbClient,
+  agentProfileId: string,
+  freeListingQuota: number,
+) {
+  const { data, error } = await client
+    .from("agent_profiles")
+    .update({
+      free_listing_quota: freeListingQuota,
+    })
+    .eq("id", agentProfileId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as AgentProfileRow;
+}
+
 function slugify(input: string) {
   return input
     .toLowerCase()
@@ -160,7 +248,7 @@ export async function listAgentListings(client: DbClient, agentProfileId: string
     .select(
       `
         *,
-        listing_images (
+        listing_images!listing_images_listing_id_fkey (
           id,
           listing_id,
           storage_path,
@@ -197,7 +285,7 @@ export async function getOwnedListing(
     .select(
       `
         *,
-        listing_images (
+        listing_images!listing_images_listing_id_fkey (
           id,
           listing_id,
           storage_path,
@@ -223,6 +311,116 @@ export async function getOwnedListing(
   }
 
   return (data as unknown as OwnedListingRow | null);
+}
+
+export async function getListingById(client: DbClient, listingId: string) {
+  const { data, error } = await client
+    .from("listings")
+    .select(
+      `
+        *,
+        agent_profiles (
+          id,
+          display_name,
+          verification_status,
+          user_id,
+          bio,
+          created_at,
+          deleted_at,
+          founding_agent,
+          free_listing_quota,
+          rejection_reason,
+          suspension_reason,
+          updated_at,
+          verification_submitted_at,
+          verified_at,
+          verified_by
+        ),
+        listing_images!listing_images_listing_id_fkey (
+          id,
+          listing_id,
+          storage_path,
+          public_url,
+          position,
+          width,
+          height,
+          mime_type,
+          size_bytes,
+          is_cover,
+          created_at,
+          deleted_at
+        )
+      `,
+    )
+    .eq("id", listingId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as unknown as ModerationQueueRow | null);
+}
+
+export async function getVerificationSubmissionById(
+  client: DbClient,
+  submissionId: string,
+) {
+  const { data, error } = await client
+    .from("agent_verification_submissions")
+    .select(
+      `
+        *,
+        agent_profiles (
+          id,
+          display_name,
+          verification_status,
+          user_id,
+          bio,
+          created_at,
+          deleted_at,
+          founding_agent,
+          free_listing_quota,
+          rejection_reason,
+          suspension_reason,
+          updated_at,
+          verification_submitted_at,
+          verified_at,
+          verified_by
+        )
+      `,
+    )
+    .eq("id", submissionId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as unknown as VerificationQueueRow | null);
+}
+
+export async function markVerificationSubmissionReviewed(
+  client: DbClient,
+  submissionId: string,
+  reviewedAt = new Date().toISOString(),
+) {
+  const { data, error } = await client
+    .from("agent_verification_submissions")
+    .update({
+      reviewed_at: reviewedAt,
+    })
+    .eq("id", submissionId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
 }
 
 export async function registerListingImages(
@@ -272,6 +470,42 @@ export async function updateListingCoverImage(
   return data;
 }
 
+export async function updateDraftListing(
+  client: DbClient,
+  agentProfileId: string,
+  listingId: string,
+  input: Partial<AgentDraftListingInput>,
+) {
+  const updates: Partial<Database["public"]["Tables"]["listings"]["Update"]> = {};
+
+  if (input.title !== undefined) updates.title = input.title.trim();
+  if (input.description !== undefined) updates.description = input.description.trim();
+  if (input.area !== undefined) updates.area = input.area.trim();
+  if (input.propertyType !== undefined) updates.property_type = input.propertyType;
+  if (input.priceNaira !== undefined) updates.price_naira = input.priceNaira;
+  if (input.bedrooms !== undefined) updates.bedrooms = input.bedrooms;
+  if (input.bathrooms !== undefined) updates.bathrooms = input.bathrooms;
+  if (input.city !== undefined) updates.city = input.city?.trim() || "Nsukka";
+  if (input.state !== undefined) updates.state = input.state?.trim() || "Enugu";
+  if (input.latitude !== undefined) updates.latitude = input.latitude ?? null;
+  if (input.longitude !== undefined) updates.longitude = input.longitude ?? null;
+  if (input.amenities !== undefined) updates.amenities = input.amenities;
+
+  const { data, error } = await client
+    .from("listings")
+    .update(updates)
+    .eq("id", listingId)
+    .eq("agent_profile_id", agentProfileId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 export async function updateListingStatus(
   client: DbClient,
   listingId: string,
@@ -297,7 +531,7 @@ export async function updateListingStatus(
 
 export async function listModerationQueue(
   client: DbClient,
-  status: Database["public"]["Enums"]["listing_status"] = "pending_review",
+  statuses: Database["public"]["Enums"]["listing_status"][] = ["pending_review"],
 ) {
   const { data, error } = await client
     .from("listings")
@@ -321,7 +555,7 @@ export async function listModerationQueue(
           verified_at,
           verified_by
         ),
-        listing_images (
+        listing_images!listing_images_listing_id_fkey (
           id,
           listing_id,
           storage_path,
@@ -337,7 +571,7 @@ export async function listModerationQueue(
         )
       `,
     )
-    .eq("status", status)
+    .in("status", statuses)
     .is("deleted_at", null)
     .order("submitted_at", { ascending: true });
 
@@ -346,4 +580,42 @@ export async function listModerationQueue(
   }
 
   return ((data ?? []) as unknown as ModerationQueueRow[]);
+}
+
+export async function listVerificationQueue(client: DbClient) {
+  const { data, error } = await client
+    .from("agent_verification_submissions")
+    .select(
+      `
+        *,
+        agent_profiles (
+          id,
+          display_name,
+          verification_status,
+          user_id,
+          bio,
+          created_at,
+          deleted_at,
+          founding_agent,
+          free_listing_quota,
+          rejection_reason,
+          suspension_reason,
+          updated_at,
+          verification_submitted_at,
+          verified_at,
+          verified_by
+        )
+      `,
+    )
+    .is("deleted_at", null)
+    .is("reviewed_at", null)
+    .order("submitted_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as VerificationQueueRow[]).filter(
+    (submission) => submission.agent_profiles?.verification_status === "pending_review",
+  );
 }

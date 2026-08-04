@@ -50,3 +50,11 @@ export type AgentListingImageInput = {
   }>;
   listingId: string;
 };
+
+export type AgentListingImageUploadRequest = {
+  files: Array<{
+    contentType: string;
+    fileName: string;
+  }>;
+  listingId: string;
+};

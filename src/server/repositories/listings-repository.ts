@@ -234,7 +234,7 @@ export async function getPublicListings(
           verified_at,
           verified_by
         ),
-        listing_images (
+        listing_images!listing_images_listing_id_fkey (
           id,
           listing_id,
           storage_path,
@@ -329,7 +329,7 @@ export async function getPublicListingByIdentifier(
           verified_at,
           verified_by
         ),
-        listing_images (
+        listing_images!listing_images_listing_id_fkey (
           id,
           listing_id,
           storage_path,
@@ -391,6 +391,59 @@ export async function getPublicListingByIdentifier(
     status: "approved",
     videoUrl: row.video_url,
   };
+}
+
+export async function getPublicListingIdByUuid(
+  client: DbClient,
+  publicId: string,
+): Promise<{ id: string } | null> {
+  const { data, error } = await client
+    .from("listings")
+    .select("id")
+    .eq("public_uuid", publicId)
+    .eq("status", "approved")
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function saveListing(
+  client: DbClient,
+  userId: string,
+  listingId: string,
+) {
+  const { data, error } = await client
+    .from("saved_listings")
+    .upsert({ listing_id: listingId, user_id: userId }, { onConflict: "user_id,listing_id" })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function unsaveListing(
+  client: DbClient,
+  userId: string,
+  listingId: string,
+) {
+  const { error } = await client
+    .from("saved_listings")
+    .delete()
+    .eq("user_id", userId)
+    .eq("listing_id", listingId);
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function createListingView(

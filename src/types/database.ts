@@ -19,6 +19,14 @@ export type Database = {
         | "rejected"
         | "suspended";
       app_role: "student" | "agent" | "admin";
+      chat_type: "inspection";
+      inspection_status:
+        | "requested"
+        | "accepted"
+        | "declined"
+        | "expired"
+        | "cancelled"
+        | "completed";
       listing_status:
         | "draft"
         | "pending_review"
@@ -27,6 +35,10 @@ export type Database = {
         | "archived"
         | "flagged"
         | "under_dispute";
+      report_status: "open" | "under_review" | "resolved" | "dismissed";
+      report_target_type: "listing" | "agent" | "message";
+      subscription_plan: "basic" | "pro" | "enterprise";
+      subscription_status: "active" | "expired" | "cancelled" | "grace_period";
       property_type:
         | "self_contain"
         | "1_bedroom"
@@ -141,6 +153,86 @@ export type Database = {
           metadata: Json;
         };
         Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
+        Relationships: [];
+      };
+      chats: {
+        Insert: {
+          agent_profile_id: string;
+          closed_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+          id?: string;
+          inspection_request_id?: string | null;
+          last_message_at?: string | null;
+          listing_id?: string | null;
+          student_user_id: string;
+          type: "inspection";
+          updated_at?: string;
+        };
+        Row: {
+          agent_profile_id: string;
+          closed_at: string | null;
+          created_at: string;
+          deleted_at: string | null;
+          id: string;
+          inspection_request_id: string | null;
+          last_message_at: string | null;
+          listing_id: string | null;
+          student_user_id: string;
+          type: "inspection";
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["chats"]["Insert"]>;
+        Relationships: [];
+      };
+      inspection_requests: {
+        Insert: {
+          agent_profile_id: string;
+          cancelled_at?: string | null;
+          chat_id?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+          expires_at: string;
+          id?: string;
+          listing_id: string;
+          message?: string | null;
+          requested_at?: string;
+          requester_user_id: string;
+          responded_at?: string | null;
+          status?:
+            | "requested"
+            | "accepted"
+            | "declined"
+            | "expired"
+            | "cancelled"
+            | "completed";
+          updated_at?: string;
+        };
+        Row: {
+          agent_profile_id: string;
+          cancelled_at: string | null;
+          chat_id: string | null;
+          completed_at: string | null;
+          created_at: string;
+          deleted_at: string | null;
+          expires_at: string;
+          id: string;
+          listing_id: string;
+          message: string | null;
+          requested_at: string;
+          requester_user_id: string;
+          responded_at: string | null;
+          status:
+            | "requested"
+            | "accepted"
+            | "declined"
+            | "expired"
+            | "cancelled"
+            | "completed";
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["inspection_requests"]["Insert"]>;
         Relationships: [];
       };
       listing_images: {
@@ -295,6 +387,60 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["listings"]["Insert"]>;
         Relationships: [];
       };
+      messages: {
+        Insert: {
+          body: string;
+          chat_id: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          id?: string;
+          read_at?: string | null;
+          sender_user_id: string;
+        };
+        Row: {
+          body: string;
+          chat_id: string;
+          created_at: string;
+          deleted_at: string | null;
+          id: string;
+          read_at: string | null;
+          sender_user_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["messages"]["Insert"]>;
+        Relationships: [];
+      };
+      reports: {
+        Insert: {
+          created_at?: string;
+          deleted_at?: string | null;
+          id?: string;
+          reason: string;
+          reporter_user_id: string;
+          resolution_notes?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          status?: "open" | "under_review" | "resolved" | "dismissed";
+          target_id: string;
+          target_type: "listing" | "agent" | "message";
+          updated_at?: string;
+        };
+        Row: {
+          created_at: string;
+          deleted_at: string | null;
+          id: string;
+          reason: string;
+          reporter_user_id: string;
+          resolution_notes: string | null;
+          resolved_at: string | null;
+          resolved_by: string | null;
+          status: "open" | "under_review" | "resolved" | "dismissed";
+          target_id: string;
+          target_type: "listing" | "agent" | "message";
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["reports"]["Insert"]>;
+        Relationships: [];
+      };
       saved_listings: {
         Insert: {
           created_at?: string;
@@ -309,6 +455,40 @@ export type Database = {
           user_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["saved_listings"]["Insert"]>;
+        Relationships: [];
+      };
+      subscriptions: {
+        Insert: {
+          agent_profile_id: string;
+          cancelled_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+          expires_at: string;
+          id?: string;
+          metadata?: Json;
+          plan: "basic" | "pro" | "enterprise";
+          provider?: string;
+          provider_reference?: string | null;
+          starts_at: string;
+          status: "active" | "expired" | "cancelled" | "grace_period";
+          updated_at?: string;
+        };
+        Row: {
+          agent_profile_id: string;
+          cancelled_at: string | null;
+          created_at: string;
+          deleted_at: string | null;
+          expires_at: string;
+          id: string;
+          metadata: Json;
+          plan: "basic" | "pro" | "enterprise";
+          provider: string;
+          provider_reference: string | null;
+          starts_at: string;
+          status: "active" | "expired" | "cancelled" | "grace_period";
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["subscriptions"]["Insert"]>;
         Relationships: [];
       };
       user_roles: {

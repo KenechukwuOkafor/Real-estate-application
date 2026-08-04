@@ -28,6 +28,8 @@ export const appEnv = {
   supabaseUrl: () => getRequiredServerEnv("NEXT_PUBLIC_SUPABASE_URL"),
   supabaseAnonKey: () => getRequiredServerEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
   supabaseServiceRoleKey: () => getRequiredServerEnv("SUPABASE_SERVICE_ROLE_KEY"),
+  listingMediaBucket: () =>
+    process.env.NEXT_PUBLIC_SUPABASE_LISTING_BUCKET ?? "listing-media",
   paystackSecretKey: () => process.env.PAYSTACK_SECRET_KEY ?? "",
   paystackWebhookSecret: () => process.env.PAYSTACK_WEBHOOK_SECRET ?? "",
   sentryAuthToken: () => process.env.SENTRY_AUTH_TOKEN ?? "",
