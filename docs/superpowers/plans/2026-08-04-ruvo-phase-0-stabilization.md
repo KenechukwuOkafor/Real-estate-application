@@ -358,10 +358,21 @@ EOF
 
 - [ ] **Step 2: Commit the layered foundation**
 
-These 20 files form a connected graph and cannot be split further without breaking compilation.
+These 21 files form a connected graph and cannot be split further without breaking compilation.
+
+`src/app/api/admin/listings/[listingId]/approve/route.ts` is included even though it is a route,
+not a service: this commit changes `approveListingAsAdmin` from `(listingId, adminUserId)` to
+`(listingId)`, and the version of that route committed at `b58c6ab` is its caller. Leaving the
+caller behind breaks every commit between this one and the admin slice. The first attempt at
+this task did exactly that, and four commits failed isolation.
+
+That edge was invisible to the original import-graph analysis, which traced module imports among
+*pending* files only. Signature changes reach backwards into *already-committed* callers. When
+splitting commits over modified code, both edge types matter.
 
 ```bash
 git add src/types/database.ts \
+        "src/app/api/admin/listings/[listingId]/approve/route.ts" \
         src/lib/env.ts src/lib/auth/clerk.ts \
         src/features/agents/types.ts \
         src/features/listings/format.ts \
@@ -461,6 +472,8 @@ EOF
 ```
 
 - [ ] **Step 6: Commit the admin slice and migrations**
+
+`src/app/api/admin/listings/[listingId]/approve/route.ts` already landed in Step 2; `git add src/app/api/admin` re-adding that path is a harmless no-op.
 
 ```bash
 git add src/app/admin \
