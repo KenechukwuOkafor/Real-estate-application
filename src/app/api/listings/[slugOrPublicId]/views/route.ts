@@ -27,38 +27,36 @@ export async function POST(request: Request, context: RouteContext) {
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       request.headers.get("x-real-ip");
 
-    await trackListingView({
+    const result = await trackListingView({
       ipHash: ipAddress
         ? crypto.createHash("sha256").update(ipAddress).digest("hex")
         : null,
-      listingId: slugOrPublicId,
       referrer: body.referrer ?? null,
       sessionId: body.sessionId ?? null,
+      slugOrPublicId,
       userAgent: request.headers.get("user-agent"),
       viewerUserId: appUser?.user.id ?? null,
     });
 
     return NextResponse.json(
       {
-        data: {
-          tracked: true,
-        },
+        data: { tracked: result.tracked },
         meta: createApiMeta(requestId),
       },
-      { status: 201 },
+      { status: result.tracked ? 201 : 200 },
     );
   } catch (error) {
+    // BR-ANA-003 (Critical): analytics collection must not block user actions.
+    // This endpoint is a fire-and-forget beacon, so infrastructure failures are
+    // logged and reported as untracked rather than surfaced as a 5xx.
+    console.error("Failed to track listing view", { error, requestId });
+
     return NextResponse.json(
       {
-        error: {
-          code: "INTERNAL_ERROR",
-          details: null,
-          message:
-            error instanceof Error ? error.message : "Unable to track listing view.",
-        },
+        data: { tracked: false },
         meta: createApiMeta(requestId),
       },
-      { status: 500 },
+      { status: 200 },
     );
   }
 }
