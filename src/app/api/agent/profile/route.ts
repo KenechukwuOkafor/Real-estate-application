@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import {
-  getCurrentAgentContext,
+  getAgentOnboardingContext,
   saveCurrentAgentProfile,
 } from "@/server/services/agent-service";
 
@@ -11,7 +11,7 @@ export async function GET() {
   const requestId = await getRequestId();
 
   try {
-    const context = await getCurrentAgentContext();
+    const context = await getAgentOnboardingContext();
 
     return NextResponse.json({
       data: {

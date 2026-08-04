@@ -10,6 +10,7 @@ import {
   updateAgentVerificationStatus,
   updateListingStatus,
 } from "@/server/repositories/agents-repository";
+import { ensureUserRoles } from "@/server/repositories/users-repository";
 import { writeAuditLog } from "@/server/services/audit-service";
 import { getCurrentAppUser } from "@/server/services/user-sync-service";
 
@@ -102,6 +103,18 @@ export async function approveAgentVerificationAsAdmin(submissionId: string) {
 
   await markVerificationSubmissionReviewed(adminClient, submission.id, reviewedAt);
 
+  // Granted last, deliberately. These are three unbatched writes with no
+  // transaction (Phase 1 adds transactions). Ordering the grant last means a
+  // failure here leaves the user verified but not yet an agent — never an
+  // agent without an approved verification. Note that re-running the approval
+  // will NOT repair it: requirePendingVerificationState rejects any submission
+  // whose status has already moved off pending_review, and the status write
+  // above has already done so. Recovery is an out-of-band grant of the agent
+  // role for that user. Phase 1's transaction work removes this window.
+  await ensureUserRoles(adminClient, submission.agent_profiles.user_id, [
+    "agent",
+  ]);
+
   await writeAuditLog({
     action: "agent_verification.approved",
     actorUserId: appUser.user.id,
@@ -113,6 +126,7 @@ export async function approveAgentVerificationAsAdmin(submissionId: string) {
     entityId: submission.agent_profile_id,
     entityType: "agent_profile",
     metadata: {
+      roleGranted: "agent",
       submissionId: submission.id,
     },
   });

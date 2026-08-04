@@ -59,6 +59,31 @@ export async function getCurrentAgentContext() {
   };
 }
 
+/**
+ * Authenticated context that does NOT require the `agent` role.
+ *
+ * Self-service signup grants `student` only, so a user becoming an agent has
+ * no `agent` role yet. Agent-profile creation and verification submission must
+ * therefore be reachable without it. Anything that produces marketplace
+ * inventory continues to use getCurrentAgentContext.
+ */
+export async function getAgentOnboardingContext() {
+  const appUser = await getCurrentAppUser();
+
+  if (!appUser) {
+    throw new Error("Unauthenticated request.");
+  }
+
+  const adminClient = getSupabaseAdminClient();
+  const agentProfile = await getAgentProfileByUserId(adminClient, appUser.user.id);
+
+  return {
+    agentProfile,
+    roles: appUser.roles,
+    user: appUser.user,
+  };
+}
+
 export async function getCurrentAgentListingEntitlement() {
   const context = await getCurrentAgentContext();
 
@@ -144,7 +169,7 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
 export async function saveCurrentAgentProfile(input: AgentProfileInput) {
   validateAgentProfileInput(input);
 
-  const context = await getCurrentAgentContext();
+  const context = await getAgentOnboardingContext();
   const adminClient = getSupabaseAdminClient();
   const agentProfile = await upsertAgentProfile(adminClient, context.user.id, input);
 
@@ -171,7 +196,7 @@ export async function submitCurrentAgentVerification(
 ) {
   validateVerificationSubmissionInput(input);
 
-  const context = await getCurrentAgentContext();
+  const context = await getAgentOnboardingContext();
 
   if (!context.agentProfile) {
     throw new Error("Create your agent profile before submitting verification.");
