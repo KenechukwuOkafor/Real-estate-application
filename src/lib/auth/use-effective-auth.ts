@@ -12,7 +12,6 @@ export function useEffectiveAuth() {
 
   useEffect(() => {
     if (!isDevAuthEnabled || isSignedIn) {
-      setHasDevAuth(false);
       return;
     }
 
@@ -42,9 +41,11 @@ export function useEffectiveAuth() {
     };
   }, [isDevAuthEnabled, isSignedIn, pathname]);
 
+  const isDevSignedIn = isDevAuthEnabled && !isSignedIn && hasDevAuth;
+
   return {
     isDevAuthEnabled,
-    isDevSignedIn: hasDevAuth,
-    isSignedIn: isSignedIn || hasDevAuth,
+    isDevSignedIn,
+    isSignedIn: isSignedIn || isDevSignedIn,
   };
 }

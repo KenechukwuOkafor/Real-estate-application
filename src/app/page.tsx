@@ -146,8 +146,8 @@ export default async function Home() {
                   Price upfront, always
                 </h2>
                 <p className="mt-2 text-sm leading-7 text-stone-500">
-                  Annual rent is shown on every card and detail page. No "DM
-                  for price", no call-for-quote, no post-viewing surprises.
+                  Annual rent is shown on every card and detail page. No &ldquo;DM
+                  for price&rdquo;, no call-for-quote, no post-viewing surprises.
                 </p>
               </div>
             </div>
