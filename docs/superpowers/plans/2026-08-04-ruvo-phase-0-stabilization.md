@@ -925,7 +925,7 @@ In `src/server/services/user-sync-service.ts`, replace the `deriveRequestedRoles
 ```typescript
 export type SelfServiceRole = "student";
 
-const SELF_SERVICE_ROLES = new Set<string>(["student"]);
+const SELF_SERVICE_ROLES: ReadonlySet<SelfServiceRole> = new Set(["student"]);
 
 export function deriveRequestedRoles(
   input: string[] | undefined,
@@ -935,7 +935,7 @@ export function deriveRequestedRoles(
   }
 
   return input.filter((role): role is SelfServiceRole =>
-    SELF_SERVICE_ROLES.has(role),
+    SELF_SERVICE_ROLES.has(role as SelfServiceRole),
   );
 }
 ```
