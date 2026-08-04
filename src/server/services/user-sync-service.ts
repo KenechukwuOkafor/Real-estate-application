@@ -10,6 +10,7 @@ import {
   listUserRoles,
   upsertUserByClerkIdentity,
 } from "@/server/repositories/users-repository";
+import { writeAuditLog } from "@/server/services/audit-service";
 
 function getPrimaryEmailAddress(user: User) {
   const primaryEmailId = user.primaryEmailAddressId;
@@ -41,16 +42,48 @@ function getPrimaryPhoneNumber(user: User) {
   return user.phoneNumbers[0]?.phoneNumber ?? null;
 }
 
-function deriveRequestedRoles(input: string[] | undefined) {
+export type SelfServiceRole = "student";
+
+const SELF_SERVICE_ROLES: ReadonlySet<SelfServiceRole> = new Set(["student"]);
+
+export function deriveRequestedRoles(
+  input: string[] | undefined,
+): SelfServiceRole[] {
   if (!input || input.length === 0) {
-    return [] as Array<"student" | "agent" | "admin">;
+    return [];
   }
 
-  const supportedRoles = new Set(["student", "agent", "admin"]);
-
-  return input.filter((role): role is "student" | "agent" | "admin" =>
-    supportedRoles.has(role),
+  return input.filter((role): role is SelfServiceRole =>
+    SELF_SERVICE_ROLES.has(role as SelfServiceRole),
   );
+}
+
+async function recordDeniedRoleRequest(input: {
+  grantedRoles: string[];
+  requestedRoles: string[];
+  userId: string;
+}) {
+  try {
+    await writeAuditLog({
+      action: "user.role_request_denied",
+      actorUserId: input.userId,
+      entityId: input.userId,
+      entityType: "user",
+      metadata: {
+        grantedRoles: input.grantedRoles,
+        requestedRoles: input.requestedRoles,
+      },
+    });
+  } catch (error) {
+    // Never allow an audit failure to break account creation. The codebase
+    // writes audit entries after the mutation they describe, so a throw here
+    // would turn a succeeded signup into a 500. Phase 1 addresses audit
+    // failure handling globally.
+    console.error("Failed to record denied role request", {
+      error,
+      userId: input.userId,
+    });
+  }
 }
 
 export async function syncCurrentUserToDatabase(options?: {
@@ -79,6 +112,18 @@ export async function syncCurrentUserToDatabase(options?: {
   });
 
   const requestedRoles = deriveRequestedRoles(options?.requestedRoles);
+  const submittedRoles = options?.requestedRoles ?? [];
+  const deniedRoles = submittedRoles.filter(
+    (role) => !requestedRoles.includes(role as SelfServiceRole),
+  );
+
+  if (deniedRoles.length > 0) {
+    await recordDeniedRoleRequest({
+      grantedRoles: requestedRoles,
+      requestedRoles: submittedRoles,
+      userId: appUser.id,
+    });
+  }
 
   if (requestedRoles.length > 0) {
     await ensureUserRoles(adminClient, appUser.id, requestedRoles);
