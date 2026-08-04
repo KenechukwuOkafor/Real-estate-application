@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local Chrome DevTools Protocol bridge: CommonJS Node tooling, not
+    // application code, and not subject to the TypeScript lint rules.
+    "agent/**",
   ]),
 ]);
 
