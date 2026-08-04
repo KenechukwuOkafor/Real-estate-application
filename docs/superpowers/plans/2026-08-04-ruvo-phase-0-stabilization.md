@@ -31,6 +31,14 @@
 
   Use a worktree, never `git stash -u`: the working tree holds dozens of uncommitted files of
   real work, and a failed `stash pop` could destroy them. A worktree cannot touch them.
+
+  **Symlinking a shared `node_modules` into the worktree is a speed shortcut with a real cost.**
+  It proves the commit's *source* typechecks, but not that the commit's *`package.json`* declares
+  everything its source imports — a commit missing a dependency still resolves it through the
+  shared directory, which is exactly the class of bug this check exists to catch. For a final,
+  branch-wide sign-off, run a genuine `npm ci` inside each worktree, or otherwise demonstrate that
+  no commit imports a package its own manifest omits. Symlinking is fine for per-task checks
+  during development; on its own it is not sufficient Definition-of-Done evidence.
 - Tests use **no database and no secrets**. The repository layer is always mocked.
 - Test files are colocated: `foo.ts` → `foo.test.ts` in the same directory.
 - Do not add RLS policies, transactions, or a service-role retrofit — all Phase 1.
