@@ -4,12 +4,12 @@ import { NextResponse } from "next/server";
 
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
-import { getAuthContext } from "@/lib/auth/clerk";
 import { trackListingView } from "@/server/services/public-listings-service";
+import { getCurrentAppUser } from "@/server/services/user-sync-service";
 
 type RouteContext = {
   params: Promise<{
-    listingId: string;
+    slugOrPublicId: string;
   }>;
 };
 
@@ -17,12 +17,12 @@ export async function POST(request: Request, context: RouteContext) {
   const requestId = await getRequestId();
 
   try {
-    const { listingId } = await context.params;
+    const { slugOrPublicId } = await context.params;
     const body = ((await request.json().catch(() => null)) ?? {}) as {
       referrer?: string | null;
       sessionId?: string | null;
     };
-    const authContext = await getAuthContext();
+    const appUser = await getCurrentAppUser().catch(() => null);
     const ipAddress =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       request.headers.get("x-real-ip");
@@ -31,11 +31,11 @@ export async function POST(request: Request, context: RouteContext) {
       ipHash: ipAddress
         ? crypto.createHash("sha256").update(ipAddress).digest("hex")
         : null,
-      listingId,
+      listingId: slugOrPublicId,
       referrer: body.referrer ?? null,
       sessionId: body.sessionId ?? null,
       userAgent: request.headers.get("user-agent"),
-      viewerUserId: authContext.userId,
+      viewerUserId: appUser?.user.id ?? null,
     });
 
     return NextResponse.json(
