@@ -54,7 +54,26 @@ Migrations applied (in order):
 
 ## Development Auth
 
-Set `ENABLE_DEV_AUTH=true` and `NEXT_PUBLIC_ENABLE_DEV_AUTH=true` to enable local login without Clerk. The dev login panel is available at `/dev-login`. Seeded test users:
+### Dev auth
+
+The dev-auth harness impersonates the seeded student, agent and admin
+accounts without Clerk. It is disabled in production unconditionally.
+
+To enable it locally, `.env.local` needs **both**:
+
+```
+ENABLE_DEV_AUTH=true
+NEXT_PUBLIC_ENABLE_DEV_AUTH=true
+```
+
+`ENABLE_DEV_AUTH` is server-only and is the sole flag that can produce a
+session. `NEXT_PUBLIC_ENABLE_DEV_AUTH` only controls whether the dev login
+panel is visible and grants nothing.
+
+If you previously set only `NEXT_PUBLIC_ENABLE_DEV_AUTH`, add
+`ENABLE_DEV_AUTH=true` or dev login will stop working.
+
+The dev login panel is available at `/dev-login`. Seeded test users:
 
 | Role | Email |
 |------|-------|

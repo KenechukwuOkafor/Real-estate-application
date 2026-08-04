@@ -30,10 +30,11 @@ export const DEV_AUTH_USERS = [
 export type DevAuthUser = (typeof DEV_AUTH_USERS)[number];
 
 export function isDevAuthEnabled() {
-  return (
-    process.env.ENABLE_DEV_AUTH === "true" ||
-    process.env.NEXT_PUBLIC_ENABLE_DEV_AUTH === "true"
-  );
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
+  return process.env.ENABLE_DEV_AUTH === "true";
 }
 
 export function getDevAuthUserByClerkUserId(clerkUserId: string | null | undefined) {
