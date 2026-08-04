@@ -1,14 +1,18 @@
 import { redirect } from "next/navigation";
 
 import { DraftListingForm } from "@/features/agents/components/draft-listing-form";
-import { getCurrentAgentContext } from "@/server/services/agent-service";
+import {
+  getCurrentAgentContext,
+  getCurrentAgentListingEntitlement,
+} from "@/server/services/agent-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewAgentListingPage() {
   const context = await getCurrentAgentContext().catch(() => null);
+  const entitlement = await getCurrentAgentListingEntitlement().catch(() => null);
 
-  if (!context) {
+  if (!context || !entitlement) {
     redirect("/dashboard");
   }
 
@@ -22,9 +26,17 @@ export default async function NewAgentListingPage() {
           Create a listing draft.
         </h1>
         <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-700">
-          This creates a draft only. Submission, moderation, and media workflows
-          will build in the next step.
+          This creates a draft only. Submission, moderation, media, and subscription
+          checks are enforced separately.
         </p>
+
+        <div className="mt-6 rounded-[1.5rem] bg-stone-50 p-5 text-sm leading-7 text-stone-700">
+          {entitlement.activeSubscription
+            ? `Active ${entitlement.activeSubscription.plan} subscription in place until ${entitlement.activeSubscription.expires_at}.`
+            : entitlement.freeListingQuota > 0
+              ? `Founding-agent quota available: ${entitlement.freeListingQuota} submission slot${entitlement.freeListingQuota === 1 ? "" : "s"} remaining.`
+              : "No active subscription or remaining free quota. Draft creation is blocked until billing is activated or quota is granted."}
+        </div>
 
         <div className="mt-8">
           <DraftListingForm />

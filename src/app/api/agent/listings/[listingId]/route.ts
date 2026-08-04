@@ -3,9 +3,13 @@ import { NextResponse } from "next/server";
 import { routeErrorResponse } from "@/lib/api/errors";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
-import { createCurrentAgentDraftListing } from "@/server/services/agent-service";
+import { updateCurrentAgentDraftListing } from "@/server/services/agent-service";
 
-export async function POST(request: Request) {
+type RouteContext = {
+  params: Promise<{ listingId: string }>;
+};
+
+export async function PATCH(request: Request, context: RouteContext) {
   const requestId = await getRequestId();
 
   try {
@@ -30,28 +34,26 @@ export async function POST(request: Request) {
       title?: string;
     };
 
-    const result = await createCurrentAgentDraftListing({
-      amenities: body.amenities ?? [],
-      area: body.area ?? "",
-      bathrooms: body.bathrooms ?? 0,
-      bedrooms: body.bedrooms ?? 0,
+    const { listingId } = await context.params;
+    const result = await updateCurrentAgentDraftListing(listingId, {
+      amenities: body.amenities,
+      area: body.area,
+      bathrooms: body.bathrooms,
+      bedrooms: body.bedrooms,
       city: body.city,
-      description: body.description ?? "",
-      latitude: body.latitude ?? null,
-      longitude: body.longitude ?? null,
-      priceNaira: body.priceNaira ?? 0,
-      propertyType: body.propertyType ?? "self_contain",
+      description: body.description,
+      latitude: body.latitude,
+      longitude: body.longitude,
+      priceNaira: body.priceNaira,
+      propertyType: body.propertyType,
       state: body.state,
-      title: body.title ?? "",
+      title: body.title,
     });
 
-    return NextResponse.json(
-      {
-        data: { id: result.listing.id, status: result.listing.status },
-        meta: createApiMeta(requestId),
-      },
-      { status: 201 },
-    );
+    return NextResponse.json({
+      data: { id: result.listing.id, status: result.listing.status },
+      meta: createApiMeta(requestId),
+    });
   } catch (error) {
     return routeErrorResponse(error, requestId);
   }

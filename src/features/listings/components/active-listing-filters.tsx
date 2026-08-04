@@ -126,54 +126,41 @@ export function ActiveListingFilters({
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.22em] text-stone-500">
-              Search summary
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-stone-900">
-              {listingCount} public listing{listingCount === 1 ? "" : "s"} in view
+            <h2 className="text-2xl font-semibold text-stone-900">
+              {listingCount} listing{listingCount === 1 ? "" : "s"}
+              {hasActiveFilters ? " matched" : " available"}
             </h2>
-            <p className="mt-2 text-sm leading-7 text-stone-600">
+            <p className="mt-1 text-sm text-stone-500">
               {hasActiveFilters
-                ? "Current results reflect the filters applied below."
-                : "Showing the default public feed of approved listings."}
+                ? "Filtered results — click any tag below to remove it."
+                : "All verified listings in Nsukka, newest first."}
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 text-sm text-stone-600">
-            <span className="rounded-full bg-stone-100 px-4 py-2">
-              {getListingSortLabel(filters.sort)}
-            </span>
-            <span className="rounded-full bg-stone-100 px-4 py-2">
-              Limit {filters.limit}
-            </span>
-          </div>
+          <span className="rounded-full bg-stone-100 px-4 py-2 text-sm text-stone-600">
+            {getListingSortLabel(filters.sort)}
+          </span>
         </div>
 
         {hasActiveFilters ? (
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             {chips.map((chip) => (
               <Link
                 key={chip.label}
-                className="rounded-full border border-stone-900/10 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100"
+                className="rounded-full border border-stone-900/10 bg-stone-50 px-3.5 py-1.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100"
                 href={chip.href}
               >
                 {chip.label} ×
               </Link>
             ))}
-
             <Link
-              className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
+              className="rounded-full bg-stone-900 px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-stone-800"
               href="/listings"
             >
-              Reset all
+              Clear all
             </Link>
           </div>
-        ) : (
-          <div className="rounded-[1.5rem] border border-dashed border-stone-900/15 bg-stone-50 px-5 py-4 text-sm text-stone-600">
-            No active filters. Use the controls below to narrow by area, price,
-            property type, bedrooms, and verified agents.
-          </div>
-        )}
+        ) : null}
       </div>
     </section>
   );

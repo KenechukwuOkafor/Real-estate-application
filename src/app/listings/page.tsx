@@ -30,14 +30,14 @@ export default async function ListingsPage({
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <section className="rounded-[2rem] border border-stone-900/10 bg-white/80 p-8 shadow-[0_20px_80px_rgba(48,38,24,0.08)]">
           <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
-            Public listings
+            Nsukka · Enugu
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight md:text-5xl">
             Verified rentals with clear pricing.
           </h1>
           <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-700">
-            Browse approved listings in Nsukka. Slice 1 supports public search,
-            structured listing detail, and share-ready URLs.
+            Every listing is reviewed and approved before going live.
+            Filter by area, property type, bedrooms, and budget to find your next home.
           </p>
         </section>
 

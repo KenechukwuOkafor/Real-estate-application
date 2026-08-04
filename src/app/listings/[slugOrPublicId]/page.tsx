@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { RequestInspectionForm } from "@/features/listings/components/request-inspection-form";
+import { CopyUrlButton } from "@/features/listings/components/copy-url-button";
 import { ListingViewTracker } from "@/features/listings/components/listings-view-tracker";
 import { formatPriceNaira, formatPropertyType } from "@/features/listings/format";
 import { getPublicListing } from "@/server/services/public-listings-service";
@@ -52,17 +54,10 @@ export default async function ListingDetailPage({
 
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <div className="flex items-center justify-between gap-4">
-          <Link className="text-sm font-medium text-stone-600" href="/listings">
-            Back to listings
+          <Link className="text-sm font-medium text-stone-600 hover:text-stone-900 transition-colors" href="/listings">
+            ← Back to listings
           </Link>
-          <a
-            className="rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-800"
-            href={listing.share.canonicalUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Copy/share URL
-          </a>
+          <CopyUrlButton url={listing.share.canonicalUrl} />
         </div>
 
         <section className="rounded-[2rem] border border-stone-900/10 bg-white/80 p-8 shadow-[0_20px_80px_rgba(48,38,24,0.08)]">
@@ -106,8 +101,14 @@ export default async function ListingDetailPage({
                 </p>
               </div>
               <div className="rounded-3xl bg-stone-50 p-4">
-                <p className="text-sm text-stone-500">Status</p>
-                <p className="mt-2 text-2xl font-semibold">Verified</p>
+                <p className="text-sm text-stone-500">Trust</p>
+                <p className="mt-2 text-xl font-semibold">
+                  {listing.agent.isVerified ? (
+                    <span className="text-emerald-800">Verified ✓</span>
+                  ) : (
+                    <span className="text-stone-600">Unverified</span>
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -146,10 +147,7 @@ export default async function ListingDetailPage({
               ))}
             </div>
 
-            <div className="mt-8 rounded-[1.5rem] bg-stone-50 p-5 text-sm text-stone-700">
-              <p className="font-medium text-stone-900">Share URL</p>
-              <p className="mt-2 break-all">{listing.share.canonicalUrl}</p>
-            </div>
+            <RequestInspectionForm listingId={listing.id} />
           </aside>
         </section>
       </div>

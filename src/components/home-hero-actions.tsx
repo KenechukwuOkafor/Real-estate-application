@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 
-import { SignInButton, SignUpButton, useAuth } from "@clerk/nextjs";
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
+
+import { useEffectiveAuth } from "@/lib/auth/use-effective-auth";
 
 export function HomeHeroActions() {
-  const { isSignedIn } = useAuth();
+  const { isDevAuthEnabled, isSignedIn } = useEffectiveAuth();
 
   if (isSignedIn) {
     return (
@@ -35,17 +37,28 @@ export function HomeHeroActions() {
         Browse listings
       </Link>
 
-      <SignUpButton mode="modal">
-        <button className="rounded-full border border-stone-900/10 bg-white px-5 py-3 text-sm font-medium text-stone-800">
-          Create account
-        </button>
-      </SignUpButton>
+      {isDevAuthEnabled ? (
+        <Link
+          className="rounded-full border border-stone-900/10 bg-stone-50 px-5 py-3 text-sm font-medium text-stone-700"
+          href="/dev-login"
+        >
+          Dev login
+        </Link>
+      ) : (
+        <>
+          <SignUpButton mode="modal">
+            <button className="rounded-full border border-stone-900/10 bg-white px-5 py-3 text-sm font-medium text-stone-800">
+              Create account
+            </button>
+          </SignUpButton>
 
-      <SignInButton mode="modal">
-        <button className="rounded-full border border-stone-900/10 bg-stone-50 px-5 py-3 text-sm font-medium text-stone-700">
-          Sign in
-        </button>
-      </SignInButton>
+          <SignInButton mode="modal">
+            <button className="rounded-full border border-stone-900/10 bg-stone-50 px-5 py-3 text-sm font-medium text-stone-700">
+              Sign in
+            </button>
+          </SignInButton>
+        </>
+      )}
     </div>
   );
 }
