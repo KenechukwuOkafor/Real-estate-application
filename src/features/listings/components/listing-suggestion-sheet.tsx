@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 
 import {
   HOME_PROPERTY_TYPES,
@@ -12,12 +13,33 @@ type ListingSuggestionSheetProps = {
   onClose: () => void;
 };
 
+const SELECTED_CLASSES = "border-emerald-600 bg-emerald-50 text-emerald-900";
+const UNSELECTED_CLASSES = "border-stone-900/15 text-stone-800";
+
 export function ListingSuggestionSheet({
   areas,
   onClose,
 }: ListingSuggestionSheetProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // The URL is the single source of truth, same as the tiles: read it here
+  // to drive selected styling, never cache it in local state.
+  const selectedType = searchParams.get("propertyType");
+  const selectedArea = searchParams.get("area");
+  const selectedMinPrice = searchParams.get("minPrice");
+  const selectedMaxPrice = searchParams.get("maxPrice");
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   function apply(update: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -37,7 +59,12 @@ export function ListingSuggestionSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/30 md:items-center">
-      <div className="max-h-[80vh] w-full overflow-y-auto rounded-t-[1.5rem] bg-white p-5 md:max-w-lg md:rounded-[1.5rem]">
+      <div
+        aria-label="Narrow your search"
+        aria-modal="true"
+        className="max-h-[80vh] w-full overflow-y-auto rounded-t-[1.5rem] bg-white p-5 md:max-w-lg md:rounded-[1.5rem]"
+        role="dialog"
+      >
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-stone-900">
             Narrow your search
@@ -56,16 +83,23 @@ export function ListingSuggestionSheet({
             Property type
           </h3>
           <div className="mt-3 flex flex-wrap gap-2">
-            {HOME_PROPERTY_TYPES.map((type) => (
-              <button
-                className="rounded-full border border-stone-900/15 px-4 py-2 text-sm text-stone-800"
-                key={type.value}
-                onClick={() => apply({ propertyType: type.value })}
-                type="button"
-              >
-                {type.label}
-              </button>
-            ))}
+            {HOME_PROPERTY_TYPES.map((type) => {
+              const isSelected = selectedType === type.value;
+
+              return (
+                <button
+                  aria-pressed={isSelected}
+                  className={`rounded-full border px-4 py-2 text-sm ${
+                    isSelected ? SELECTED_CLASSES : UNSELECTED_CLASSES
+                  }`}
+                  key={type.value}
+                  onClick={() => apply({ propertyType: type.value })}
+                  type="button"
+                >
+                  {type.label}
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -75,16 +109,23 @@ export function ListingSuggestionSheet({
               Area
             </h3>
             <div className="mt-3 flex flex-wrap gap-2">
-              {areas.map((area) => (
-                <button
-                  className="rounded-full border border-stone-900/15 px-4 py-2 text-sm text-stone-800"
-                  key={area}
-                  onClick={() => apply({ area })}
-                  type="button"
-                >
-                  {area}
-                </button>
-              ))}
+              {areas.map((area) => {
+                const isSelected = selectedArea === area;
+
+                return (
+                  <button
+                    aria-pressed={isSelected}
+                    className={`rounded-full border px-4 py-2 text-sm ${
+                      isSelected ? SELECTED_CLASSES : UNSELECTED_CLASSES
+                    }`}
+                    key={area}
+                    onClick={() => apply({ area })}
+                    type="button"
+                  >
+                    {area}
+                  </button>
+                );
+              })}
             </div>
           </section>
         ) : null}
@@ -94,21 +135,36 @@ export function ListingSuggestionSheet({
             Budget
           </h3>
           <div className="mt-3 flex flex-wrap gap-2">
-            {PRICE_BANDS.map((band) => (
-              <button
-                className="rounded-full border border-stone-900/15 px-4 py-2 text-sm text-stone-800"
-                key={band.label}
-                onClick={() =>
-                  apply({
-                    maxPrice: band.maxPrice ? String(band.maxPrice) : undefined,
-                    minPrice: band.minPrice ? String(band.minPrice) : undefined,
-                  })
-                }
-                type="button"
-              >
-                {band.label}
-              </button>
-            ))}
+            {PRICE_BANDS.map((band) => {
+              const bandMinPrice = band.minPrice ? String(band.minPrice) : null;
+              const bandMaxPrice = band.maxPrice ? String(band.maxPrice) : null;
+              const isSelected =
+                bandMinPrice === selectedMinPrice &&
+                bandMaxPrice === selectedMaxPrice;
+
+              return (
+                <button
+                  aria-pressed={isSelected}
+                  className={`rounded-full border px-4 py-2 text-sm ${
+                    isSelected ? SELECTED_CLASSES : UNSELECTED_CLASSES
+                  }`}
+                  key={band.label}
+                  onClick={() =>
+                    apply({
+                      maxPrice: band.maxPrice
+                        ? String(band.maxPrice)
+                        : undefined,
+                      minPrice: band.minPrice
+                        ? String(band.minPrice)
+                        : undefined,
+                    })
+                  }
+                  type="button"
+                >
+                  {band.label}
+                </button>
+              );
+            })}
           </div>
         </section>
       </div>
