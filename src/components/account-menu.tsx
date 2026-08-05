@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { SignInButton, UserButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 
 import { useEffectiveAuth } from "@/lib/auth/use-effective-auth";
 
@@ -82,25 +82,36 @@ export function AccountMenu() {
 
   if (!isSignedIn) {
     return (
-      <SignInButton mode="modal">
-        <button
-          aria-label="Sign in"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition-colors hover:bg-stone-200"
-          type="button"
-        >
-          <svg
-            aria-hidden="true"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.8}
-            viewBox="0 0 24 24"
+      <div className="flex items-center gap-1.5">
+        <SignUpButton mode="modal">
+          <button
+            className="whitespace-nowrap rounded-full bg-stone-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-stone-800"
+            type="button"
           >
-            <circle cx="12" cy="8" r="3.5" />
-            <path d="M5 19c1.6-3.2 4-4.8 7-4.8s5.4 1.6 7 4.8" strokeLinecap="round" />
-          </svg>
-        </button>
-      </SignInButton>
+            Get started
+          </button>
+        </SignUpButton>
+
+        <SignInButton mode="modal">
+          <button
+            aria-label="Sign in"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition-colors hover:bg-stone-200"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              viewBox="0 0 24 24"
+            >
+              <circle cx="12" cy="8" r="3.5" />
+              <path d="M5 19c1.6-3.2 4-4.8 7-4.8s5.4 1.6 7 4.8" strokeLinecap="round" />
+            </svg>
+          </button>
+        </SignInButton>
+      </div>
     );
   }
 
