@@ -17,7 +17,7 @@ type ListingCardProps = {
 export function ListingCard({ listing }: ListingCardProps) {
   return (
     <article className="group relative overflow-hidden rounded-[1.5rem] border border-stone-900/10 bg-white shadow-[0_18px_50px_rgba(48,38,24,0.08)] transition-transform duration-200 hover:-translate-y-1">
-      <div className="relative aspect-[4/3] bg-stone-200">
+      <div className="relative aspect-[2/1] bg-stone-200 md:aspect-[4/3]">
         {listing.coverImageUrl ? (
           <img
             alt=""

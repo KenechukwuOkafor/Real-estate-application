@@ -39,7 +39,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#f0eadf_100%)] text-stone-900">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-5 md:gap-7 md:py-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-5 py-2 md:gap-7 md:py-8">
         {!isSignedIn ? (
           <section className="text-center md:pt-2">
             <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900">
@@ -47,11 +47,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Live in Nsukka, Enugu
             </span>
 
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight md:mt-3 md:text-4xl">
               Verified rentals. No surprises.
             </h1>
 
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-stone-600 md:text-base">
+            <p className="mx-auto mt-1.5 max-w-xl text-sm leading-5 text-stone-600 md:mt-2 md:leading-6 md:text-base">
               Every listing is reviewed before publishing, priced upfront, and open
               for an inspection request in-app.
             </p>

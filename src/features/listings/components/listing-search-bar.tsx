@@ -23,7 +23,7 @@ export function ListingSearchBar({
         sheet of areas, types and price bands instead.
       */}
       <button
-        className="mx-auto flex h-12 w-full max-w-[600px] items-center gap-3 rounded-full border border-stone-900/15 bg-white px-4 text-left shadow-sm"
+        className="mx-auto flex h-9 w-full max-w-[600px] items-center gap-3 rounded-full border border-stone-900/15 bg-white px-4 text-left shadow-sm md:h-12"
         onClick={() => setIsSheetOpen(true)}
         type="button"
       >

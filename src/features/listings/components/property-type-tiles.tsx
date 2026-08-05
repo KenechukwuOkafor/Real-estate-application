@@ -33,7 +33,7 @@ export function PropertyTypeTiles() {
         return (
           <button
             aria-pressed={isSelected}
-            className={`rounded-2xl border px-2 py-3 text-center transition-colors ${
+            className={`rounded-2xl border px-2 py-1.5 text-center transition-colors md:py-3 ${
               isSelected
                 ? "border-emerald-600 bg-emerald-50 text-emerald-900"
                 : "border-stone-900/12 bg-white text-stone-700"
