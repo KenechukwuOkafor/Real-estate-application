@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, UserButton, useAuth } from "@clerk/nextjs";
 
 import { useEffectiveAuth } from "@/lib/auth/use-effective-auth";
 
@@ -46,6 +46,27 @@ export function AccountMenu() {
   const { isDevSignedIn, isSignedIn } = useEffectiveAuth();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // `page.tsx` branches signed-in vs signed-out server-side via
+  // getAuthContext(). SignInButton resolves client-side, so nothing tells
+  // that server component to re-render when Clerk flips from signed-out to
+  // signed-in mid-session — the header updates to UserButton but the body
+  // keeps showing the signed-out hero until a hard reload. Watch Clerk's own
+  // isSignedIn (not the dev-auth-blended one from useEffectiveAuth) and
+  // force a refresh on that specific transition.
+  const { isSignedIn: isClerkSignedIn } = useAuth();
+  const previousClerkSignedInRef = useRef(isClerkSignedIn);
+
+  useEffect(() => {
+    if (
+      previousClerkSignedInRef.current === false &&
+      isClerkSignedIn === true
+    ) {
+      router.refresh();
+    }
+
+    previousClerkSignedInRef.current = isClerkSignedIn;
+  }, [isClerkSignedIn, router]);
 
   useEffect(() => {
     if (!isOpen) {
