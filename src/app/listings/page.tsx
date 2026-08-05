@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { ActiveListingFilters } from "@/features/listings/components/active-listing-filters";
+import { ListingFeed } from "@/features/listings/components/listing-feed";
 import { ListingFilters } from "@/features/listings/components/listing-filters";
-import { ListingGrid } from "@/features/listings/components/listing-grid";
 import { parseListingListFilters } from "@/features/listings/parsers";
 import { buildListingSearchQuery, toSearchParams } from "@/features/listings/search-params";
 import { listPublicListings } from "@/server/services/public-listings-service";
@@ -48,20 +47,20 @@ export default async function ListingsPage({
 
         <ListingFilters filters={filters} />
 
-        <ListingGrid listings={result.items} />
-
-        {result.nextCursor ? (
-          <div className="flex justify-center">
-            <Link
-              className="rounded-full border border-stone-900/10 bg-white px-5 py-3 text-sm font-medium text-stone-800 shadow-[0_12px_30px_rgba(48,38,24,0.06)]"
-              href={`/listings?${buildListingSearchQuery(filters, {
-                cursor: result.nextCursor,
-              })}`}
-            >
-              Load more listings
-            </Link>
-          </div>
-        ) : null}
+        <ListingFeed
+          hasActiveFilters={Boolean(
+            filters.area ||
+              filters.bedrooms ||
+              filters.maxPrice ||
+              filters.minPrice ||
+              filters.propertyType ||
+              filters.verifiedOnly,
+          )}
+          initialCursor={result.nextCursor}
+          initialHasMore={result.hasMore}
+          initialItems={result.items}
+          query={buildListingSearchQuery(filters)}
+        />
       </div>
     </main>
   );
