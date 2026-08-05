@@ -23,14 +23,15 @@ export function ListingFeed({
   initialItems,
   query,
 }: ListingFeedProps) {
+  const pathname = usePathname();
   const { error, hasMore, isLoading, items, loadMore } = useListingFeed({
     initialCursor,
     initialHasMore,
     initialItems,
+    pathname,
     query,
   });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const pathname = usePathname();
 
   useEffect(() => {
     const sentinel = sentinelRef.current;

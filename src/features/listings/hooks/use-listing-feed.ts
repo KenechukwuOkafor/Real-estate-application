@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ListingListItem } from "@/features/listings/types";
 
-export function buildFeedCacheKey(query: string) {
-  return `ruvo:feed:${query}`;
+export function buildFeedCacheKey(pathname: string, query: string) {
+  return `ruvo:feed:${pathname}:${query}`;
 }
 
 type FeedSnapshot = {
@@ -19,6 +19,7 @@ type UseListingFeedOptions = {
   initialCursor: string | null;
   initialHasMore: boolean;
   initialItems: ListingListItem[];
+  pathname: string;
   query: string;
 };
 
@@ -75,9 +76,10 @@ export function useListingFeed({
   initialCursor,
   initialHasMore,
   initialItems,
+  pathname,
   query,
 }: UseListingFeedOptions) {
-  const cacheKey = buildFeedCacheKey(query);
+  const cacheKey = buildFeedCacheKey(pathname, query);
 
   const [items, setItems] = useState(initialItems);
   const [cursor, setCursor] = useState(initialCursor);

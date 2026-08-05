@@ -7,13 +7,21 @@ import {
 
 describe("buildFeedCacheKey", () => {
   it("namespaces the key so it cannot collide with other session data", () => {
-    expect(buildFeedCacheKey("")).toBe("ruvo:feed:");
+    expect(buildFeedCacheKey("/", "")).toBe("ruvo:feed:/:");
   });
 
   it("varies with the filter query so each filter set restores separately", () => {
-    expect(buildFeedCacheKey("area=Hill+Top")).toBe("ruvo:feed:area=Hill+Top");
-    expect(buildFeedCacheKey("area=Hill+Top")).not.toBe(
-      buildFeedCacheKey("area=Odenigbo"),
+    expect(buildFeedCacheKey("/", "area=Hill+Top")).toBe(
+      "ruvo:feed:/:area=Hill+Top",
+    );
+    expect(buildFeedCacheKey("/", "area=Hill+Top")).not.toBe(
+      buildFeedCacheKey("/", "area=Odenigbo"),
+    );
+  });
+
+  it("varies with the pathname so / and /listings never share a snapshot", () => {
+    expect(buildFeedCacheKey("/", "area=Hill+Top")).not.toBe(
+      buildFeedCacheKey("/listings", "area=Hill+Top"),
     );
   });
 });
