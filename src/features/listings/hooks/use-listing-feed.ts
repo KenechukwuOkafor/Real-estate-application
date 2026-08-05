@@ -72,6 +72,14 @@ function persistSnapshot(key: string, snapshot: FeedSnapshot) {
   }
 }
 
+function removeSnapshot(key: string) {
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Same tolerance as persistSnapshot above.
+  }
+}
+
 export function useListingFeed({
   initialCursor,
   initialHasMore,
@@ -216,6 +224,22 @@ export function useListingFeed({
   // happened after the last loadMore is still captured.
   useEffect(() => {
     function persistCurrentSnapshot() {
+      const initialItemCount = latestInitialRef.current.initialItems.length;
+
+      if (itemsRef.current.length <= initialItemCount) {
+        // A feed that only ever showed the server's first page (or came
+        // back empty) can never satisfy shouldRestoreSnapshot's strict
+        // items.length > initialItemCount check. Writing it anyway just
+        // burns sessionStorage quota, and at production page sizes that
+        // approaches the ~5MB limit — at which point persistSnapshot starts
+        // throwing (swallowed) and restoration silently stops working for
+        // every feed. Clear the key instead, so a stale larger snapshot
+        // from an earlier, longer session cannot linger and be restored
+        // into a feed that never actually got that far this time.
+        removeSnapshot(cacheKeyRef.current);
+        return;
+      }
+
       persistSnapshot(cacheKeyRef.current, {
         cursor: cursorRef.current,
         hasMore: hasMoreRef.current,
