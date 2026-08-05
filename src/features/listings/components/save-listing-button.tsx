@@ -15,7 +15,7 @@ export function SaveListingButton({
   listingTitle,
 }: SaveListingButtonProps) {
   const router = useRouter();
-  const { isSignedIn } = useEffectiveAuth();
+  const { isLoaded, isSignedIn } = useEffectiveAuth();
   // No savedByViewer field exists on the listing payload, so the control always
   // starts unfilled. A signed-in user who already saved this listing will see
   // it unfilled until they tap. Fixing that needs a new endpoint.
@@ -23,6 +23,15 @@ export function SaveListingButton({
   const [isPending, setIsPending] = useState(false);
 
   async function toggleSaved() {
+    if (!isLoaded) {
+      // Clerk reports isSignedIn === undefined until it hydrates. Routing on
+      // an unsettled value would treat a genuinely signed-in user as
+      // signed-out and bounce them out of the feed via /onboarding. Do
+      // nothing rather than guess — the control stays visible and tappable
+      // again the moment auth settles.
+      return;
+    }
+
     if (!isSignedIn) {
       // Tapping save is the moment to ask for an account — never on arrival.
       router.push("/onboarding");
