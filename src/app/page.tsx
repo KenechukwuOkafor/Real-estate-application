@@ -4,7 +4,11 @@ import { ListingFeed } from "@/features/listings/components/listing-feed";
 import { ListingSearchBar } from "@/features/listings/components/listing-search-bar";
 import { PropertyTypeTiles } from "@/features/listings/components/property-type-tiles";
 import { parseListingListFilters } from "@/features/listings/parsers";
-import { buildListingSearchQuery, toSearchParams } from "@/features/listings/search-params";
+import {
+  buildListingSearchQuery,
+  countActiveFilters,
+  toSearchParams,
+} from "@/features/listings/search-params";
 import { deriveAreaSuggestions } from "@/features/listings/suggestions";
 import { getAuthContext } from "@/lib/auth/clerk";
 import { listPublicListings } from "@/server/services/public-listings-service";
@@ -20,12 +24,6 @@ export const metadata: Metadata = {
 type HomePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
-
-function countActiveFilters(params: URLSearchParams) {
-  return ["area", "bedrooms", "maxPrice", "minPrice", "propertyType", "verifiedOnly"]
-    .filter((key) => params.get(key))
-    .length;
-}
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const resolved = toSearchParams(await searchParams);

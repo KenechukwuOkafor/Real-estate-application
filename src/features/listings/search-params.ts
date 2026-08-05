@@ -19,6 +19,29 @@ export function toSearchParams(input: SearchParamRecord): URLSearchParams {
   return searchParams;
 }
 
+const ACTIVE_FILTER_KEYS = [
+  "area",
+  "bedrooms",
+  "city",
+  "maxPrice",
+  "minPrice",
+  "propertyType",
+  "state",
+  "verifiedOnly",
+] as const;
+
+/**
+ * Counts filters the seeker has actually applied.
+ *
+ * Reads the raw query string rather than the parsed filters, because a parsed
+ * numeric 0 (`bedrooms=0`, `minPrice=0`) is falsy and would be misread as "no
+ * filter applied" — which previously made /listings and / disagree about the
+ * same URL.
+ */
+export function countActiveFilters(searchParams: URLSearchParams) {
+  return ACTIVE_FILTER_KEYS.filter((key) => searchParams.get(key)).length;
+}
+
 export function buildListingSearchQuery(
   filters: ListingListFilters,
   overrides?: Partial<ListingListFilters>,

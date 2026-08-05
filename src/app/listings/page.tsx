@@ -4,7 +4,11 @@ import { ActiveListingFilters } from "@/features/listings/components/active-list
 import { ListingFeed } from "@/features/listings/components/listing-feed";
 import { ListingFilters } from "@/features/listings/components/listing-filters";
 import { parseListingListFilters } from "@/features/listings/parsers";
-import { buildListingSearchQuery, toSearchParams } from "@/features/listings/search-params";
+import {
+  buildListingSearchQuery,
+  countActiveFilters,
+  toSearchParams,
+} from "@/features/listings/search-params";
 import { listPublicListings } from "@/server/services/public-listings-service";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +25,10 @@ type ListingsPageProps = {
 export default async function ListingsPage({
   searchParams,
 }: ListingsPageProps) {
-  const filters = parseListingListFilters(toSearchParams(await searchParams));
+  const resolved = toSearchParams(await searchParams);
+  const filters = parseListingListFilters(resolved);
   const result = await listPublicListings(filters);
+  const activeFilterCount = countActiveFilters(resolved);
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#f0eadf_100%)] px-6 py-10 text-stone-900">
@@ -48,14 +54,7 @@ export default async function ListingsPage({
         <ListingFilters filters={filters} />
 
         <ListingFeed
-          hasActiveFilters={Boolean(
-            filters.area ||
-              filters.bedrooms ||
-              filters.maxPrice ||
-              filters.minPrice ||
-              filters.propertyType ||
-              filters.verifiedOnly,
-          )}
+          hasActiveFilters={activeFilterCount > 0}
           initialCursor={result.nextCursor}
           initialHasMore={result.hasMore}
           initialItems={result.items}
