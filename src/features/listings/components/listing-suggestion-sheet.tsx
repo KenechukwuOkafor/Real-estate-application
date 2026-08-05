@@ -119,7 +119,9 @@ export function ListingSuggestionSheet({
                       isSelected ? SELECTED_CLASSES : UNSELECTED_CLASSES
                     }`}
                     key={area}
-                    onClick={() => apply({ area })}
+                    onClick={() =>
+                      apply({ area: isSelected ? undefined : area })
+                    }
                     type="button"
                   >
                     {area}
@@ -150,14 +152,18 @@ export function ListingSuggestionSheet({
                   }`}
                   key={band.label}
                   onClick={() =>
-                    apply({
-                      maxPrice: band.maxPrice
-                        ? String(band.maxPrice)
-                        : undefined,
-                      minPrice: band.minPrice
-                        ? String(band.minPrice)
-                        : undefined,
-                    })
+                    apply(
+                      isSelected
+                        ? { maxPrice: undefined, minPrice: undefined }
+                        : {
+                            maxPrice: band.maxPrice
+                              ? String(band.maxPrice)
+                              : undefined,
+                            minPrice: band.minPrice
+                              ? String(band.minPrice)
+                              : undefined,
+                          },
+                    )
                   }
                   type="button"
                 >
