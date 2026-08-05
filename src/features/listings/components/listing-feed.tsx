@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { ListingGrid } from "@/features/listings/components/listing-grid";
@@ -29,6 +30,7 @@ export function ListingFeed({
     query,
   });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -56,18 +58,31 @@ export function ListingFeed({
   if (items.length === 0) {
     return (
       <div className="rounded-[1.5rem] border border-dashed border-stone-900/15 bg-white/70 p-8 text-center">
-        <p className="text-base font-medium text-stone-900">
-          No listings match these filters.
-        </p>
-        <p className="mt-2 text-sm text-stone-600">
-          Try widening your budget or choosing another area.
-        </p>
-        <Link
-          className="mt-5 inline-block rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white"
-          href="/"
-        >
-          Clear filters
-        </Link>
+        {hasActiveFilters ? (
+          <>
+            <p className="text-base font-medium text-stone-900">
+              No listings match these filters.
+            </p>
+            <p className="mt-2 text-sm text-stone-600">
+              Try widening your budget or choosing another area.
+            </p>
+            <Link
+              className="mt-5 inline-block rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white"
+              href={pathname}
+            >
+              Clear filters
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="text-base font-medium text-stone-900">
+              No listings available yet.
+            </p>
+            <p className="mt-2 text-sm text-stone-600">
+              New listings appear here once agents publish them.
+            </p>
+          </>
+        )}
       </div>
     );
   }
@@ -105,7 +120,7 @@ export function ListingFeed({
           {hasActiveFilters ? (
             <Link
               className="mt-3 inline-block rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-medium text-stone-800"
-              href="/"
+              href={pathname}
             >
               Clear filters to see more
             </Link>
