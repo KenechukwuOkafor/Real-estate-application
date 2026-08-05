@@ -232,6 +232,15 @@ export function useListingFeed({
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      // Also persist on unmount, not just on pagehide/visibilitychange.
+      // Clicking into a listing is a same-document App Router navigation —
+      // no full page unload, so neither of those events fires. The feed
+      // page's component tree unmounts instead, and this cleanup is the
+      // only remaining hook for "the seeker is about to leave the feed."
+      // Without it, a scroll that happened after the last loadMore (but
+      // before clicking a listing) would be lost, reproducing the original
+      // bug through a different door.
+      persistCurrentSnapshot();
       window.removeEventListener("pagehide", persistCurrentSnapshot);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
