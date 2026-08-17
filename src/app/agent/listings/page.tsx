@@ -31,11 +31,7 @@ export default async function AgentListingsPage() {
               </h1>
             </div>
             <Link
-              className={`rounded-full px-5 py-3 text-sm font-medium ${
-                entitlement.canCreateDraft
-                  ? "bg-stone-900 text-white"
-                  : "bg-stone-200 text-stone-500"
-              }`}
+              className="rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white"
               href="/agent/listings/new"
             >
               New draft
@@ -45,26 +41,41 @@ export default async function AgentListingsPage() {
 
         <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/80 p-6">
           <div className="flex flex-wrap items-center gap-3">
-            {entitlement.activeSubscription ? (
+            {!entitlement.isVerified ? (
+              <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900">
+                Not yet verified
+              </span>
+            ) : entitlement.activeSubscription ? (
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">
                 {entitlement.activeSubscription.plan.charAt(0).toUpperCase() + entitlement.activeSubscription.plan.slice(1)} plan active
               </span>
             ) : entitlement.freeListingQuota > 0 ? (
-              <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900">
-                {entitlement.freeListingQuota} founding quota slot{entitlement.freeListingQuota === 1 ? "" : "s"} remaining
+              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">
+                {entitlement.freeListingQuota} submission slot{entitlement.freeListingQuota === 1 ? "" : "s"} remaining
               </span>
             ) : (
               <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-800">
-                No active plan
+                No submission slots
               </span>
             )}
           </div>
           <p className="mt-3 text-sm leading-7 text-stone-700">
-            {entitlement.activeSubscription
-              ? "Your subscription covers new draft creation and listing submissions."
-              : entitlement.freeListingQuota > 0
-                ? "You have founding-agent quota slots. One slot is used each time you submit a listing for review."
-                : "You need an active subscription to create new listings or submit drafts for review. Existing listings are not affected."}
+            {!entitlement.isVerified ? (
+              <>
+                Drafts are free and unlimited. To submit one for review you need
+                identity verification —{" "}
+                <Link className="font-medium underline" href="/agent/verification">
+                  start verification
+                </Link>
+                .
+              </>
+            ) : entitlement.activeSubscription ? (
+              "Your subscription covers listing submissions. Drafts are always free."
+            ) : entitlement.freeListingQuota > 0 ? (
+              "One slot is used each time you submit a listing for review. Drafts are always free."
+            ) : (
+              "You have no submission slots left. Drafts are still free and unlimited, and existing listings are not affected."
+            )}
           </p>
         </section>
 

@@ -87,16 +87,21 @@ export async function getAgentOnboardingContext() {
 export async function getCurrentAgentListingEntitlement() {
   const context = await getCurrentAgentContext();
 
+  // canCreateDraft is unconditionally true: drafts are free and unlimited for
+  // any agent, verified or not. It stays in the shape so callers keep reading
+  // an explicit answer rather than inferring one.
   if (!context.agentProfile) {
     return {
       activeSubscription: null,
-      canCreateDraft: false,
+      canCreateDraft: true,
       canSubmitListing: false,
       freeListingQuota: 0,
+      isVerified: false,
       source: "none" as const,
     };
   }
 
+  const isVerified = context.agentProfile.verification_status === "verified";
   const adminClient = getSupabaseAdminClient();
   const activeSubscription = await getCurrentListingEntitlementSubscription(
     adminClient,
@@ -107,8 +112,9 @@ export async function getCurrentAgentListingEntitlement() {
     return {
       activeSubscription,
       canCreateDraft: true,
-      canSubmitListing: true,
+      canSubmitListing: isVerified,
       freeListingQuota: context.agentProfile.free_listing_quota,
+      isVerified,
       source: "subscription" as const,
     };
   }
@@ -117,9 +123,10 @@ export async function getCurrentAgentListingEntitlement() {
 
   return {
     activeSubscription: null,
-    canCreateDraft: hasQuota,
-    canSubmitListing: hasQuota,
+    canCreateDraft: true,
+    canSubmitListing: isVerified && hasQuota,
     freeListingQuota: context.agentProfile.free_listing_quota,
+    isVerified,
     source: hasQuota ? ("quota" as const) : ("none" as const),
   };
 }
@@ -234,7 +241,12 @@ export async function createCurrentAgentDraftListing(
 ) {
   validateDraftListingInput(input);
 
-  const context = await requireListingEntitlement();
+  // Deliberately not entitlement-gated. REB-DOM-002 Verification: "Unverified
+  // agents may: Create drafts" / "may not: Submit listings for public
+  // approval". Drafts are private working state that produce no marketplace
+  // inventory, so neither verification nor a paid slot is required to make
+  // one. Both gates live on submit-for-review instead.
+  const context = await getCurrentAgentContext();
 
   if (!context.agentProfile) {
     throw new Error("Create your agent profile before creating a draft listing.");
@@ -335,9 +347,10 @@ export async function getCurrentAgentListingsOverview() {
     return {
       entitlement: {
         activeSubscription: null,
-        canCreateDraft: false,
+        canCreateDraft: true,
         canSubmitListing: false,
         freeListingQuota: 0,
+        isVerified: false,
         source: "none" as const,
       },
       listings: [],
@@ -362,13 +375,16 @@ export async function getCurrentAgentListingsOverview() {
     }) ?? null;
 
   const freeListingQuota = agentProfile?.free_listing_quota ?? 0;
+  const isVerified = agentProfile?.verification_status === "verified";
 
   return {
     entitlement: {
       activeSubscription,
-      canCreateDraft: Boolean(activeSubscription) || freeListingQuota > 0,
-      canSubmitListing: Boolean(activeSubscription) || freeListingQuota > 0,
+      canCreateDraft: true,
+      canSubmitListing:
+        isVerified && (Boolean(activeSubscription) || freeListingQuota > 0),
       freeListingQuota,
+      isVerified,
       source: activeSubscription
         ? ("subscription" as const)
         : freeListingQuota > 0

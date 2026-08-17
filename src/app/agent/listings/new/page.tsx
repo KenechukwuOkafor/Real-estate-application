@@ -26,16 +26,18 @@ export default async function NewAgentListingPage() {
           Create a listing draft.
         </h1>
         <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-700">
-          This creates a draft only. Submission, moderation, media, and subscription
-          checks are enforced separately.
+          Drafts are free and unlimited. Verification and a submission slot are
+          checked later, when you submit this listing for review.
         </p>
 
         <div className="mt-6 rounded-[1.5rem] bg-stone-50 p-5 text-sm leading-7 text-stone-700">
-          {entitlement.activeSubscription
-            ? `Active ${entitlement.activeSubscription.plan} subscription in place until ${entitlement.activeSubscription.expires_at}.`
-            : entitlement.freeListingQuota > 0
-              ? `Founding-agent quota available: ${entitlement.freeListingQuota} submission slot${entitlement.freeListingQuota === 1 ? "" : "s"} remaining.`
-              : "No active subscription or remaining free quota. Draft creation is blocked until billing is activated or quota is granted."}
+          {!entitlement.isVerified
+            ? "You can save drafts now. Submitting one for review needs identity verification — start that from Verification in your workspace."
+            : entitlement.activeSubscription
+              ? `Active ${entitlement.activeSubscription.plan} subscription in place until ${entitlement.activeSubscription.expires_at}.`
+              : entitlement.freeListingQuota > 0
+                ? `${entitlement.freeListingQuota} submission slot${entitlement.freeListingQuota === 1 ? "" : "s"} remaining.`
+                : "No submission slots remaining. You can keep drafting, but submitting for review needs a new slot."}
         </div>
 
         <div className="mt-8">
