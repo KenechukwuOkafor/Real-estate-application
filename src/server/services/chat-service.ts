@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getSupabaseAdminClient } from "@/lib/db/supabase";
+import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import {
   createChatMessage,
   getChatForUser,
@@ -19,15 +19,20 @@ async function getChatAccessContext() {
     throw new Error("Unauthenticated request.");
   }
 
-  const adminClient = getSupabaseAdminClient();
+  // RLS-respecting. Chats and messages are the most sensitive data in the
+  // system, so every read and write below is evaluated against the
+  // participant policies in migration 0009 as well as the ownership filters
+  // the repository already applies. The service-layer scoping stays: RLS is
+  // defence in depth, not a replacement (ADR-023).
+  const client = await createSupabaseAuthenticatedClient();
   const agentProfile = appUser.roles.includes("agent")
-    ? await getAgentProfileByUserId(adminClient, appUser.user.id)
+    ? await getAgentProfileByUserId(client, appUser.user.id)
     : null;
 
   return {
-    adminClient,
     agentProfile,
     appUser,
+    client,
   };
 }
 
@@ -44,7 +49,7 @@ function assertMessageBody(body: string) {
 export async function listCurrentUserChats() {
   const context = await getChatAccessContext();
 
-  return listChatsForUser(context.adminClient, {
+  return listChatsForUser(context.client, {
     agentProfileId: context.agentProfile?.id ?? null,
     userId: context.appUser.user.id,
   });
@@ -52,7 +57,7 @@ export async function listCurrentUserChats() {
 
 export async function getCurrentUserChatThread(chatId: string) {
   const context = await getChatAccessContext();
-  const chat = await getChatForUser(context.adminClient, {
+  const chat = await getChatForUser(context.client, {
     agentProfileId: context.agentProfile?.id ?? null,
     chatId,
     userId: context.appUser.user.id,
@@ -62,7 +67,7 @@ export async function getCurrentUserChatThread(chatId: string) {
     throw new Error("Chat not found.");
   }
 
-  const messages = await listChatMessages(context.adminClient, chatId);
+  const messages = await listChatMessages(context.client, chatId);
 
   return {
     chat,
@@ -78,7 +83,7 @@ export async function sendCurrentUserChatMessage(input: {
   assertMessageBody(input.body);
 
   const context = await getChatAccessContext();
-  const chat = await getChatForUser(context.adminClient, {
+  const chat = await getChatForUser(context.client, {
     agentProfileId: context.agentProfile?.id ?? null,
     chatId: input.chatId,
     userId: context.appUser.user.id,
@@ -88,13 +93,13 @@ export async function sendCurrentUserChatMessage(input: {
     throw new Error("Chat not found.");
   }
 
-  const message = await createChatMessage(context.adminClient, {
+  const message = await createChatMessage(context.client, {
     body: input.body.trim(),
     chatId: chat.id,
     senderUserId: context.appUser.user.id,
   });
 
-  await touchChatLastMessageAt(context.adminClient, chat.id, message.created_at);
+  await touchChatLastMessageAt(context.client, chat.id, message.created_at);
 
   await writeAuditLog({
     action: "message.sent",
