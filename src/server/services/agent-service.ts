@@ -57,8 +57,8 @@ export async function getCurrentAgentContext() {
 
   requireAgentRole(appUser.roles);
 
-  const adminClient = getSupabaseAdminClient();
-  const agentProfile = await getAgentProfileByUserId(adminClient, appUser.user.id);
+  const client = await createSupabaseAuthenticatedClient();
+  const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
 
   return {
     agentProfile,
@@ -82,8 +82,8 @@ export async function getAgentOnboardingContext() {
     throw new Error("Unauthenticated request.");
   }
 
-  const adminClient = getSupabaseAdminClient();
-  const agentProfile = await getAgentProfileByUserId(adminClient, appUser.user.id);
+  const client = await createSupabaseAuthenticatedClient();
+  const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
 
   return {
     agentProfile,
@@ -186,8 +186,8 @@ export async function saveCurrentAgentProfile(input: AgentProfileInput) {
   validateAgentProfileInput(input);
 
   const context = await getAgentOnboardingContext();
-  const adminClient = getSupabaseAdminClient();
-  const agentProfile = await upsertAgentProfile(adminClient, context.user.id, input);
+  const client = await createSupabaseAuthenticatedClient();
+  const agentProfile = await upsertAgentProfile(client, context.user.id, input);
 
   await writeAuditLog({
     action: "agent_profile.upserted",
@@ -320,8 +320,8 @@ export async function createCurrentAgentDraftListing(
     throw new Error("Create your agent profile before creating a draft listing.");
   }
 
-  const adminClient = getSupabaseAdminClient();
-  const listing = await createDraftListing(adminClient, context.agentProfile.id, input);
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await createDraftListing(client, context.agentProfile.id, input);
 
   await writeAuditLog({
     action: "listing.draft_created",
@@ -351,8 +351,8 @@ export async function updateCurrentAgentDraftListing(
     throw new Error("Create your agent profile before managing listings.");
   }
 
-  const adminClient = getSupabaseAdminClient();
-  const existing = await getOwnedListing(adminClient, context.agentProfile.id, listingId);
+  const client = await createSupabaseAuthenticatedClient();
+  const existing = await getOwnedListing(client, context.agentProfile.id, listingId);
 
   if (!existing) {
     throw new Error("Listing not found.");
@@ -379,7 +379,7 @@ export async function updateCurrentAgentDraftListing(
 
   validateDraftListingInput(merged);
 
-  const listing = await updateDraftListing(adminClient, context.agentProfile.id, listingId, input);
+  const listing = await updateDraftListing(client, context.agentProfile.id, listingId, input);
 
   await writeAuditLog({
     action: "listing.draft_updated",
@@ -404,8 +404,8 @@ export async function listCurrentAgentListings() {
     return [];
   }
 
-  const adminClient = getSupabaseAdminClient();
-  return listAgentListings(adminClient, context.agentProfile.id);
+  const client = await createSupabaseAuthenticatedClient();
+  return listAgentListings(client, context.agentProfile.id);
 }
 
 export async function getCurrentAgentListingsOverview() {
@@ -425,6 +425,8 @@ export async function getCurrentAgentListingsOverview() {
     };
   }
 
+  // Service role: the join pulls public.subscriptions, whose policies land in
+  // group 5. Migrates with that group.
   const adminClient = getSupabaseAdminClient();
   const [agentProfile, listings] = await Promise.all([
     getAgentProfileWithSubscriptionsByUserId(adminClient, context.user.id),
@@ -472,8 +474,8 @@ export async function createCurrentAgentListingImageUploadTargets(
     throw new Error("Create your agent profile before managing listing images.");
   }
 
-  const adminClient = getSupabaseAdminClient();
-  const listing = await getOwnedListing(adminClient, context.agentProfile.id, input.listingId);
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getOwnedListing(client, context.agentProfile.id, input.listingId);
 
   if (!listing) {
     throw new Error("Listing not found.");
@@ -513,8 +515,8 @@ export async function registerCurrentAgentListingImages(
     throw new Error("Create your agent profile before managing listing images.");
   }
 
-  const adminClient = getSupabaseAdminClient();
-  const listing = await getOwnedListing(adminClient, context.agentProfile.id, input.listingId);
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getOwnedListing(client, context.agentProfile.id, input.listingId);
 
   if (!listing) {
     throw new Error("Listing not found.");
@@ -566,13 +568,13 @@ export async function registerCurrentAgentListingImages(
     };
   });
 
-  const createdImages = await registerListingImages(adminClient, {
+  const createdImages = await registerListingImages(client, {
     images: resolvedImages,
     listingId: input.listingId,
   });
 
   if (!listing.cover_image_id && createdImages[0]?.id) {
-    await updateListingCoverImage(adminClient, listing.id, createdImages[0].id);
+    await updateListingCoverImage(client, listing.id, createdImages[0].id);
   }
 
   await writeAuditLog({
@@ -601,8 +603,8 @@ export async function submitCurrentAgentListingForReview(listingId: string) {
     throw new Error("AGENT_NOT_VERIFIED");
   }
 
-  const adminClient = getSupabaseAdminClient();
-  const listing = await getOwnedListing(adminClient, context.agentProfile.id, listingId);
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getOwnedListing(client, context.agentProfile.id, listingId);
 
   if (!listing) {
     throw new Error("Listing not found.");
@@ -629,6 +631,13 @@ export async function submitCurrentAgentListingForReview(listingId: string) {
   // first would charge the loser for a submission that never happened.
   await requireListingEntitlement();
 
+  // SERVICE ROLE, deliberately. listings.status is not grantable to an agent:
+  // the same UPDATE privilege that permits 'pending_review' would permit
+  // 'approved', letting an agent publish without moderation. The transition is
+  // the system acting after the verification, image-count and entitlement
+  // checks have passed, so it stays an escalation. Same shape as
+  // markAgentVerificationPending.
+  const adminClient = getSupabaseAdminClient();
   const updated = await updateListingStatus(
     adminClient,
     listing.id,
