@@ -11,10 +11,20 @@ export const DEV_AUTH_USERS = [
   },
   {
     clerkUserId: "seed_clerk_agent_001",
-    description: "Verified agent test account with seeded profile and listings.",
+    description:
+      "Verified agent with 3 submission slots and the seeded public listings.",
     email: "agent1@ruvo.local",
     fullName: "Prime Homes Nsukka",
-    label: "Agent tester",
+    label: "Agent tester (verified)",
+    roles: ["agent"] as const,
+  },
+  {
+    clerkUserId: "seed_clerk_agent_002",
+    description:
+      "Brand-new agent: unverified, no submission slots. Use this to exercise the gates a real signup hits first.",
+    email: "agent2@ruvo.local",
+    fullName: "Campus Keys Property",
+    label: "Agent tester (unverified)",
     roles: ["agent"] as const,
   },
   {

@@ -77,26 +77,40 @@ insert into public.agent_profiles (
   founding_agent,
   free_listing_quota
 )
+-- Two deliberately different agent states.
+--
+-- agent1 is the normal working agent: verified, holding the same 3 submission
+-- slots that approving a verification actually grants
+-- (VERIFIED_AGENT_LISTING_QUOTA in src/server/policies/listing-entitlement.ts).
+--
+-- agent2 is a brand-new signup: an agent role, a minimal profile, no
+-- verification, no slots. Nothing in the product can move them forward except
+-- submitting verification and having an admin approve it.
+--
+-- Both previously sat at verification_status 'verified' with quota 20, which
+-- meant local testing never met the gates a real new agent hits first. That
+-- masked the entitlement break: the codebase had no path to raise quota above
+-- its default of 0, but no seeded agent ever needed one.
 values
   (
     'fbbda28e-2358-49c2-ab0a-e472d7db6001',
     '6d5ec8a0-a70a-4974-b8b7-1c833f464001',
     'Prime Homes Nsukka',
-    'Verified founding agent focused on student rentals.',
+    'Verified agent focused on student rentals.',
     'verified',
     now(),
-    true,
-    20
+    false,
+    3
   ),
   (
     'fbbda28e-2358-49c2-ab0a-e472d7db6002',
     '6d5ec8a0-a70a-4974-b8b7-1c833f464002',
     'Campus Keys Property',
-    'Structured rental listings around UNN and surrounding areas.',
-    'verified',
-    now(),
-    true,
-    20
+    null,
+    'not_submitted',
+    null,
+    false,
+    0
   )
 on conflict (user_id) do update
 set
@@ -155,7 +169,10 @@ values
   (
     '3c719a67-c526-44d2-b9f5-83042d03f002',
     '20887cbf-53fc-4c45-adb2-c5d4d33cf002',
-    'fbbda28e-2358-49c2-ab0a-e472d7db6002',
+    -- Owned by agent1. agent2 is unverified, and
+    -- public_can_read_verified_agent_profiles hides unverified profiles, so
+    -- parking public inventory under agent2 would break seeker browsing.
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
     'approved',
     'Two Bedroom Flat at Hilltop',
     'two-bedroom-flat-hilltop',
@@ -198,6 +215,9 @@ values
   )
 on conflict (id) do update
 set
+  -- Included so re-seeding an existing database moves ownership too, rather
+  -- than needing a full `supabase db reset`.
+  agent_profile_id = excluded.agent_profile_id,
   title = excluded.title,
   slug = excluded.slug,
   description = excluded.description,
