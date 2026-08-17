@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { routeErrorResponse } from "@/lib/api/errors";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import {
@@ -23,31 +24,7 @@ export async function GET(_request: Request, context: RouteContext) {
       meta: createApiMeta(requestId),
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to load chat messages.";
-    const status =
-      message === "Unauthenticated request."
-        ? 401
-        : message === "Chat not found."
-          ? 404
-          : 500;
-
-    return NextResponse.json(
-      {
-        error: {
-          code:
-            status === 401
-              ? "UNAUTHENTICATED"
-              : status === 404
-                ? "NOT_FOUND"
-                : "INTERNAL_ERROR",
-          details: null,
-          message,
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }
 
@@ -74,33 +51,6 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 201 },
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to send message.";
-    const status =
-      message === "Unauthenticated request."
-        ? 401
-        : message === "Chat not found."
-          ? 404
-          : message.includes("required") || message.includes("2000 characters")
-            ? 422
-            : 500;
-
-    return NextResponse.json(
-      {
-        error: {
-          code:
-            status === 401
-              ? "UNAUTHENTICATED"
-              : status === 404
-                ? "CHAT_ACCESS_DENIED"
-                : status === 422
-                  ? "VALIDATION_ERROR"
-                  : "INTERNAL_ERROR",
-          details: null,
-          message,
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }

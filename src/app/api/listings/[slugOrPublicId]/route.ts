@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { routeErrorResponse } from "@/lib/api/errors";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { getPublicListing } from "@/server/services/public-listings-service";
@@ -36,17 +37,6 @@ export async function GET(_request: Request, context: RouteContext) {
       meta: createApiMeta(requestId),
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          details: null,
-          message:
-            error instanceof Error ? error.message : "Unable to load listing.",
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }

@@ -5,8 +5,20 @@ import {
   getDevAuthUserByClerkUserId,
   isDevAuthEnabled,
 } from "@/lib/auth/dev-auth";
+import { routeErrorResponse } from "@/lib/api/errors";
+import { getRequestId } from "@/lib/api/request-id";
 
 export async function POST(request: Request) {
+  const requestId = await getRequestId();
+
+  try {
+    return await handleDevAuthLogin(request);
+  } catch (error) {
+    return routeErrorResponse(error, requestId);
+  }
+}
+
+async function handleDevAuthLogin(request: Request) {
   if (!isDevAuthEnabled()) {
     return NextResponse.json(
       {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { routeErrorResponse } from "@/lib/api/errors";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { listCurrentUserChats } from "@/server/services/chat-service";
@@ -15,19 +16,6 @@ export async function GET() {
       meta: createApiMeta(requestId),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load chats.";
-    const status = message === "Unauthenticated request." ? 401 : 500;
-
-    return NextResponse.json(
-      {
-        error: {
-          code: status === 401 ? "UNAUTHENTICATED" : "INTERNAL_ERROR",
-          details: null,
-          message,
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }

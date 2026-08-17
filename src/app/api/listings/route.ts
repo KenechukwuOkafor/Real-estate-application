@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { parseListingListFilters } from "@/features/listings/parsers";
+import { routeErrorResponse } from "@/lib/api/errors";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { listPublicListings } from "@/server/services/public-listings-service";
@@ -22,17 +23,6 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          details: null,
-          message:
-            error instanceof Error ? error.message : "Unable to load listings.",
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }
