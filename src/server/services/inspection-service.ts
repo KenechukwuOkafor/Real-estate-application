@@ -1,7 +1,10 @@
 import "server-only";
 
 import { AppError } from "@/lib/api/errors";
-import { getSupabaseAdminClient } from "@/lib/db/supabase";
+import {
+  createSupabaseAuthenticatedClient,
+  getSupabaseAdminClient,
+} from "@/lib/db/supabase";
 import {
   attachChatToInspectionRequest,
   createInspectionChat,
@@ -152,13 +155,29 @@ export async function respondToInspectionRequest(input: {
     throw new Error("Agent role is required.");
   }
 
-  const adminClient = getSupabaseAdminClient();
-  const agentProfile = await getAgentProfileByUserId(adminClient, appUser.user.id);
+  // The write below is RLS-respecting: 0012 restricts UPDATE to the owning
+  // agent and grants only status/responded_at, so requester information stays
+  // immutable no matter what this service does.
+  const client = await createSupabaseAuthenticatedClient();
+  const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
 
   if (!agentProfile) {
     throw new Error("Agent profile not found.");
   }
 
+  // SERVICE ROLE for this read specifically, to preserve existing behaviour.
+  //
+  // RLS and the service layer disagree here, and the disagreement is
+  // observable. Reading through the authenticated client would deny agent B
+  // the row entirely, so the ownership branch below would never fire and a
+  // request belonging to someone else would answer 404 "not found" instead of
+  // 403 INSPECTION_NOT_OWNED.
+  //
+  // The RLS answer is arguably the better one — 404 closes the existence
+  // oracle that lets a caller probe which inspection request ids are real —
+  // but that is a product decision, not one to make as a side effect of a
+  // policy migration. Flagged for decision; behaviour left unchanged.
+  const adminClient = getSupabaseAdminClient();
   const inspectionRequest = await getInspectionRequestById(
     adminClient,
     input.inspectionRequestId,
@@ -194,7 +213,7 @@ export async function respondToInspectionRequest(input: {
 
   const now = new Date().toISOString();
   const updated = await updateInspectionRequestStatus(
-    adminClient,
+    client,
     inspectionRequest.id,
     decision,
     {
