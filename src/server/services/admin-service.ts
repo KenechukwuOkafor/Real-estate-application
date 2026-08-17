@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AppError } from "@/lib/api/errors";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { VERIFIED_AGENT_LISTING_QUOTA } from "@/server/policies/listing-entitlement";
 import {
@@ -66,13 +67,24 @@ function requirePendingVerificationState(
   currentStatus: string,
   reviewedAt: string | null,
 ) {
+  // AppError rather than bare messages. The shared resolver classifies by
+  // string matching, and "Verification cannot be reviewed from status X"
+  // matches its `includes("cannot be")` branch — which would label a
+  // verification failure with the listing code LISTING_STATE_TRANSITION_INVALID.
+  // Naming the code here keeps the domain correct.
   if (reviewedAt) {
-    throw new Error("Verification submission has already been reviewed.");
+    throw new AppError(
+      "VERIFICATION_ALREADY_REVIEWED",
+      "Verification submission has already been reviewed.",
+      409,
+    );
   }
 
   if (currentStatus !== "pending_review") {
-    throw new Error(
+    throw new AppError(
+      "VERIFICATION_STATE_TRANSITION_INVALID",
       `Verification cannot be reviewed from status ${currentStatus}.`,
+      422,
     );
   }
 }

@@ -45,7 +45,14 @@ export async function requestInspection(input: {
   }
 
   if (listing.agent_profiles?.user_id === appUser.user.id) {
-    throw new Error("You cannot request an inspection for your own listing.");
+    // AppError rather than a bare message: the shared resolver classifies by
+    // string matching, and "cannot request" matches none of its patterns, so
+    // this business rule would otherwise resolve to a 500.
+    throw new AppError(
+      "INSPECTION_SELF_REQUEST",
+      "You cannot request an inspection for your own listing.",
+      422,
+    );
   }
 
   const activeRequest = await findActiveInspectionRequest(
@@ -162,12 +169,26 @@ export async function respondToInspectionRequest(input: {
   }
 
   if (inspectionRequest.agent_profile_id !== agentProfile.id) {
-    throw new Error("Inspection request does not belong to this agent.");
+    // Was resolving to 500: the old hand-rolled mapping in the respond route
+    // matched "does not belong" and returned 422, and converting that route to
+    // the shared resolver dropped the rule without replacing it. An ownership
+    // denial answering 500 is exactly the broken contract this pass exists to
+    // remove.
+    throw new AppError(
+      "INSPECTION_NOT_OWNED",
+      "This inspection request belongs to another agent.",
+      403,
+    );
   }
 
   if (inspectionRequest.status !== "requested") {
-    throw new Error(
+    // AppError rather than a bare message: `includes("cannot be")` in the
+    // shared resolver would label this with the listing code
+    // LISTING_STATE_TRANSITION_INVALID.
+    throw new AppError(
+      "INSPECTION_STATE_TRANSITION_INVALID",
       `Inspection request cannot be responded to from status ${inspectionRequest.status}.`,
+      422,
     );
   }
 

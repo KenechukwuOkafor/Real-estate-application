@@ -41,6 +41,66 @@ describe("resolveRouteError", () => {
     });
   });
 
+  it("passes an AppError through with its own code and status", () => {
+    expect(
+      resolveRouteError(new AppError("SOME_CODE", "Some message.", 418)),
+    ).toMatchObject({ code: "SOME_CODE", httpStatus: 418, message: "Some message." });
+  });
+
+  // These previously resolved to 500 because their wording missed every
+  // string-matching branch. They are typed at the throw site now; the
+  // assertions below pin the contract so a future reword cannot silently
+  // turn a client error back into a server error.
+  it("maps a validation failure whose wording matches no pattern", () => {
+    expect(
+      resolveRouteError(
+        new AppError(
+          "VALIDATION_ERROR",
+          "Self contain listings must have 1 bedroom and 1 bathroom.",
+          422,
+        ),
+      ),
+    ).toMatchObject({ code: "VALIDATION_ERROR", httpStatus: 422 });
+  });
+
+  it("maps an ownership denial to 403, not 500", () => {
+    expect(
+      resolveRouteError(
+        new AppError(
+          "INSPECTION_NOT_OWNED",
+          "This inspection request belongs to another agent.",
+          403,
+        ),
+      ),
+    ).toMatchObject({ code: "INSPECTION_NOT_OWNED", httpStatus: 403 });
+  });
+
+  it("keeps verification state errors out of the listing namespace", () => {
+    // "Verification cannot be reviewed from status X" matches the resolver's
+    // includes("cannot be") branch, which would label it
+    // LISTING_STATE_TRANSITION_INVALID. Typing it at the throw site wins
+    // because AppError is checked first.
+    expect(
+      resolveRouteError(
+        new AppError(
+          "VERIFICATION_STATE_TRANSITION_INVALID",
+          "Verification cannot be reviewed from status verified.",
+          422,
+        ),
+      ),
+    ).toMatchObject({
+      code: "VERIFICATION_STATE_TRANSITION_INVALID",
+      httpStatus: 422,
+    });
+  });
+
+  it("maps a compare-and-set loss to 409", () => {
+    expect(resolveRouteError(new Error("LISTING_STATE_CONFLICT"))).toMatchObject({
+      code: "LISTING_STATE_CONFLICT",
+      httpStatus: 409,
+    });
+  });
+
   it("falls back to 500 for unrecognised messages", () => {
     expect(resolveRouteError(new Error("kaboom"))).toMatchObject({
       code: "INTERNAL_ERROR",

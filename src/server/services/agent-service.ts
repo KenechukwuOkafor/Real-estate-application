@@ -464,7 +464,14 @@ export async function createCurrentAgentListingImageUploadTargets(
   }
 
   if (listing.status !== "draft" && listing.status !== "rejected") {
-    throw new Error("Images can only be added to draft or rejected listings.");
+    // Was resolving to 500: the images route's old mapping matched
+    // includes("cannot") and returned 422, and converting that route to the
+    // shared resolver dropped the rule. This is a state-transition rejection.
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      "Images can only be added to draft or rejected listings.",
+      422,
+    );
   }
 
   const existingImages = (listing.listing_images ?? []).filter((image) => !image.deleted_at);
@@ -498,7 +505,14 @@ export async function registerCurrentAgentListingImages(
   }
 
   if (listing.status !== "draft" && listing.status !== "rejected") {
-    throw new Error("Images can only be added to draft or rejected listings.");
+    // Was resolving to 500: the images route's old mapping matched
+    // includes("cannot") and returned 422, and converting that route to the
+    // shared resolver dropped the rule. This is a state-transition rejection.
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      "Images can only be added to draft or rejected listings.",
+      422,
+    );
   }
 
   const existingImages = (listing.listing_images ?? []).filter((image) => !image.deleted_at);
