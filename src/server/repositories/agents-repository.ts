@@ -177,6 +177,37 @@ export async function updateAgentVerificationStatus(
 }
 
 /**
+ * Grant an opening quota, but only to a profile that has none.
+ *
+ * Guarded on free_listing_quota = 0 so re-running an approval, or approving an
+ * agent who was topped up out of band, never overwrites a balance they already
+ * hold. Returns null when nothing was granted, which the caller reports rather
+ * than treating as failure — unlike updateAgentFreeListingQuota, a no-match
+ * here is an expected outcome, not a lost update.
+ */
+export async function grantFreeListingQuotaIfUnset(
+  client: DbClient,
+  agentProfileId: string,
+  freeListingQuota: number,
+) {
+  const { data, error } = await client
+    .from("agent_profiles")
+    .update({
+      free_listing_quota: freeListingQuota,
+    })
+    .eq("id", agentProfileId)
+    .eq("free_listing_quota", 0)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as AgentProfileRow | null) ?? null;
+}
+
+/**
  * Compare-and-set on free_listing_quota.
  *
  * `expectedFreeListingQuota` is required and goes into the WHERE clause. Two

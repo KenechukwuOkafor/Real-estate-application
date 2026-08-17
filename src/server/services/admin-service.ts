@@ -1,9 +1,11 @@
 import "server-only";
 
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
+import { VERIFIED_AGENT_LISTING_QUOTA } from "@/server/policies/listing-entitlement";
 import {
   getVerificationSubmissionById,
   getListingById,
+  grantFreeListingQuotaIfUnset,
   listModerationQueue,
   listVerificationQueue,
   markVerificationSubmissionReviewed,
@@ -102,6 +104,35 @@ export async function approveAgentVerificationAsAdmin(submissionId: string) {
   );
 
   await markVerificationSubmissionReviewed(adminClient, submission.id, reviewedAt);
+
+  // Approval is what makes an agent able to publish: it is the only thing in
+  // the codebase that puts a non-zero free_listing_quota on a profile. Guarded
+  // on quota = 0 so an out-of-band top-up is never clobbered; a null return
+  // means they already had a balance, which is reported, not an error.
+  const quotaGrantedProfile = await grantFreeListingQuotaIfUnset(
+    adminClient,
+    submission.agent_profile_id,
+    VERIFIED_AGENT_LISTING_QUOTA,
+  );
+
+  if (quotaGrantedProfile) {
+    await writeAuditLog({
+      action: "agent_profile.listing_quota_granted",
+      actorUserId: appUser.user.id,
+      afterData: {
+        free_listing_quota: quotaGrantedProfile.free_listing_quota,
+      },
+      beforeData: {
+        free_listing_quota: 0,
+      },
+      entityId: submission.agent_profile_id,
+      entityType: "agent_profile",
+      metadata: {
+        reason: "verification_approved",
+        submissionId: submission.id,
+      },
+    });
+  }
 
   // Granted last, deliberately. These are three unbatched writes with no
   // transaction (Phase 1 adds transactions). Ordering the grant last means a
