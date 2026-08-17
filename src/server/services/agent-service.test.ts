@@ -14,6 +14,7 @@ const updateAgentFreeListingQuota = vi.fn();
 const updateListingStatus = vi.fn();
 
 vi.mock("@/lib/db/supabase", () => ({
+  createSupabaseAuthenticatedClient: vi.fn(async () => ({})),
   getSupabaseAdminClient: vi.fn(() => ({})),
 }));
 

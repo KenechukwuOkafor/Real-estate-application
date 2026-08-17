@@ -14,7 +14,10 @@ import {
   validateVerificationSubmissionInput,
 } from "@/features/agents/validation";
 import { AppError } from "@/lib/api/errors";
-import { getSupabaseAdminClient } from "@/lib/db/supabase";
+import {
+  createSupabaseAuthenticatedClient,
+  getSupabaseAdminClient,
+} from "@/lib/db/supabase";
 import { writeAuditLog } from "@/server/services/audit-service";
 import {
   createListingImageUploadTargets,
@@ -262,9 +265,22 @@ export async function submitCurrentAgentVerification(
 
   assertVerificationSubmittable(context.agentProfile.verification_status);
 
-  const adminClient = getSupabaseAdminClient();
+  // The submission itself is written with the agent's own credentials, so the
+  // insert policy re-checks that agent_profile_id is theirs.
+  const authenticatedClient = await createSupabaseAuthenticatedClient();
+  await createVerificationSubmission(
+    authenticatedClient,
+    context.agentProfile.id,
+    input,
+  );
 
-  await createVerificationSubmission(adminClient, context.agentProfile.id, input);
+  // SERVICE ROLE, deliberately. This moves the agent's own
+  // verification_status to 'pending_review', and an agent must never hold
+  // UPDATE on that column: the same grant that let them set 'pending_review'
+  // would let them set 'verified' and self-approve. The transition is the
+  // system acting on their behalf after assertVerificationSubmittable has
+  // passed, not the agent acting directly, so it stays an escalation.
+  const adminClient = getSupabaseAdminClient();
   const updatedProfile = await markAgentVerificationPending(
     adminClient,
     context.agentProfile.id,
