@@ -63,6 +63,29 @@ export async function requireAuthenticatedUser() {
   return authState;
 }
 
+/**
+ * The caller's raw Clerk session JWT, or null when there isn't one.
+ *
+ * This is what createSupabaseAuthenticatedClient sends to PostgREST so that
+ * `auth.jwt() ->> 'sub'` resolves inside RLS policies.
+ *
+ * Returns null for dev-auth sessions, and that is not an oversight: dev-auth
+ * users exist only in Postgres and never passed through Clerk, so there is no
+ * token to mint and no Clerk subject that could match their clerk_user_id
+ * (`seed_clerk_agent_001` is not a value Clerk will ever issue). Any RLS-backed
+ * path is therefore unreachable under dev-auth by construction. Callers fail
+ * closed rather than silently reading nothing.
+ */
+export async function getCurrentSessionToken() {
+  const authState = await auth();
+
+  if (!authState.userId) {
+    return null;
+  }
+
+  return authState.getToken();
+}
+
 export async function getCurrentClerkUser() {
   const devAuthState = await getDevAuthContext();
 

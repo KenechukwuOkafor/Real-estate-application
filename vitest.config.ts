@@ -15,5 +15,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    setupFiles: ["./test/setup-env.ts"],
+    // RLS suites mint real Clerk tokens; parallel files would race on the
+    // shared local database when arranging fixtures.
+    fileParallelism: false,
+    testTimeout: 30_000,
   },
 });

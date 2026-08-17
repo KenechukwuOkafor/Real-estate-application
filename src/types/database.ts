@@ -48,7 +48,25 @@ export type Database = {
         | "lodge_room";
     };
     Functions: {
-      [_ in never]: never;
+      // RLS identity helpers (migration 0008). Policies call these in SQL;
+      // they are exposed to .rpc() so tests can assert the token path
+      // directly rather than inferring it from an empty result set.
+      clerk_user_id: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
+      current_agent_profile_id: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
+      current_app_user_id: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
+      current_user_has_role: {
+        Args: { target: Database["public"]["Enums"]["app_role"] };
+        Returns: boolean;
+      };
     };
     Tables: {
       agent_profiles: {
