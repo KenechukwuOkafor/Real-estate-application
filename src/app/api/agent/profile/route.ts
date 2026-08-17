@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { routeErrorResponse } from "@/lib/api/errors";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import {
@@ -27,25 +28,7 @@ export async function GET() {
       meta: createApiMeta(requestId),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load agent profile.";
-    const status =
-      message === "Unauthenticated request."
-        ? 401
-        : message === "Agent role is required."
-          ? 403
-          : 500;
-
-    return NextResponse.json(
-      {
-        error: {
-          code: status === 401 ? "UNAUTHENTICATED" : status === 403 ? "UNAUTHORIZED" : "INTERNAL_ERROR",
-          details: null,
-          message,
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }
 
@@ -75,33 +58,6 @@ export async function PUT(request: Request) {
       meta: createApiMeta(requestId),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to save agent profile.";
-    const status =
-      message === "Unauthenticated request."
-        ? 401
-        : message === "Agent role is required."
-          ? 403
-          : message.includes("required")
-            ? 422
-            : 500;
-
-    return NextResponse.json(
-      {
-        error: {
-          code:
-            status === 401
-              ? "UNAUTHENTICATED"
-              : status === 403
-                ? "UNAUTHORIZED"
-                : status === 422
-                  ? "VALIDATION_ERROR"
-                  : "INTERNAL_ERROR",
-          details: null,
-          message,
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }
