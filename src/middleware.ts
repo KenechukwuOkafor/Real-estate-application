@@ -28,5 +28,12 @@ export default clerkMiddleware(async (auth, req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next|.*\\..*).*)", "/", "/(api|trpc)(.*)"],
+  matcher: [
+    "/((?!_next|.*\\..*).*)",
+    "/",
+    "/(api|trpc)(.*)",
+    // Clerk's auto-proxy path. Must come after the API/TRPC matcher, and must
+    // not be caught by the negative lookahead above.
+    "/__clerk/:path*",
+  ],
 };
