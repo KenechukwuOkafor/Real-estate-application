@@ -176,10 +176,21 @@ export async function updateAgentVerificationStatus(
   return data;
 }
 
+/**
+ * Compare-and-set on free_listing_quota.
+ *
+ * `expectedFreeListingQuota` is required and goes into the WHERE clause. Two
+ * simultaneous submits that both read quota=3 would otherwise both write 2 and
+ * consume one slot between them; with the guard the loser matches no row and
+ * throws AGENT_QUOTA_CONFLICT (mapped to 409) instead of silently double
+ * spending. There are no transactions in this layer yet, so the guard is the
+ * only thing standing between a concurrent read and a lost update.
+ */
 export async function updateAgentFreeListingQuota(
   client: DbClient,
   agentProfileId: string,
   freeListingQuota: number,
+  expectedFreeListingQuota: number,
 ) {
   const { data, error } = await client
     .from("agent_profiles")
@@ -187,11 +198,16 @@ export async function updateAgentFreeListingQuota(
       free_listing_quota: freeListingQuota,
     })
     .eq("id", agentProfileId)
+    .eq("free_listing_quota", expectedFreeListingQuota)
     .select("*")
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw error;
+  }
+
+  if (!data) {
+    throw new Error("AGENT_QUOTA_CONFLICT");
   }
 
   return data as AgentProfileRow;
@@ -506,10 +522,21 @@ export async function updateDraftListing(
   return data;
 }
 
+/**
+ * Compare-and-set on listings.status.
+ *
+ * `expectedStatus` is required and goes into the WHERE clause. Every caller
+ * reads the row, validates the transition, then writes — without the guard
+ * two concurrent moderators could both pass the check and both write, so the
+ * second silently overwrites the first (approve landing on top of reject, or
+ * a second submit re-stamping submitted_at). The loser now matches no row and
+ * throws LISTING_STATE_CONFLICT (mapped to 409).
+ */
 export async function updateListingStatus(
   client: DbClient,
   listingId: string,
   status: Database["public"]["Enums"]["listing_status"],
+  expectedStatus: Database["public"]["Enums"]["listing_status"],
   extras?: Partial<Database["public"]["Tables"]["listings"]["Update"]>,
 ) {
   const { data, error } = await client
@@ -519,11 +546,16 @@ export async function updateListingStatus(
       status,
     })
     .eq("id", listingId)
+    .eq("status", expectedStatus)
     .select("*")
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw error;
+  }
+
+  if (!data) {
+    throw new Error("LISTING_STATE_CONFLICT");
   }
 
   return data;

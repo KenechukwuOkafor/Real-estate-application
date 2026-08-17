@@ -58,6 +58,25 @@ export function resolveRouteError(error: unknown): ResolvedError {
     return { code: "NOT_FOUND", httpStatus: 404, message };
   }
 
+  // Compare-and-set failures from the repository layer: another request moved
+  // the row between our read and our write. Retrying with fresh state is the
+  // correct client behaviour, so these are conflicts rather than 422s.
+  if (message === "LISTING_STATE_CONFLICT") {
+    return {
+      code: "LISTING_STATE_CONFLICT",
+      httpStatus: 409,
+      message: "This listing changed while you were working on it. Reload and try again.",
+    };
+  }
+
+  if (message === "AGENT_QUOTA_CONFLICT") {
+    return {
+      code: "AGENT_QUOTA_CONFLICT",
+      httpStatus: 409,
+      message: "Your listing quota changed while you were working. Reload and try again.",
+    };
+  }
+
   if (message.includes("already been reviewed") || message.includes("already exists")) {
     return { code: "CONFLICT", httpStatus: 409, message };
   }

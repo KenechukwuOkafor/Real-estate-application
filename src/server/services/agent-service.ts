@@ -152,6 +152,7 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
           adminClient,
           context.agentProfile.id,
           context.agentProfile.free_listing_quota - 1,
+          context.agentProfile.free_listing_quota,
         )
       : context.agentProfile;
 
@@ -487,11 +488,28 @@ export async function submitCurrentAgentListingForReview(listingId: string) {
     throw new Error("LISTING_IMAGE_COUNT_INVALID");
   }
 
-  const entitlement = await requireListingEntitlement({ consumeQuota: true });
+  // Check entitlement without spending anything yet, then let the guarded
+  // status write be the serialisation point, then spend.
+  //
+  // Ordering matters because there are still no transactions here. Two
+  // concurrent submits for the same listing both read status="draft" and both
+  // pass this check, but only one can satisfy .eq("status", "draft") on the
+  // update below — the loser throws LISTING_STATE_CONFLICT before reaching the
+  // decrement, so a slot can never be spent twice for one submission. Spending
+  // first would charge the loser for a submission that never happened.
+  await requireListingEntitlement();
 
-  const updated = await updateListingStatus(adminClient, listing.id, "pending_review", {
-    submitted_at: new Date().toISOString(),
-  });
+  const updated = await updateListingStatus(
+    adminClient,
+    listing.id,
+    "pending_review",
+    listing.status,
+    {
+      submitted_at: new Date().toISOString(),
+    },
+  );
+
+  const entitlement = await requireListingEntitlement({ consumeQuota: true });
 
   await writeAuditLog({
     action: "listing.submitted_for_review",

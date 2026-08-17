@@ -198,7 +198,7 @@ export async function approveListingAsAdmin(listingId: string) {
     "approved",
   );
 
-  const listing = await updateListingStatus(adminClient, listingId, "approved", {
+  const listing = await updateListingStatus(adminClient, listingId, "approved", currentListing.status, {
     approved_at: new Date().toISOString(),
     approved_by: appUser.user.id,
     dispute_reason: null,
@@ -236,7 +236,7 @@ export async function rejectListingAsAdmin(listingId: string, reason: string) {
     "rejected",
   );
 
-  const listing = await updateListingStatus(adminClient, listingId, "rejected", {
+  const listing = await updateListingStatus(adminClient, listingId, "rejected", currentListing.status, {
     dispute_reason: null,
     flag_reason: null,
     rejection_reason: reason.trim() || "Rejected by admin review.",
@@ -272,7 +272,7 @@ export async function flagListingAsAdmin(listingId: string, reason: string) {
     "flagged",
   );
 
-  const listing = await updateListingStatus(adminClient, listingId, "flagged", {
+  const listing = await updateListingStatus(adminClient, listingId, "flagged", currentListing.status, {
     dispute_reason: null,
     flag_reason: reason.trim() || "Listing flagged for manual review.",
   });
@@ -307,7 +307,7 @@ export async function disputeListingAsAdmin(listingId: string, reason: string) {
     "moved under dispute",
   );
 
-  const listing = await updateListingStatus(adminClient, listingId, "under_dispute", {
+  const listing = await updateListingStatus(adminClient, listingId, "under_dispute", currentListing.status, {
     dispute_reason: reason.trim() || "Ownership dispute requires manual resolution.",
   });
 
