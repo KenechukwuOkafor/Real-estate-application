@@ -2,8 +2,30 @@ import { redirect } from "next/navigation";
 
 import { VerificationSubmissionForm } from "@/features/agents/components/verification-submission-form";
 import { getAgentOnboardingContext } from "@/server/services/agent-service";
+import type { Database } from "@/types/database";
 
 export const dynamic = "force-dynamic";
+
+type VerificationStatus =
+  Database["public"]["Enums"]["agent_verification_status"];
+
+// Mirrors RESUBMITTABLE_VERIFICATION_STATUSES in agent-service. The server is
+// the authority; this only avoids showing a form whose submission would 409.
+const SUBMITTABLE_STATUSES: ReadonlySet<VerificationStatus> =
+  new Set<VerificationStatus>(["not_submitted", "rejected"]);
+
+const statusCopy: Record<VerificationStatus, string> = {
+  not_submitted:
+    "Submit your legal name and evidence for manual review. Verified agents can submit listings for review; drafts are free either way.",
+  pending_review:
+    "Your submission is with the review team. You will be able to submit listings for review once it is approved.",
+  rejected:
+    "Your last submission was not approved. You can correct it and submit again below.",
+  suspended:
+    "This account is suspended. Contact support — verification cannot be resubmitted while a suspension is in place.",
+  verified:
+    "You are verified. You can submit listings for review from your listings workspace.",
+};
 
 export default async function AgentVerificationPage() {
   const context = await getAgentOnboardingContext().catch(() => null);
@@ -11,6 +33,10 @@ export default async function AgentVerificationPage() {
   if (!context) {
     redirect("/dashboard");
   }
+
+  const status: VerificationStatus =
+    context.agentProfile?.verification_status ?? "not_submitted";
+  const canSubmit = SUBMITTABLE_STATUSES.has(status);
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#efe7da_100%)] px-6 py-10 text-stone-900">
@@ -22,13 +48,21 @@ export default async function AgentVerificationPage() {
           Submit verification for review.
         </h1>
         <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-700">
-          Current status: {context.agentProfile?.verification_status ?? "not_submitted"}.
-          Verified agents can submit listings for review once later slices are active.
+          {statusCopy[status]}
         </p>
 
-        <div className="mt-8">
-          <VerificationSubmissionForm />
-        </div>
+        {status === "rejected" && context.agentProfile?.rejection_reason ? (
+          <div className="mt-6 rounded-[1.5rem] border border-rose-200 bg-rose-50 p-5 text-sm leading-7 text-rose-900">
+            <p className="font-medium">Why this was rejected</p>
+            <p className="mt-1">{context.agentProfile.rejection_reason}</p>
+          </div>
+        ) : null}
+
+        {canSubmit ? (
+          <div className="mt-8">
+            <VerificationSubmissionForm />
+          </div>
+        ) : null}
       </div>
     </main>
   );

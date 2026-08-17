@@ -13,6 +13,7 @@ import {
   validateDraftListingInput,
   validateVerificationSubmissionInput,
 } from "@/features/agents/validation";
+import { AppError } from "@/lib/api/errors";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { writeAuditLog } from "@/server/services/audit-service";
 import { createListingImageUploadTargets } from "@/server/services/listing-media-service";
@@ -33,6 +34,7 @@ import {
 } from "@/server/repositories/agents-repository";
 import { getCurrentListingEntitlementSubscription } from "@/server/repositories/subscriptions-repository";
 import { getCurrentAppUser } from "@/server/services/user-sync-service";
+import type { Database } from "@/types/database";
 
 function requireAgentRole(roles: string[]) {
   if (!roles.includes("agent")) {
@@ -199,6 +201,51 @@ export async function saveCurrentAgentProfile(input: AgentProfileInput) {
   };
 }
 
+type AgentVerificationStatus =
+  Database["public"]["Enums"]["agent_verification_status"];
+
+/**
+ * States a verification submission may be made from.
+ *
+ * An allowlist, per REB-DOM-003's "the absence of a permission implies denial".
+ * The path had no guard at all, so a verified agent could re-submit and be
+ * written back to pending_review — which drops them out of the
+ * public_can_read_verified_agent_profiles RLS policy and silently hides their
+ * public profile. `pending_review` is excluded too: re-submitting mid-review
+ * stacks a second row in the admin queue for the same agent. `suspended` is
+ * excluded because an agent must not be able to self-clear a suspension.
+ */
+const RESUBMITTABLE_VERIFICATION_STATUSES: ReadonlySet<AgentVerificationStatus> =
+  new Set<AgentVerificationStatus>(["not_submitted", "rejected"]);
+
+function assertVerificationSubmittable(status: AgentVerificationStatus) {
+  if (RESUBMITTABLE_VERIFICATION_STATUSES.has(status)) {
+    return;
+  }
+
+  if (status === "verified") {
+    throw new AppError(
+      "AGENT_ALREADY_VERIFIED",
+      "Your account is already verified. There is nothing to resubmit.",
+      409,
+    );
+  }
+
+  if (status === "pending_review") {
+    throw new AppError(
+      "VERIFICATION_REVIEW_IN_PROGRESS",
+      "Your verification is already under review. You will hear back before you can resubmit.",
+      409,
+    );
+  }
+
+  throw new AppError(
+    "VERIFICATION_NOT_SUBMITTABLE",
+    `Verification cannot be submitted from status ${status}.`,
+    409,
+  );
+}
+
 export async function submitCurrentAgentVerification(
   input: AgentVerificationSubmissionInput,
 ) {
@@ -209,6 +256,8 @@ export async function submitCurrentAgentVerification(
   if (!context.agentProfile) {
     throw new Error("Create your agent profile before submitting verification.");
   }
+
+  assertVerificationSubmittable(context.agentProfile.verification_status);
 
   const adminClient = getSupabaseAdminClient();
 
