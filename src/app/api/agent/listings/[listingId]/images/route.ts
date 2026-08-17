@@ -13,22 +13,19 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const { listingId } = await context.params;
+    // Only path and ordering are accepted. URL, content type and size are read
+    // from the uploaded object server-side; taking them from the body meant
+    // persisting unverified values.
     const body = ((await request.json().catch(() => null)) ?? {}) as {
       images?: Array<{
-        mimeType?: string;
         position?: number;
-        publicUrl?: string;
-        sizeBytes?: number;
         storagePath?: string;
       }>;
     };
 
     const result = await registerCurrentAgentListingImages({
       images: (body.images ?? []).map((image, index) => ({
-        mimeType: image.mimeType ?? "",
         position: image.position ?? index,
-        publicUrl: image.publicUrl ?? "",
-        sizeBytes: image.sizeBytes ?? 0,
         storagePath: image.storagePath ?? "",
       })),
       listingId,

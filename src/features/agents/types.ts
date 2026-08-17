@@ -40,12 +40,17 @@ export type AgentProfileSummary = {
   verificationStatus: AgentVerificationStatus;
 };
 
+/**
+ * Registration payload for already-uploaded listing images.
+ *
+ * Only the storage path and ordering come from the client. publicUrl, mimeType
+ * and sizeBytes are derived server-side from the object that actually exists in
+ * the bucket — they used to be client-supplied and were written to the database
+ * unverified.
+ */
 export type AgentListingImageInput = {
   images: Array<{
-    mimeType: string;
     position: number;
-    publicUrl: string;
-    sizeBytes: number;
     storagePath: string;
   }>;
   listingId: string;

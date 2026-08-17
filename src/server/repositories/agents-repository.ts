@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   AgentDraftListingInput,
-  AgentListingImageInput,
   AgentProfileInput,
   AgentVerificationSubmissionInput,
 } from "@/features/agents/types";
@@ -470,9 +469,20 @@ export async function markVerificationSubmissionReviewed(
   return data;
 }
 
+export type RegisterListingImagesInput = {
+  images: Array<{
+    mimeType: string;
+    position: number;
+    publicUrl: string;
+    sizeBytes: number;
+    storagePath: string;
+  }>;
+  listingId: string;
+};
+
 export async function registerListingImages(
   client: DbClient,
-  input: AgentListingImageInput,
+  input: RegisterListingImagesInput,
 ) {
   const rows = input.images.map((image, index) => ({
     is_cover: image.position === 0 && index === 0,

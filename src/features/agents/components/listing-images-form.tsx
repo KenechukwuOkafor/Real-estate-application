@@ -97,11 +97,10 @@ export function ListingImagesForm({ listingId }: ListingImagesFormProps) {
 
     const response = await fetch(`/api/agent/listings/${listingId}/images`, {
       body: JSON.stringify({
+        // Path and ordering only — the server reads URL, type and size from
+        // the object it can see in the bucket.
         images: uploadResults.map((upload, index) => ({
-          mimeType: selectedFiles[index]?.type || "image/webp",
           position: index,
-          publicUrl: upload.publicUrl,
-          sizeBytes: selectedFiles[index]?.size || 0,
           storagePath: upload.path,
         })),
       }),

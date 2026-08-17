@@ -16,7 +16,10 @@ import {
 import { AppError } from "@/lib/api/errors";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { writeAuditLog } from "@/server/services/audit-service";
-import { createListingImageUploadTargets } from "@/server/services/listing-media-service";
+import {
+  createListingImageUploadTargets,
+  listUploadedListingImageObjects,
+} from "@/server/services/listing-media-service";
 import {
   createDraftListing,
   createVerificationSubmission,
@@ -504,7 +507,39 @@ export async function registerCurrentAgentListingImages(
     throw new Error("A listing cannot have more than 10 active images.");
   }
 
-  const createdImages = await registerListingImages(adminClient, input);
+  // Every path must name an object that actually exists under this listing's
+  // media prefix. Uploading there requires a signed token only
+  // createCurrentAgentListingImageUploadTargets issues, so presence in the
+  // bucket is proof the path came from a target issued for this listing.
+  // Without this a caller could register rows pointing anywhere, including at
+  // another agent's media.
+  const uploadedObjects = await listUploadedListingImageObjects(input.listingId);
+  const resolvedImages = input.images.map((image) => {
+    const uploaded = uploadedObjects.get(image.storagePath);
+
+    if (!uploaded) {
+      throw new AppError(
+        "LISTING_IMAGE_NOT_UPLOADED",
+        "That image was not uploaded for this listing. Upload it again and retry.",
+        422,
+      );
+    }
+
+    return {
+      // Path, URL, content type and size all come from storage, never from the
+      // request body.
+      mimeType: uploaded.mimeType,
+      position: image.position,
+      publicUrl: uploaded.publicUrl,
+      sizeBytes: uploaded.sizeBytes,
+      storagePath: uploaded.storagePath,
+    };
+  });
+
+  const createdImages = await registerListingImages(adminClient, {
+    images: resolvedImages,
+    listingId: input.listingId,
+  });
 
   if (!listing.cover_image_id && createdImages[0]?.id) {
     await updateListingCoverImage(adminClient, listing.id, createdImages[0].id);

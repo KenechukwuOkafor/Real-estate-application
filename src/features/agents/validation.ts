@@ -73,17 +73,21 @@ export function validateAgentListingImagesInput(input: AgentListingImageInput) {
     throw new Error("A listing cannot receive more than 10 images at once.");
   }
 
+  const seenPositions = new Set<number>();
+
   for (const image of input.images) {
     assertNonEmpty(image.storagePath, "Image storage path is required.");
-    assertNonEmpty(image.publicUrl, "Image public URL is required.");
-    assertNonEmpty(image.mimeType, "Image MIME type is required.");
 
-    if (image.position < 0) {
-      throw new Error("Image position cannot be negative.");
+    if (!Number.isInteger(image.position) || image.position < 0) {
+      throw new Error("Image position must be a non-negative integer.");
     }
 
-    if (image.sizeBytes <= 0) {
-      throw new Error("Image size must be greater than zero.");
+    // listing_images has a unique (listing_id, position) constraint, so a
+    // duplicate would surface as a raw Postgres error mapped to a 500.
+    if (seenPositions.has(image.position)) {
+      throw new Error("Image positions must be unique within a request.");
     }
+
+    seenPositions.add(image.position);
   }
 }

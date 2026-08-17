@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createDraftListing = vi.fn();
 const createVerificationSubmission = vi.fn();
+const listUploadedListingImageObjects = vi.fn();
+const registerListingImages = vi.fn();
+const updateListingCoverImage = vi.fn();
 const getAgentProfileByUserId = vi.fn();
 const getCurrentAppUser = vi.fn();
 const getCurrentListingEntitlementSubscription = vi.fn();
@@ -22,10 +25,10 @@ vi.mock("@/server/repositories/agents-repository", () => ({
   getOwnedListing,
   listAgentListings: vi.fn(),
   markAgentVerificationPending,
-  registerListingImages: vi.fn(),
+  registerListingImages,
   updateAgentFreeListingQuota,
   updateDraftListing: vi.fn(),
-  updateListingCoverImage: vi.fn(),
+  updateListingCoverImage,
   updateListingStatus,
   upsertAgentProfile: vi.fn(),
 }));
@@ -40,12 +43,14 @@ vi.mock("@/server/services/audit-service", () => ({
 
 vi.mock("@/server/services/listing-media-service", () => ({
   createListingImageUploadTargets: vi.fn(),
+  listUploadedListingImageObjects,
 }));
 
 vi.mock("@/server/services/user-sync-service", () => ({ getCurrentAppUser }));
 
 const {
   createCurrentAgentDraftListing,
+  registerCurrentAgentListingImages,
   submitCurrentAgentListingForReview,
   submitCurrentAgentVerification,
 } = await import("@/server/services/agent-service");
@@ -112,6 +117,21 @@ beforeEach(() => {
   });
   updateAgentFreeListingQuota.mockImplementation(
     async (_client, _id, next: number) => agentProfile({ free_listing_quota: next }),
+  );
+  registerListingImages.mockResolvedValue([{ id: "img_new_1" }]);
+  updateListingCoverImage.mockResolvedValue({ id: "listing_1" });
+  listUploadedListingImageObjects.mockResolvedValue(
+    new Map([
+      [
+        "listings/listing_1/abc-photo.webp",
+        {
+          mimeType: "image/webp",
+          publicUrl: "https://storage.example/listings/listing_1/abc-photo.webp",
+          sizeBytes: 51_200,
+          storagePath: "listings/listing_1/abc-photo.webp",
+        },
+      ],
+    ]),
   );
 });
 
@@ -221,6 +241,97 @@ describe("submitCurrentAgentListingForReview", () => {
     ).rejects.toThrow("LISTING_STATE_CONFLICT");
 
     expect(updateAgentFreeListingQuota).not.toHaveBeenCalled();
+  });
+});
+
+describe("registerCurrentAgentListingImages", () => {
+  const uploadedPath = "listings/listing_1/abc-photo.webp";
+
+  it("registers an image that was actually uploaded for this listing", async () => {
+    await expect(
+      registerCurrentAgentListingImages({
+        images: [{ position: 0, storagePath: uploadedPath }],
+        listingId: "listing_1",
+      }),
+    ).resolves.toMatchObject({ count: 4 });
+  });
+
+  it("persists storage metadata rather than anything the caller could claim", async () => {
+    await registerCurrentAgentListingImages({
+      images: [{ position: 0, storagePath: uploadedPath }],
+      listingId: "listing_1",
+    });
+
+    expect(registerListingImages).toHaveBeenCalledWith(
+      {},
+      {
+        images: [
+          {
+            mimeType: "image/webp",
+            position: 0,
+            publicUrl:
+              "https://storage.example/listings/listing_1/abc-photo.webp",
+            sizeBytes: 51_200,
+            storagePath: uploadedPath,
+          },
+        ],
+        listingId: "listing_1",
+      },
+    );
+  });
+
+  it("rejects a path that was never uploaded", async () => {
+    await expect(
+      registerCurrentAgentListingImages({
+        images: [
+          { position: 0, storagePath: "listings/listing_1/never-uploaded.webp" },
+        ],
+        listingId: "listing_1",
+      }),
+    ).rejects.toMatchObject({
+      code: "LISTING_IMAGE_NOT_UPLOADED",
+      httpStatus: 422,
+    });
+
+    expect(registerListingImages).not.toHaveBeenCalled();
+  });
+
+  it("rejects a path belonging to another listing", async () => {
+    await expect(
+      registerCurrentAgentListingImages({
+        images: [{ position: 0, storagePath: "listings/other_listing/x.webp" }],
+        listingId: "listing_1",
+      }),
+    ).rejects.toMatchObject({ code: "LISTING_IMAGE_NOT_UPLOADED" });
+
+    expect(registerListingImages).not.toHaveBeenCalled();
+  });
+
+  it("rejects an arbitrary storage path", async () => {
+    await expect(
+      registerCurrentAgentListingImages({
+        images: [
+          { position: 0, storagePath: "../../other-bucket/secret.png" },
+        ],
+        listingId: "listing_1",
+      }),
+    ).rejects.toMatchObject({ code: "LISTING_IMAGE_NOT_UPLOADED" });
+
+    expect(registerListingImages).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole batch when any one path is unverifiable", async () => {
+    await expect(
+      registerCurrentAgentListingImages({
+        images: [
+          { position: 0, storagePath: uploadedPath },
+          { position: 1, storagePath: "listings/listing_1/forged.webp" },
+        ],
+        listingId: "listing_1",
+      }),
+    ).rejects.toMatchObject({ code: "LISTING_IMAGE_NOT_UPLOADED" });
+
+    expect(registerListingImages).not.toHaveBeenCalled();
   });
 });
 
