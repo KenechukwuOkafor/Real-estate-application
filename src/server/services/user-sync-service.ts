@@ -2,6 +2,7 @@ import "server-only";
 
 import type { User } from "@clerk/nextjs/server";
 
+import { AppError } from "@/lib/api/errors";
 import { getCurrentClerkUser, requireAuthenticatedUser } from "@/lib/auth/clerk";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import {
@@ -11,6 +12,9 @@ import {
   upsertUserByClerkIdentity,
 } from "@/server/repositories/users-repository";
 import { writeAuditLog } from "@/server/services/audit-service";
+import type { Database } from "@/types/database";
+
+type AppRole = Database["public"]["Enums"]["app_role"];
 
 function getPrimaryEmailAddress(user: User) {
   const primaryEmailId = user.primaryEmailAddressId;
@@ -42,9 +46,24 @@ function getPrimaryPhoneNumber(user: User) {
   return user.phoneNumbers[0]?.phoneNumber ?? null;
 }
 
-export type SelfServiceRole = "student";
+export type SelfServiceRole = "student" | "agent";
 
-const SELF_SERVICE_ROLES: ReadonlySet<SelfServiceRole> = new Set(["student"]);
+/**
+ * Roles a user may grant themselves during onboarding.
+ *
+ * `agent` is self-service: REB-DOM-002 Verification gates what an agent can
+ * *do* (drafts yes, submission no) rather than gating who may become one, so
+ * the role itself carries no privilege beyond reaching the agent workspace.
+ *
+ * `admin` must never appear here. The declared element type is deliberately
+ * `Exclude<AppRole, "admin">` rather than `SelfServiceRole`: that makes this
+ * a two-sided compile-time guard. Adding "admin" to the literal fails against
+ * the `new Set<SelfServiceRole>` type argument, and widening SelfServiceRole
+ * itself to include "admin" fails against the annotation. The escalation this
+ * set exists to prevent cannot be reintroduced by editing one line.
+ */
+const SELF_SERVICE_ROLES: ReadonlySet<Exclude<AppRole, "admin">> =
+  new Set<SelfServiceRole>(["student", "agent"]);
 
 export function deriveRequestedRoles(
   input: string[] | undefined,
@@ -123,6 +142,17 @@ export async function syncCurrentUserToDatabase(options?: {
       requestedRoles: submittedRoles,
       userId: appUser.id,
     });
+
+    // Reject the whole request rather than granting the self-service subset.
+    // A 200 that silently grants less than was asked for is what stranded
+    // users in the /onboarding → /dashboard → /onboarding loop: the caller
+    // could not tell "you are now an agent" from "we ignored that". Denials
+    // are all-or-nothing so the response is unambiguous.
+    throw new AppError(
+      "ROLE_NOT_SELF_SERVICE",
+      `These roles cannot be self-assigned: ${deniedRoles.join(", ")}.`,
+      403,
+    );
   }
 
   if (requestedRoles.length > 0) {
@@ -130,6 +160,17 @@ export async function syncCurrentUserToDatabase(options?: {
   }
 
   const roles = await listUserRoles(adminClient, appUser.id);
+
+  // The other half of the onboarding loop: a request that grants nothing and
+  // leaves the user role-less sends them straight back to /onboarding. Say so
+  // instead of returning 200 with an empty role list.
+  if (roles.length === 0) {
+    throw new AppError(
+      "ROLE_REQUIRED",
+      "Select at least one role to finish setting up your account.",
+      422,
+    );
+  }
 
   return {
     roles: roles.map((role) => role.role),

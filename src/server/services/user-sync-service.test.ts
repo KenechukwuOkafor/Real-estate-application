@@ -49,8 +49,15 @@ describe("deriveRequestedRoles", () => {
     expect(deriveRequestedRoles(["admin"])).toEqual([]);
   });
 
-  it("never grants agent", () => {
-    expect(deriveRequestedRoles(["agent"])).toEqual([]);
+  it("grants agent, which is self-service", () => {
+    expect(deriveRequestedRoles(["agent"])).toEqual(["agent"]);
+  });
+
+  it("grants student and agent together", () => {
+    expect(deriveRequestedRoles(["student", "agent"])).toEqual([
+      "student",
+      "agent",
+    ]);
   });
 
   it("keeps student and drops everything else", () => {
@@ -67,20 +74,43 @@ describe("deriveRequestedRoles", () => {
 });
 
 describe("syncCurrentUserToDatabase", () => {
-  it("never passes admin through to ensureUserRoles", async () => {
-    await syncCurrentUserToDatabase({ requestedRoles: ["student", "admin"] });
+  it("grants the agent role to a user who selects Agent", async () => {
+    listUserRoles.mockResolvedValue([{ role: "agent" }]);
 
-    expect(ensureUserRoles).toHaveBeenCalledWith({}, "user_1", ["student"]);
+    const result = await syncCurrentUserToDatabase({
+      requestedRoles: ["agent"],
+    });
+
+    expect(ensureUserRoles).toHaveBeenCalledWith({}, "user_1", ["agent"]);
+    expect(result.roles).toEqual(["agent"]);
+  });
+
+  it("rejects an admin request instead of silently granting nothing", async () => {
+    await expect(
+      syncCurrentUserToDatabase({ requestedRoles: ["admin"] }),
+    ).rejects.toMatchObject({ code: "ROLE_NOT_SELF_SERVICE", httpStatus: 403 });
+  });
+
+  it("never passes admin through to ensureUserRoles", async () => {
+    await expect(
+      syncCurrentUserToDatabase({ requestedRoles: ["student", "admin"] }),
+    ).rejects.toThrow("cannot be self-assigned");
+
+    expect(ensureUserRoles).not.toHaveBeenCalled();
   });
 
   it("does not call ensureUserRoles when nothing is grantable", async () => {
-    await syncCurrentUserToDatabase({ requestedRoles: ["admin"] });
+    await expect(
+      syncCurrentUserToDatabase({ requestedRoles: ["admin"] }),
+    ).rejects.toThrow();
 
     expect(ensureUserRoles).not.toHaveBeenCalled();
   });
 
   it("audits a denied role request", async () => {
-    await syncCurrentUserToDatabase({ requestedRoles: ["admin"] });
+    await expect(
+      syncCurrentUserToDatabase({ requestedRoles: ["admin"] }),
+    ).rejects.toThrow();
 
     expect(writeAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -98,11 +128,19 @@ describe("syncCurrentUserToDatabase", () => {
     expect(writeAuditLog).not.toHaveBeenCalled();
   });
 
-  it("still succeeds when the denial audit write throws", async () => {
+  it("still reports the denial when the denial audit write throws", async () => {
     writeAuditLog.mockRejectedValue(new Error("audit table unavailable"));
 
     await expect(
       syncCurrentUserToDatabase({ requestedRoles: ["admin"] }),
-    ).resolves.toMatchObject({ roles: ["student"] });
+    ).rejects.toMatchObject({ code: "ROLE_NOT_SELF_SERVICE" });
+  });
+
+  it("rejects a request that would leave the user with no roles at all", async () => {
+    listUserRoles.mockResolvedValue([]);
+
+    await expect(
+      syncCurrentUserToDatabase({ requestedRoles: [] }),
+    ).rejects.toMatchObject({ code: "ROLE_REQUIRED", httpStatus: 422 });
   });
 });
