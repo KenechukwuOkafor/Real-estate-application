@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { routeErrorResponse } from "@/lib/api/errors";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { respondToInspectionRequest } from "@/server/services/inspection-service";
@@ -13,11 +14,13 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const body = ((await request.json().catch(() => null)) ?? {}) as {
-      decision?: "accepted" | "declined";
+      decision?: unknown;
     };
     const { inspectionRequestId } = await context.params;
+    // Passed through unmodified. The service validates; coercing here is what
+    // turned a malformed decision into an accept.
     const inspectionRequest = await respondToInspectionRequest({
-      decision: body.decision === "declined" ? "declined" : "accepted",
+      decision: body.decision,
       inspectionRequestId,
     });
 
@@ -30,40 +33,6 @@ export async function POST(request: Request, context: RouteContext) {
       meta: createApiMeta(requestId),
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unable to respond to inspection request.";
-    const status =
-      message === "Unauthenticated request."
-        ? 401
-        : message === "Agent role is required."
-          ? 403
-          : message === "Inspection request not found."
-            ? 404
-            : message.includes("does not belong") || message.includes("cannot be responded")
-              ? 422
-              : 500;
-
-    return NextResponse.json(
-      {
-        error: {
-          code:
-            status === 401
-              ? "UNAUTHENTICATED"
-              : status === 403
-                ? "UNAUTHORIZED"
-                : status === 404
-                  ? "NOT_FOUND"
-                  : status === 422
-                    ? "VALIDATION_ERROR"
-                    : "INTERNAL_ERROR",
-          details: null,
-          message,
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }

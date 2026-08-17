@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AppError } from "@/lib/api/errors";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import {
   attachChatToInspectionRequest,
@@ -100,10 +101,40 @@ export async function requestInspection(input: {
   };
 }
 
+type InspectionDecision = "accepted" | "declined";
+
+/**
+ * Parse an agent's response to an inspection request.
+ *
+ * The route previously coerced with `=== "declined" ? "declined" : "accepted"`,
+ * so a missing, misspelled, or malformed decision silently ACCEPTED. Accepting
+ * is the consequential branch — it is what commits the agent to an inspection
+ * and opens the channel that will later carry an exact address — so it must
+ * never be reachable by default. Anything that is not exactly one of the two
+ * literals is rejected.
+ *
+ * Validation lives here rather than in the route because the service is the
+ * enforcement boundary (REB-DOM-003: "Authorization MUST always be enforced by
+ * backend services"). The parameter is `unknown` so no caller can bypass it by
+ * asserting a type at the edge.
+ */
+function parseInspectionDecision(value: unknown): InspectionDecision {
+  if (value === "accepted" || value === "declined") {
+    return value;
+  }
+
+  throw new AppError(
+    "INSPECTION_DECISION_INVALID",
+    'Decision must be exactly "accepted" or "declined".',
+    422,
+  );
+}
+
 export async function respondToInspectionRequest(input: {
-  decision: "accepted" | "declined";
+  decision: unknown;
   inspectionRequestId: string;
 }) {
+  const decision = parseInspectionDecision(input.decision);
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
@@ -144,7 +175,7 @@ export async function respondToInspectionRequest(input: {
   const updated = await updateInspectionRequestStatus(
     adminClient,
     inspectionRequest.id,
-    input.decision,
+    decision,
     {
       responded_at: now,
     },
@@ -152,7 +183,7 @@ export async function respondToInspectionRequest(input: {
 
   await writeAuditLog({
     action:
-      input.decision === "accepted"
+      decision === "accepted"
         ? "inspection_request.accepted"
         : "inspection_request.declined",
     actorUserId: appUser.user.id,
