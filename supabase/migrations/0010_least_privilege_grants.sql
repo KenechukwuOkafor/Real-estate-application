@@ -26,6 +26,27 @@
 
 revoke all on all tables in schema public from anon, authenticated;
 
+-- The service-role client's privileges, stated explicitly rather than
+-- inherited from ambient defaults.
+--
+-- Found by resetting the database from zero for the first time: tables created
+-- by the CLI migration runner do not receive service_role DML, so a fresh
+-- `supabase db reset` produced a database where every admin, audit and
+-- user-sync path failed with "permission denied for table users". The existing
+-- database only worked because it had been bootstrapped differently, months
+-- earlier. This predates the RLS work — it applies to the tables from 0001
+-- onwards — and would have surfaced on the first deploy to a new environment.
+--
+-- Verified that the revoke above does not cascade here: service_role is not a
+-- member of anon or authenticated, and re-running the revoke with these grants
+-- in place leaves them intact. They are granted because nothing granted them,
+-- not because something took them away.
+--
+-- service_role bypasses RLS, so this is the escalation path itself. It is
+-- reachable only with SUPABASE_SERVICE_ROLE_KEY, which never leaves the server.
+grant all on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;
+
 -- Public marketplace reads. Row visibility is still constrained by the
 -- policies from 0002 (approved listings, verified agent profiles) and 0009
 -- (an agent reading their own profile).

@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Database } from "@/types/database";
-import { getSupabaseAdminClient } from "@/lib/db/supabase";
+import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import { createReport } from "@/server/repositories/reports-repository";
 import { writeAuditLog } from "@/server/services/audit-service";
 import { getCurrentAppUser } from "@/server/services/user-sync-service";
@@ -31,9 +31,9 @@ export async function reportTarget(input: {
     throw new Error("Target ID is required.");
   }
 
-  const adminClient = getSupabaseAdminClient();
+  const client = await createSupabaseAuthenticatedClient();
 
-  const report = await createReport(adminClient, {
+  const report = await createReport(client, {
     reason: input.reason,
     reporterUserId: appUser.user.id,
     targetId: input.targetId,

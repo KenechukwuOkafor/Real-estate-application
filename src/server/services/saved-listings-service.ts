@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getSupabaseAdminClient } from "@/lib/db/supabase";
+import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import {
   getPublicListingIdByUuid,
   saveListing,
@@ -15,14 +15,14 @@ export async function saveListingForCurrentUser(listingPublicId: string) {
     throw new Error("Unauthenticated request.");
   }
 
-  const adminClient = getSupabaseAdminClient();
-  const listing = await getPublicListingIdByUuid(adminClient, listingPublicId);
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getPublicListingIdByUuid(client, listingPublicId);
 
   if (!listing) {
     throw new Error("Listing not found.");
   }
 
-  await saveListing(adminClient, appUser.user.id, listing.id);
+  await saveListing(client, appUser.user.id, listing.id);
 
   return { saved: true };
 }
@@ -34,14 +34,14 @@ export async function unsaveListingForCurrentUser(listingPublicId: string) {
     throw new Error("Unauthenticated request.");
   }
 
-  const adminClient = getSupabaseAdminClient();
-  const listing = await getPublicListingIdByUuid(adminClient, listingPublicId);
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getPublicListingIdByUuid(client, listingPublicId);
 
   if (!listing) {
     throw new Error("Listing not found.");
   }
 
-  await unsaveListing(adminClient, appUser.user.id, listing.id);
+  await unsaveListing(client, appUser.user.id, listing.id);
 
   return { saved: false };
 }
