@@ -1,5 +1,25 @@
 import "server-only";
 
+/**
+ * SERVICE ROLE throughout, deliberately.
+ *
+ * Every exported function here calls requireAdminContext first, which resolves
+ * the caller from Postgres and rejects anyone without the admin role in
+ * public.user_roles (ADR-003 — never from a JWT claim). Moderation and
+ * verification review legitimately read and write rows belonging to other
+ * users, which is precisely what RLS is written to prevent, so these paths are
+ * the escalation rather than a gap in it.
+ *
+ * The database still constrains what an escalation can reach: audit_logs
+ * remain append-only, and admin policies exist on the tables an admin may read
+ * so that migrating any of these call sites later cannot silently widen
+ * access.
+ *
+ * Note that chats and messages deliberately have no admin policy at all.
+ * REB-ARCH-004 grants admins "Reported Only" there — moderation scoped to an
+ * investigation, not blanket read — and nothing in this file touches them.
+ */
+
 import { AppError } from "@/lib/api/errors";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { VERIFIED_AGENT_LISTING_QUOTA } from "@/server/policies/listing-entitlement";

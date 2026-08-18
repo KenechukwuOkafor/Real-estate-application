@@ -110,9 +110,9 @@ export async function getCurrentAgentListingEntitlement() {
   }
 
   const isVerified = context.agentProfile.verification_status === "verified";
-  const adminClient = getSupabaseAdminClient();
+  const client = await createSupabaseAuthenticatedClient();
   const activeSubscription = await getCurrentListingEntitlementSubscription(
-    adminClient,
+    client,
     context.agentProfile.id,
   );
 
@@ -146,9 +146,9 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
     throw new Error("Create your agent profile before managing listings.");
   }
 
-  const adminClient = getSupabaseAdminClient();
+  const client = await createSupabaseAuthenticatedClient();
   const activeSubscription = await getCurrentListingEntitlementSubscription(
-    adminClient,
+    client,
     context.agentProfile.id,
   );
 
@@ -162,6 +162,10 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
   }
 
   if (context.agentProfile.free_listing_quota > 0) {
+    // SERVICE ROLE for the spend. free_listing_quota is not grantable to an
+    // agent — the privilege to decrement it is the privilege to raise it, and
+    // an agent who can set their own quota can mint unlimited submissions.
+    const adminClient = getSupabaseAdminClient();
     const updatedAgentProfile = options?.consumeQuota
       ? await updateAgentFreeListingQuota(
           adminClient,
@@ -425,12 +429,10 @@ export async function getCurrentAgentListingsOverview() {
     };
   }
 
-  // Service role: the join pulls public.subscriptions, whose policies land in
-  // group 5. Migrates with that group.
-  const adminClient = getSupabaseAdminClient();
+  const client = await createSupabaseAuthenticatedClient();
   const [agentProfile, listings] = await Promise.all([
-    getAgentProfileWithSubscriptionsByUserId(adminClient, context.user.id),
-    listAgentListings(adminClient, context.agentProfile.id),
+    getAgentProfileWithSubscriptionsByUserId(client, context.user.id),
+    listAgentListings(client, context.agentProfile.id),
   ]);
 
   const activeSubscription =

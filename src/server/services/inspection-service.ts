@@ -40,6 +40,12 @@ export async function requestInspection(input: {
     throw new Error("Unauthenticated request.");
   }
 
+  // SERVICE ROLE for the creation path, deliberately. requestInspection writes
+  // three rows with no transaction — the request, the chat, and the backlink —
+  // and the chat belongs to both parties, so the seeker's own credentials are
+  // the wrong authority for it. A half-applied sequence under RLS would strand
+  // a request with no conversation. Reads and the agent's response are
+  // RLS-enforced (migration 0012).
   const adminClient = getSupabaseAdminClient();
   const listing = await getInspectableListingById(adminClient, input.listingId);
 

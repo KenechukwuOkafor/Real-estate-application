@@ -1,5 +1,19 @@
 import "server-only";
 
+/**
+ * SERVICE ROLE, deliberately.
+ *
+ * Both functions operate on Supabase Storage, not on public tables, so RLS
+ * policies do not apply to them at all. Issuing a signed upload URL and
+ * listing a bucket prefix both require the service key; the anon key cannot
+ * mint upload tokens.
+ *
+ * Ownership is enforced by the callers in agent-service, which resolve the
+ * listing through getOwnedListing on the RLS-respecting client before either
+ * function is reached — so a caller who does not own the listing never gets
+ * far enough to obtain a token or read the prefix.
+ */
+
 import { appEnv } from "@/lib/env";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 

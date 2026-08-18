@@ -105,6 +105,17 @@ async function recordDeniedRoleRequest(input: {
   }
 }
 
+/**
+ * SERVICE ROLE, deliberately.
+ *
+ * This is the path that creates the public.users row in the first place, so it
+ * runs before the caller has any row for a policy to match on — every
+ * ownership predicate resolves through public.users, and there is nothing to
+ * resolve yet. Role grants also happen here, and user_roles is deliberately
+ * not writable by anyone authenticated: an INSERT grant there is a direct
+ * self-promotion to admin. The SELF_SERVICE_ROLES allowlist is what constrains
+ * this path, and it is enforced in code above.
+ */
 export async function syncCurrentUserToDatabase(options?: {
   requestedRoles?: string[];
 }) {
