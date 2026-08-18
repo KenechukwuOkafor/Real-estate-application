@@ -141,6 +141,18 @@ alter table public.verification_documents enable row level security;
 
 grant select, insert on public.verification_documents to authenticated;
 
+-- The service role needs it too, and this is not automatic.
+--
+-- Migration 0010's `grant all on all tables` was a point-in-time statement, so
+-- it covered what existed then and nothing added later. This table was created
+-- afterwards and landed with no service-role access at all — which breaks the
+-- admin verification queue, since that page reads documents through the
+-- service-role client to sign them. It fails only in a freshly built
+-- environment, which is exactly the failure mode ADR-010-A1 requirement five
+-- describes. Migration 0017 adds ALTER DEFAULT PRIVILEGES so the next table
+-- does not repeat it.
+grant select, insert, update, delete on public.verification_documents to service_role;
+
 create policy "agents_read_own_verification_documents"
 on public.verification_documents
 for select

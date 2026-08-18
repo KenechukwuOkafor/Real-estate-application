@@ -379,10 +379,19 @@ suite("media storage policies", () => {
 
   describe("BR-MEDIA-004: no original filenames in storage paths", () => {
     it("every stored object name is uuidv7.ext", async () => {
-      const { data: rows } = await svc.from("listing_images").select("storage_path");
-      const { data: documents } = await svc
+      const { data: rows, error: rowsError } = await svc
+        .from("listing_images")
+        .select("storage_path");
+      const { data: documents, error: documentsError } = await svc
         .from("verification_documents")
         .select("storage_path");
+
+      // Assert the reads succeeded before asserting on their contents. Without
+      // this the test passes vacuously when service_role lacks a grant: the
+      // error is ignored, data is null, and an empty loop asserts nothing.
+      expect(rowsError).toBeNull();
+      expect(documentsError).toBeNull();
+      expect(rows?.length ?? 0).toBeGreaterThan(0);
 
       const uuidv7File =
         /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp|pdf)$/;
