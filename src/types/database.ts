@@ -19,6 +19,13 @@ export type Database = {
         | "rejected"
         | "suspended";
       app_role: "student" | "agent" | "admin";
+      job_queue: "default" | "media";
+      job_status:
+        | "queued"
+        | "running"
+        | "completed"
+        | "retrying"
+        | "failed_permanently";
       chat_type: "inspection";
       inspection_status:
         | "requested"
@@ -74,6 +81,45 @@ export type Database = {
       uuidv7: {
         Args: Record<PropertyKey, never>;
         Returns: string;
+      };
+      claim_jobs: {
+        Args: {
+          batch_size: number;
+          target_queue: Database["public"]["Enums"]["job_queue"];
+        };
+        Returns: Array<Database["public"]["Tables"]["jobs"]["Row"]>;
+      };
+      complete_job: {
+        Args: { job_id: string; job_result?: Json | null };
+        Returns: undefined;
+      };
+      enqueue_job: {
+        Args: {
+          attempts_allowed?: number;
+          job_payload?: Json;
+          job_type: string;
+          run_at?: string;
+          target_queue?: Database["public"]["Enums"]["job_queue"];
+        };
+        Returns: string;
+      };
+      fail_job: {
+        Args: {
+          base_delay_seconds?: number;
+          error_message: string;
+          job_id: string;
+        };
+        Returns: Database["public"]["Enums"]["job_status"];
+      };
+      job_queue_health: {
+        Args: Record<PropertyKey, never>;
+        Returns: Array<{
+          failed_permanently_count: number;
+          oldest_queued_age_seconds: number;
+          queue: Database["public"]["Enums"]["job_queue"];
+          queued_count: number;
+          running_count: number;
+        }>;
       };
       current_user_has_role: {
         Args: { target: Database["public"]["Enums"]["app_role"] };
@@ -289,6 +335,42 @@ export type Database = {
           updated_at: string;
         };
         Update: Partial<Database["public"]["Tables"]["inspection_requests"]["Insert"]>;
+        Relationships: [];
+      };
+      jobs: {
+        Insert: {
+          attempts?: number;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          max_attempts?: number;
+          payload?: Json;
+          queue?: Database["public"]["Enums"]["job_queue"];
+          result?: Json | null;
+          scheduled_at?: string;
+          started_at?: string | null;
+          status?: Database["public"]["Enums"]["job_status"];
+          type: string;
+          updated_at?: string;
+        };
+        Row: {
+          attempts: number;
+          completed_at: string | null;
+          created_at: string;
+          id: string;
+          last_error: string | null;
+          max_attempts: number;
+          payload: Json;
+          queue: Database["public"]["Enums"]["job_queue"];
+          result: Json | null;
+          scheduled_at: string;
+          started_at: string | null;
+          status: Database["public"]["Enums"]["job_status"];
+          type: string;
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["jobs"]["Insert"]>;
         Relationships: [];
       };
       listing_images: {

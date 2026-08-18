@@ -129,6 +129,18 @@ jobs:
           echo "tables service_role cannot read: $ungranted"
           test "$ungranted" = "0"
 
+          # And writable. 0010's `grant all on all tables` was point-in-time,
+          # so public.jobs was created afterwards with no service-role grant at
+          # all and the drain could not read its own queue. Default privileges
+          # now carry it forward; this asserts they actually do.
+          unwritable=$(psql "
+            select count(*) from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname='public' and c.relkind='r'
+              and not has_table_privilege('service_role', c.oid, 'UPDATE');")
+          echo "tables service_role cannot write: $unwritable"
+          test "$unwritable" = "0"
+
           # Media buckets must be private and limited, not merely present.
           # A public bucket is the exposure this slice closed: every object
           # world-readable by URL forever, including images on listings that
