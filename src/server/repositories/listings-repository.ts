@@ -21,7 +21,7 @@ type AgentProfileSummaryRow = Pick<
 
 type ListingImageSummaryRow = Pick<
   Database["public"]["Tables"]["listing_images"]["Row"],
-  "created_at" | "deleted_at" | "height" | "id" | "is_cover" | "listing_id" | "mime_type" | "position" | "public_url" | "size_bytes" | "storage_path" | "width"
+  "created_at" | "deleted_at" | "height" | "id" | "is_cover" | "listing_id" | "mime_type" | "position" | "size_bytes" | "storage_path" | "width"
 >;
 
 type PublicListingListRow = Pick<
@@ -184,7 +184,9 @@ function mapListingCard(row: PublicListingListRow | PublicListingDetailRow): Lis
     bathrooms: row.bathrooms,
     bedrooms: row.bedrooms,
     city: row.city,
-    coverImageUrl: coverImage?.public_url ?? null,
+    coverImageStoragePath: coverImage?.storage_path ?? null,
+    // Signed later by public-listings-service; the repository never mints URLs.
+    coverImageUrl: null,
     id: row.id,
     priceNaira: row.price_naira,
     propertyType: row.property_type,
@@ -238,7 +240,6 @@ export async function getPublicListings(
           id,
           listing_id,
           storage_path,
-          public_url,
           position,
           width,
           height,
@@ -333,7 +334,6 @@ export async function getPublicListingByIdentifier(
           id,
           listing_id,
           storage_path,
-          public_url,
           position,
           width,
           height,
@@ -381,7 +381,8 @@ export async function getPublicListingByIdentifier(
       id: image.id,
       isCover: image.is_cover,
       position: image.position,
-      url: image.public_url,
+      storagePath: image.storage_path,
+      url: null,
     })),
     latitude: row.latitude,
     longitude: row.longitude,

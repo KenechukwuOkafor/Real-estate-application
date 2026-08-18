@@ -25,6 +25,7 @@ const base: ListingListItem = {
   bedrooms: 1,
   city: "Nsukka",
   coverImageUrl: "https://example.test/a.jpg",
+  coverImageStoragePath: null,
   id: "listing-1",
   priceNaira: 180000,
   propertyType: "self_contain",

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createDraftListing = vi.fn();
 const createVerificationSubmission = vi.fn();
 const listUploadedListingImageObjects = vi.fn();
+const listUploadedVerificationDocuments = vi.fn();
+const insertVerificationDocuments = vi.fn();
 const registerListingImages = vi.fn();
 const updateListingCoverImage = vi.fn();
 const getAgentProfileByUserId = vi.fn();
@@ -21,6 +23,7 @@ vi.mock("@/lib/db/supabase", () => ({
 vi.mock("@/server/repositories/agents-repository", () => ({
   createDraftListing,
   createVerificationSubmission,
+  insertVerificationDocuments,
   getAgentProfileByUserId,
   getAgentProfileWithSubscriptionsByUserId: vi.fn(),
   getOwnedListing,
@@ -44,7 +47,9 @@ vi.mock("@/server/services/audit-service", () => ({
 
 vi.mock("@/server/services/listing-media-service", () => ({
   createListingImageUploadTargets: vi.fn(),
+  createVerificationDocumentUploadTargets: vi.fn(),
   listUploadedListingImageObjects,
+  listUploadedVerificationDocuments,
 }));
 
 vi.mock("@/server/services/user-sync-service", () => ({ getCurrentAppUser }));
@@ -121,13 +126,26 @@ beforeEach(() => {
   );
   registerListingImages.mockResolvedValue([{ id: "img_new_1" }]);
   updateListingCoverImage.mockResolvedValue({ id: "listing_1" });
+  insertVerificationDocuments.mockResolvedValue([]);
+  createVerificationSubmission.mockResolvedValue({ id: "submission_1" });
+  listUploadedVerificationDocuments.mockResolvedValue(
+    new Map([
+      [
+        "verification/agent_profile_1/doc.pdf",
+        {
+          mimeType: "application/pdf",
+          sizeBytes: 2048,
+          storagePath: "verification/agent_profile_1/doc.pdf",
+        },
+      ],
+    ]),
+  );
   listUploadedListingImageObjects.mockResolvedValue(
     new Map([
       [
         "listings/listing_1/abc-photo.webp",
         {
           mimeType: "image/webp",
-          publicUrl: "https://storage.example/listings/listing_1/abc-photo.webp",
           sizeBytes: 51_200,
           storagePath: "listings/listing_1/abc-photo.webp",
         },
@@ -270,8 +288,6 @@ describe("registerCurrentAgentListingImages", () => {
           {
             mimeType: "image/webp",
             position: 0,
-            publicUrl:
-              "https://storage.example/listings/listing_1/abc-photo.webp",
             sizeBytes: 51_200,
             storagePath: uploadedPath,
           },
@@ -338,7 +354,9 @@ describe("registerCurrentAgentListingImages", () => {
 
 describe("submitCurrentAgentVerification", () => {
   const submission = {
-    documents: [{ type: "id_card", url: "https://example.com/id" }],
+    documents: [
+      { documentType: "government_id", storagePath: "verification/agent_profile_1/doc.pdf" },
+    ],
     fullLegalName: "Ada Obi",
   };
 

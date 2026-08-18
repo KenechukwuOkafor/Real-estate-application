@@ -11,6 +11,16 @@
 --   node scripts/setup-clerk-personas.mjs
 -- It is idempotent and prints the ids to paste here.
 
+-- One transaction, deliberately.
+--
+-- listings.cover_image_id and listing_images.listing_id reference each other,
+-- so the cover can only be set after the images exist. The BR-MEDIA-006
+-- constraint trigger is DEFERRABLE INITIALLY DEFERRED precisely so that
+-- intermediate state is legal inside a transaction and checked at COMMIT.
+-- Without the explicit BEGIN, psql autocommits each statement and the approved
+-- listings would be rejected for having no cover yet.
+begin;
+
 insert into public.users (
   id,
   clerk_user_id,
@@ -250,7 +260,6 @@ insert into public.listing_images (
   id,
   listing_id,
   storage_path,
-  public_url,
   position,
   mime_type,
   size_bytes,
@@ -260,8 +269,7 @@ values
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a001',
     '3c719a67-c526-44d2-b9f5-83042d03f001',
-    'seed/listings/odenigbo-cover.webp',
-    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f001/01992a10-0001-7000-8000-0000000000a1.webp',
     0,
     'image/webp',
     180000,
@@ -270,8 +278,7 @@ values
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a002',
     '3c719a67-c526-44d2-b9f5-83042d03f001',
-    'seed/listings/odenigbo-2.webp',
-    'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f001/01992a10-0002-7000-8000-0000000000a2.webp',
     1,
     'image/webp',
     170000,
@@ -280,8 +287,7 @@ values
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a003',
     '3c719a67-c526-44d2-b9f5-83042d03f001',
-    'seed/listings/odenigbo-3.webp',
-    'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f001/01992a10-0003-7000-8000-0000000000a3.webp',
     2,
     'image/webp',
     175000,
@@ -290,8 +296,7 @@ values
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a004',
     '3c719a67-c526-44d2-b9f5-83042d03f002',
-    'seed/listings/hilltop-cover.webp',
-    'https://images.unsplash.com/photo-1449844908441-8829872d2607?auto=format&fit=crop&w=1200&q=80',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f002/01992a10-0004-7000-8000-0000000000a4.webp',
     0,
     'image/webp',
     181000,
@@ -300,8 +305,7 @@ values
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a005',
     '3c719a67-c526-44d2-b9f5-83042d03f002',
-    'seed/listings/hilltop-2.webp',
-    'https://images.unsplash.com/photo-1460317442991-0ec209397118?auto=format&fit=crop&w=1200&q=80',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f002/01992a10-0005-7000-8000-0000000000a5.webp',
     1,
     'image/webp',
     179000,
@@ -310,8 +314,7 @@ values
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a006',
     '3c719a67-c526-44d2-b9f5-83042d03f002',
-    'seed/listings/hilltop-3.webp',
-    'https://images.unsplash.com/photo-1464890100898-a385f744067f?auto=format&fit=crop&w=1200&q=80',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f002/01992a10-0006-7000-8000-0000000000a6.webp',
     2,
     'image/webp',
     177000,
@@ -320,8 +323,7 @@ values
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a007',
     '3c719a67-c526-44d2-b9f5-83042d03f003',
-    'seed/listings/unn-gate-cover.webp',
-    'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f003/01992a10-0007-7000-8000-0000000000a7.webp',
     0,
     'image/webp',
     165000,
@@ -330,8 +332,7 @@ values
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a008',
     '3c719a67-c526-44d2-b9f5-83042d03f003',
-    'seed/listings/unn-gate-2.webp',
-    'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f003/01992a10-0008-7000-8000-0000000000a8.webp',
     1,
     'image/webp',
     164000,
@@ -340,8 +341,7 @@ values
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a009',
     '3c719a67-c526-44d2-b9f5-83042d03f003',
-    'seed/listings/unn-gate-3.webp',
-    'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f003/01992a10-0009-7000-8000-0000000000a9.webp',
     2,
     'image/webp',
     163000,
@@ -350,7 +350,6 @@ values
 on conflict (id) do update
 set
   storage_path = excluded.storage_path,
-  public_url = excluded.public_url,
   position = excluded.position,
   mime_type = excluded.mime_type,
   size_bytes = excluded.size_bytes,
@@ -368,3 +367,5 @@ where id in (
   '3c719a67-c526-44d2-b9f5-83042d03f002',
   '3c719a67-c526-44d2-b9f5-83042d03f003'
 );
+
+commit;

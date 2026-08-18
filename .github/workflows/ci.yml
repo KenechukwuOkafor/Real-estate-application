@@ -129,6 +129,18 @@ jobs:
           echo "tables service_role cannot read: $ungranted"
           test "$ungranted" = "0"
 
+          # Media buckets must be private and limited, not merely present.
+          # A public bucket is the exposure this slice closed: every object
+          # world-readable by URL forever, including images on listings that
+          # were never approved.
+          leaky=$(psql "
+            select count(*) from storage.buckets
+            where id in ('property-images','verification-documents')
+              and (public is true or file_size_limit is null
+                   or allowed_mime_types is null);")
+          echo "media buckets misconfigured: $leaky"
+          test "$leaky" = "0"
+
           seeded=$(psql "select count(*) from public.listings where status='approved';")
           echo "approved listings seeded: $seeded"
           test "$seeded" = "3"

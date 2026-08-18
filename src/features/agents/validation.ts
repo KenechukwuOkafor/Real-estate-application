@@ -1,4 +1,5 @@
 import { AppError } from "@/lib/api/errors";
+import { VERIFICATION_DOCUMENT_TYPES } from "@/features/agents/types";
 import type {
   AgentDraftListingInput,
   AgentListingImageInput,
@@ -48,9 +49,18 @@ export function validateVerificationSubmissionInput(
     throw validationError("At least one verification document is required.");
   }
 
+  const allowedTypes = new Set(
+    VERIFICATION_DOCUMENT_TYPES.map((entry) => entry.value as string),
+  );
+
   for (const document of input.documents) {
-    assertNonEmpty(document.type, "Document type is required.");
-    assertNonEmpty(document.url, "Document URL is required.");
+    if (!allowedTypes.has(document.documentType)) {
+      throw validationError("Select a valid document type.");
+    }
+
+    // A path, not a URL. The service checks it against objects that actually
+    // exist under this agent's prefix before trusting it.
+    assertNonEmpty(document.storagePath, "Document upload is required.");
   }
 }
 

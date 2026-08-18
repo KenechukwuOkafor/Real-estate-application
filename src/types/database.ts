@@ -71,6 +71,10 @@ export type Database = {
         };
         Returns: Array<{ chat_id: string; inspection_request_id: string }>;
       };
+      uuidv7: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
       current_user_has_role: {
         Args: { target: Database["public"]["Enums"]["app_role"] };
         Returns: boolean;
@@ -130,7 +134,6 @@ export type Database = {
           agent_profile_id: string;
           created_at?: string;
           deleted_at?: string | null;
-          documents?: Json;
           full_legal_name: string;
           id?: string;
           notes?: string | null;
@@ -142,7 +145,6 @@ export type Database = {
           agent_profile_id: string;
           created_at: string;
           deleted_at: string | null;
-          documents: Json;
           full_legal_name: string;
           id: string;
           notes: string | null;
@@ -153,6 +155,34 @@ export type Database = {
         Update: Partial<
           Database["public"]["Tables"]["agent_verification_submissions"]["Insert"]
         >;
+        Relationships: [];
+      };
+      verification_documents: {
+        Insert: {
+          agent_profile_id: string;
+          agent_verification_submission_id: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          document_type: string;
+          id?: string;
+          mime_type: string;
+          original_filename?: string | null;
+          size_bytes: number;
+          storage_path: string;
+        };
+        Row: {
+          agent_profile_id: string;
+          agent_verification_submission_id: string;
+          created_at: string;
+          deleted_at: string | null;
+          document_type: string;
+          id: string;
+          mime_type: string;
+          original_filename: string | null;
+          size_bytes: number;
+          storage_path: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["verification_documents"]["Insert"]>;
         Relationships: [];
       };
       audit_logs: {
@@ -271,7 +301,6 @@ export type Database = {
           listing_id: string;
           mime_type: string;
           position: number;
-          public_url: string;
           size_bytes: number;
           storage_path: string;
           width?: number | null;
@@ -285,7 +314,6 @@ export type Database = {
           listing_id: string;
           mime_type: string;
           position: number;
-          public_url: string;
           size_bytes: number;
           storage_path: string;
           width: number | null;

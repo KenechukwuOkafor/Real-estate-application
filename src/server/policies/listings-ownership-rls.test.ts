@@ -90,9 +90,8 @@ suite("RLS: listing and profile ownership", () => {
         listing_id: draftId,
         mime_type: "image/webp",
         position: 0,
-        public_url: "https://example.com/a.webp",
         size_bytes: 1234,
-        storage_path: `listings/${draftId}/a.webp`,
+        storage_path: `listings/${draftId}/01992a12-0001-7000-8000-0000000000b1.webp`,
       })
       .select("id")
       .single();
@@ -276,7 +275,9 @@ suite("RLS: listing and profile ownership", () => {
         .select("storage_path")
         .eq("id", imageId)
         .single();
-      expect(control?.storage_path).toBe(`listings/${draftId}/a.webp`);
+      expect(control?.storage_path).toBe(
+        `listings/${draftId}/01992a12-0001-7000-8000-0000000000b1.webp`,
+      );
     });
   });
 

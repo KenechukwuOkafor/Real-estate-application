@@ -117,7 +117,6 @@ export async function createVerificationSubmission(
     .from("agent_verification_submissions")
     .insert({
       agent_profile_id: agentProfileId,
-      documents: input.documents,
       full_legal_name: input.fullLegalName.trim(),
       notes: input.notes?.trim() || null,
     })
@@ -298,7 +297,6 @@ export async function listAgentListings(client: DbClient, agentProfileId: string
           id,
           listing_id,
           storage_path,
-          public_url,
           position,
           width,
           height,
@@ -335,7 +333,6 @@ export async function getOwnedListing(
           id,
           listing_id,
           storage_path,
-          public_url,
           position,
           width,
           height,
@@ -386,7 +383,6 @@ export async function getListingById(client: DbClient, listingId: string) {
           id,
           listing_id,
           storage_path,
-          public_url,
           position,
           width,
           height,
@@ -473,7 +469,6 @@ export type RegisterListingImagesInput = {
   images: Array<{
     mimeType: string;
     position: number;
-    publicUrl: string;
     sizeBytes: number;
     storagePath: string;
   }>;
@@ -489,7 +484,6 @@ export async function registerListingImages(
     listing_id: input.listingId,
     mime_type: image.mimeType,
     position: image.position,
-    public_url: image.publicUrl,
     size_bytes: image.sizeBytes,
     storage_path: image.storagePath,
   }));
@@ -632,7 +626,6 @@ export async function listModerationQueue(
           id,
           listing_id,
           storage_path,
-          public_url,
           position,
           width,
           height,
@@ -691,4 +684,48 @@ export async function listVerificationQueue(client: DbClient) {
   return ((data ?? []) as unknown as VerificationQueueRow[]).filter(
     (submission) => submission.agent_profiles?.verification_status === "pending_review",
   );
+}
+
+export type VerificationDocumentRow =
+  Database["public"]["Tables"]["verification_documents"]["Row"];
+
+export async function insertVerificationDocuments(
+  client: DbClient,
+  rows: Database["public"]["Tables"]["verification_documents"]["Insert"][],
+) {
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await client
+    .from("verification_documents")
+    .insert(rows)
+    .select("*");
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as VerificationDocumentRow[];
+}
+
+export async function listVerificationDocumentsForSubmissions(
+  client: DbClient,
+  submissionIds: string[],
+) {
+  if (submissionIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await client
+    .from("verification_documents")
+    .select("*")
+    .in("agent_verification_submission_id", submissionIds)
+    .is("deleted_at", null);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as VerificationDocumentRow[];
 }

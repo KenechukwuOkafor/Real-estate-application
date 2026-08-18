@@ -1,42 +1,38 @@
 import { redirect } from "next/navigation";
 
 import { VerificationReviewActions } from "@/features/admin/components/verification-review-actions";
+import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { listAdminVerificationQueue } from "@/server/services/admin-service";
-import type { Json } from "@/types/database";
+import { listVerificationDocumentsForSubmissions } from "@/server/repositories/agents-repository";
+import { signVerificationDocumentPaths } from "@/server/services/listing-media-service";
 
 export const dynamic = "force-dynamic";
-
-type VerificationDocument = {
-  type: string;
-  url: string;
-};
-
-function parseDocuments(value: Json): VerificationDocument[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) {
-      return [];
-    }
-
-    const type = "type" in item && typeof item.type === "string" ? item.type : "";
-    const url = "url" in item && typeof item.url === "string" ? item.url : "";
-
-    if (!type || !url) {
-      return [];
-    }
-
-    return [{ type, url }];
-  });
-}
 
 export default async function AdminVerificationPage() {
   const submissions = await listAdminVerificationQueue().catch(() => null);
 
   if (!submissions) {
     redirect("/dashboard");
+  }
+
+  // Documents are rows now, not a jsonb blob of agent-typed links, and they
+  // live in a private bucket. Rendering them means minting short-lived signed
+  // URLs — 60 seconds, because an admin review renders once and these are
+  // government IDs. A public link would defeat BR-MEDIA-003 entirely.
+  const adminClient = getSupabaseAdminClient();
+  const documentRows = await listVerificationDocumentsForSubmissions(
+    adminClient,
+    submissions.map((submission) => submission.id),
+  );
+  const signedDocuments = await signVerificationDocumentPaths(
+    adminClient,
+    documentRows.map((row) => row.storage_path),
+  );
+  const documentsBySubmission = new Map<string, typeof documentRows>();
+  for (const row of documentRows) {
+    const existing = documentsBySubmission.get(row.agent_verification_submission_id) ?? [];
+    existing.push(row);
+    documentsBySubmission.set(row.agent_verification_submission_id, existing);
   }
 
   return (
@@ -59,7 +55,7 @@ export default async function AdminVerificationPage() {
 
         <section className="grid gap-5">
           {submissions.map((submission) => {
-            const documents = parseDocuments(submission.documents);
+            const documents = documentsBySubmission.get(submission.id) ?? [];
 
             return (
               <article
@@ -92,20 +88,45 @@ export default async function AdminVerificationPage() {
                     <div className="mt-5 grid gap-3">
                       {documents.length === 0 ? (
                         <p className="text-sm text-stone-500">
-                          No valid document links were supplied.
+                          No documents were uploaded with this submission.
                         </p>
                       ) : (
-                        documents.map((document) => (
-                          <a
-                            key={`${submission.id}-${document.type}-${document.url}`}
-                            className="rounded-2xl border border-stone-900/10 bg-stone-50 px-4 py-3 text-sm text-stone-800 hover:bg-stone-100"
-                            href={document.url}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            {document.type}: {document.url}
-                          </a>
-                        ))
+                        documents.map((document) => {
+                          const signedUrl = signedDocuments.get(document.storage_path);
+
+                          return (
+                            <a
+                              key={document.id}
+                              className="rounded-2xl border border-stone-900/10 bg-stone-50 px-4 py-3 text-sm text-stone-800 hover:bg-stone-100"
+                              href={signedUrl ?? undefined}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              <span className="font-medium">
+                                {document.document_type.replaceAll("_", " ")}
+                              </span>
+                              <span className="ml-2 text-stone-500">
+                                {document.mime_type} ·{" "}
+                                {Math.round(document.size_bytes / 1024)} KB
+                              </span>
+                              {/*
+                                The original filename is shown here and nowhere
+                                else. BR-MEDIA-004 keeps it out of the storage
+                                path and out of every URL; it survives only as
+                                a database column so a reviewer has some human
+                                context for what they are looking at.
+                              */}
+                              {document.original_filename ? (
+                                <span className="mt-1 block text-xs text-stone-500">
+                                  uploaded as {document.original_filename}
+                                </span>
+                              ) : null}
+                              <span className="mt-1 block text-xs text-stone-400">
+                                Link expires in 60 seconds
+                              </span>
+                            </a>
+                          );
+                        })
                       )}
                     </div>
                   </div>

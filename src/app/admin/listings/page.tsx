@@ -7,6 +7,8 @@ import {
 } from "@/features/admin/components/listing-moderation-actions";
 import { formatListingStatus, formatPriceNaira } from "@/features/listings/format";
 import { listAdminModerationQueue } from "@/server/services/admin-service";
+import { getSupabaseAdminClient } from "@/lib/db/supabase";
+import { signListingImagePaths } from "@/server/services/listing-media-service";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,17 @@ export default async function AdminListingsPage() {
   if (!listings) {
     redirect("/dashboard");
   }
+
+  // Moderation reviews listings before they are approved, so these images are
+  // exactly the ones the public storage policy withholds. Signed with the
+  // service-role client because that is what admin-service already uses for
+  // the queue itself; the admin storage policy would permit it either way.
+  const signedImages = await signListingImagePaths(
+    getSupabaseAdminClient(),
+    listings.flatMap((listing) =>
+      (listing.listing_images ?? []).map((image) => image.storage_path),
+    ),
+  );
 
   const listingsByStatus = Object.fromEntries(
     moderationSections.map((section) => [
@@ -148,7 +161,7 @@ export default async function AdminListingsPage() {
                                 key={image.id}
                                 alt={`${listing.title} preview`}
                                 className="aspect-[4/3] rounded-2xl object-cover"
-                                src={image.public_url}
+                                src={signedImages.get(image.storage_path) ?? ""}
                                 width={640}
                                 height={480}
                               />

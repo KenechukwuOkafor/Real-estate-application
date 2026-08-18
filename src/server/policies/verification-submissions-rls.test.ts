@@ -80,7 +80,6 @@ suite("RLS: agent_verification_submissions", () => {
       .from("agent_verification_submissions")
       .insert({
         agent_profile_id: profileAId,
-        documents: [{ type: "id_card", url: "https://example.com/private-id" }],
         full_legal_name: "Agent A Legal Name",
       })
       .select("id")
@@ -128,7 +127,7 @@ suite("RLS: agent_verification_submissions", () => {
   it("another agent cannot read it", async () => {
     const { data, error } = await asUser(await mintFreshToken(agentB))
       .from("agent_verification_submissions")
-      .select("id, full_legal_name, documents")
+      .select("id, full_legal_name")
       .eq("id", submissionAId);
 
     expect(error).toBeNull();
@@ -173,7 +172,6 @@ suite("RLS: agent_verification_submissions", () => {
       .from("agent_verification_submissions")
       .insert({
         agent_profile_id: profileAId,
-        documents: [],
         full_legal_name: "Forged on behalf of Agent A",
       });
 

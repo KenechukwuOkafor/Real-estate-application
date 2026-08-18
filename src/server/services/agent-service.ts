@@ -6,6 +6,7 @@ import type {
   AgentListingImageUploadRequest,
   AgentProfileInput,
   AgentVerificationSubmissionInput,
+  VerificationDocumentUploadRequest,
 } from "@/features/agents/types";
 import {
   validateAgentProfileInput,
@@ -21,11 +22,14 @@ import {
 import { writeAuditLog } from "@/server/services/audit-service";
 import {
   createListingImageUploadTargets,
+  createVerificationDocumentUploadTargets,
   listUploadedListingImageObjects,
+  listUploadedVerificationDocuments,
 } from "@/server/services/listing-media-service";
 import {
   createDraftListing,
   createVerificationSubmission,
+  insertVerificationDocuments,
   getAgentProfileByUserId,
   getAgentProfileWithSubscriptionsByUserId,
   getOwnedListing,
@@ -271,11 +275,50 @@ export async function submitCurrentAgentVerification(
 
   // The submission itself is written with the agent's own credentials, so the
   // insert policy re-checks that agent_profile_id is theirs.
-  const authenticatedClient = await createSupabaseAuthenticatedClient();
-  await createVerificationSubmission(
+  // Every submitted path must name an object that actually exists under this
+  // agent's own verification prefix. Uploading there requires a signed token
+  // only createVerificationDocumentUploadTargets issues, so presence is proof
+  // of provenance — an agent cannot attach another agent's document, and the
+  // recorded MIME type and size come from the stored object rather than the
+  // request body.
+  const documentClient = await createSupabaseAuthenticatedClient();
+  const uploaded = await listUploadedVerificationDocuments(
+    documentClient,
+    context.agentProfile.id,
+  );
+  const resolvedDocuments = input.documents.map((document) => {
+    const object = uploaded.get(document.storagePath);
+
+    if (!object) {
+      throw new AppError(
+        "VERIFICATION_DOCUMENT_NOT_UPLOADED",
+        "That document was not uploaded for this account. Upload it again and retry.",
+        422,
+      );
+    }
+
+    return { document, object };
+  });
+
+  const authenticatedClient = documentClient;
+  const submission = await createVerificationSubmission(
     authenticatedClient,
     context.agentProfile.id,
     input,
+  );
+
+  await insertVerificationDocuments(
+    authenticatedClient,
+    resolvedDocuments.map(({ document, object }) => ({
+      agent_profile_id: context.agentProfile!.id,
+      agent_verification_submission_id: submission.id,
+      document_type: document.documentType,
+      mime_type: object.mimeType,
+      // Metadata only — BR-MEDIA-004 keeps it out of the storage path.
+      original_filename: document.originalFilename ?? null,
+      size_bytes: object.sizeBytes,
+      storage_path: object.storagePath,
+    })),
   );
 
   // SERVICE ROLE, deliberately. This moves the agent's own
@@ -500,7 +543,7 @@ export async function createCurrentAgentListingImageUploadTargets(
     throw new Error("A listing cannot have more than 10 active images.");
   }
 
-  return createListingImageUploadTargets({
+  return createListingImageUploadTargets(client, {
     files: input.files,
     listingId: input.listingId,
   });
@@ -547,7 +590,10 @@ export async function registerCurrentAgentListingImages(
   // bucket is proof the path came from a target issued for this listing.
   // Without this a caller could register rows pointing anywhere, including at
   // another agent's media.
-  const uploadedObjects = await listUploadedListingImageObjects(input.listingId);
+  const uploadedObjects = await listUploadedListingImageObjects(
+    client,
+    input.listingId,
+  );
   const resolvedImages = input.images.map((image) => {
     const uploaded = uploadedObjects.get(image.storagePath);
 
@@ -564,7 +610,6 @@ export async function registerCurrentAgentListingImages(
       // request body.
       mimeType: uploaded.mimeType,
       position: image.position,
-      publicUrl: uploaded.publicUrl,
       sizeBytes: uploaded.sizeBytes,
       storagePath: uploaded.storagePath,
     };
@@ -668,4 +713,38 @@ export async function submitCurrentAgentListingForReview(listingId: string) {
   });
 
   return { listing: updated };
+}
+
+/**
+ * Signed upload targets for verification documents.
+ *
+ * Mirrors the listing-image flow. Reachable without the agent role, like the
+ * rest of verification onboarding, because self-service signup grants student
+ * only — see getAgentOnboardingContext.
+ */
+export async function createCurrentAgentVerificationUploadTargets(
+  input: VerificationDocumentUploadRequest,
+) {
+  const context = await getAgentOnboardingContext();
+
+  if (!context.agentProfile) {
+    throw new Error("Create your agent profile before uploading documents.");
+  }
+
+  assertVerificationSubmittable(context.agentProfile.verification_status);
+
+  if (input.files.length === 0) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Select at least one document to upload.",
+      422,
+    );
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+
+  return createVerificationDocumentUploadTargets(client, {
+    agentProfileId: context.agentProfile.id,
+    files: input.files,
+  });
 }

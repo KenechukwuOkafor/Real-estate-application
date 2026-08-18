@@ -16,6 +16,7 @@ function listing(area: string, id: string): ListingListItem {
     bedrooms: 1,
     city: "Nsukka",
     coverImageUrl: null,
+  coverImageStoragePath: null,
     id,
     priceNaira: 100000,
     propertyType: "self_contain",

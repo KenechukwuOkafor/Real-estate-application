@@ -124,7 +124,7 @@ export default async function ListingDetailPage({
                 <img
                   alt={listing.title}
                   className="h-full w-full object-cover"
-                  src={image.url}
+                  src={image.url ?? undefined}
                 />
               </div>
             ))}

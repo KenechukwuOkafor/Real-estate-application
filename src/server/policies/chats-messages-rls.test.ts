@@ -83,7 +83,10 @@ suite("RLS: chats and messages", () => {
         price_naira: 250000,
         property_type: "self_contain",
         slug: `rls-chat-fixture-${Date.now()}`,
-        status: "approved",
+        // draft, not approved: BR-MEDIA-006 now requires an approved
+        // listing to have a cover image, and nothing here depends on
+        // the status.
+        status: "draft",
         title: "RLS chat fixture",
       })
       .select("id")

@@ -10,15 +10,20 @@ export async function POST(request: Request) {
 
   try {
     const body = ((await request.json().catch(() => null)) ?? {}) as {
-      documents?: Array<{ type?: string; url?: string }>;
+      documents?: Array<{
+        documentType?: string;
+        originalFilename?: string;
+        storagePath?: string;
+      }>;
       fullLegalName?: string;
       notes?: string;
     };
 
     const result = await submitCurrentAgentVerification({
       documents: (body.documents ?? []).map((item) => ({
-        type: item.type ?? "",
-        url: item.url ?? "",
+        documentType: item.documentType ?? "",
+        originalFilename: item.originalFilename,
+        storagePath: item.storagePath ?? "",
       })),
       fullLegalName: body.fullLegalName ?? "",
       notes: body.notes,
