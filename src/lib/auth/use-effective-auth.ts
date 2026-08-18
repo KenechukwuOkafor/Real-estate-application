@@ -1,67 +1,26 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 
+/**
+ * Thin pass-through over Clerk's useAuth.
+ *
+ * This used to blend two auth states: Clerk's, and a dev-auth one discovered by
+ * probing /api/me for a fabricated cookie session. That second state is gone —
+ * dev personas hold real Clerk sessions — so there is nothing left to blend.
+ *
+ * Kept as a named hook rather than inlining useAuth at each call site because
+ * the comment below is the part that matters and is easy to lose.
+ */
 export function useEffectiveAuth() {
-  const { isLoaded: isClerkLoaded, isSignedIn } = useAuth();
-  const pathname = usePathname();
-  const isDevAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_DEV_AUTH === "true";
-  const [hasDevAuth, setHasDevAuth] = useState(false);
-  // Settled state for the dev-auth check specifically, separate from
-  // Clerk's own isLoaded. Starts true when dev auth is off (there is
-  // nothing to check), so isLoaded below does not wait forever on a check
-  // that will never run.
-  const [isDevAuthChecked, setIsDevAuthChecked] = useState(!isDevAuthEnabled);
-
-  useEffect(() => {
-    if (!isDevAuthEnabled || isSignedIn) {
-      setIsDevAuthChecked(true);
-      return;
-    }
-
-    let cancelled = false;
-    setIsDevAuthChecked(false);
-
-    async function loadDevAuthState() {
-      try {
-        const response = await fetch("/api/me", {
-          cache: "no-store",
-          credentials: "same-origin",
-        });
-
-        if (!cancelled) {
-          setHasDevAuth(response.ok);
-        }
-      } catch {
-        if (!cancelled) {
-          setHasDevAuth(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsDevAuthChecked(true);
-        }
-      }
-    }
-
-    void loadDevAuthState();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isDevAuthEnabled, isSignedIn, pathname]);
-
-  const isDevSignedIn = isDevAuthEnabled && !isSignedIn && hasDevAuth;
+  const { isLoaded, isSignedIn } = useAuth();
 
   return {
-    isDevAuthEnabled,
-    isDevSignedIn,
     // Clerk reports isSignedIn === undefined until it hydrates. Callers that
     // gate a state-changing action (e.g. save) on isSignedIn must also check
     // isLoaded, or they will treat a genuinely signed-in user as signed-out
     // during that window.
-    isLoaded: isClerkLoaded && isDevAuthChecked,
-    isSignedIn: isSignedIn || isDevSignedIn,
+    isLoaded,
+    isSignedIn: Boolean(isSignedIn),
   };
 }

@@ -1,7 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-import { DEV_AUTH_COOKIE_NAME, isDevAuthEnabled } from "@/lib/auth/dev-auth";
-
 const isProtectedRoute = createRouteMatcher([
   "/agent(.*)",
   "/dashboard(.*)",
@@ -19,10 +17,9 @@ const isProtectedRoute = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
-    if (isDevAuthEnabled() && req.cookies.get(DEV_AUTH_COOKIE_NAME)?.value) {
-      return;
-    }
-
+    // No dev-auth bypass. The persona switcher produces a real Clerk session,
+    // so protected routes are protected identically in every environment —
+    // the bypass existed only to wave through a fabricated cookie.
     await auth.protect();
   }
 });

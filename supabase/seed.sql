@@ -1,5 +1,15 @@
 -- Local development seed for the public listing slice.
 -- Applied by `supabase db reset` after migrations in a local Supabase database.
+--
+-- clerk_user_id values below are REAL Clerk user ids, not fabricated ones.
+-- They must be, because RLS policies compare them against auth.jwt() ->> 'sub'
+-- and Clerk will never issue a subject like `seed_clerk_agent_001`. A
+-- fabricated id makes every policy match zero rows, which is indistinguishable
+-- from a broken policy.
+--
+-- Regenerate them for a new Clerk instance with:
+--   node scripts/setup-clerk-personas.mjs
+-- It is idempotent and prints the ids to paste here.
 
 insert into public.users (
   id,
@@ -11,30 +21,30 @@ insert into public.users (
 values
   (
     '6d5ec8a0-a70a-4974-b8b7-1c833f464000',
-    'seed_clerk_student_001',
-    'student1@ruvo.local',
-    'Ruvo Student One',
+    'user_3I4mLDbEmYlwFCbJPiDH6QyXGFL',
+    'ruvo_student+clerk_test@example.com',
+    'Ruvo Student',
     '+2348000000000'
   ),
   (
     '6d5ec8a0-a70a-4974-b8b7-1c833f464001',
-    'seed_clerk_agent_001',
-    'agent1@ruvo.local',
+    'user_3I4mLJs1bll6JU2Lmw5AVZRGjT6',
+    'ruvo_agent_verified+clerk_test@example.com',
     'Prime Homes Nsukka',
     '+2348000000001'
   ),
   (
     '6d5ec8a0-a70a-4974-b8b7-1c833f464002',
-    'seed_clerk_agent_002',
-    'agent2@ruvo.local',
+    'user_3I4mLIZjqgtiIjofLtGll31QHhz',
+    'ruvo_agent_new+clerk_test@example.com',
     'Campus Keys Property',
     '+2348000000002'
   ),
   (
     '6d5ec8a0-a70a-4974-b8b7-1c833f464003',
-    'seed_clerk_admin_001',
-    'admin1@ruvo.local',
-    'Ruvo Admin One',
+    'user_3I4mLPZkVF2L6bCWweB2njatjhn',
+    'ruvo_admin+clerk_test@example.com',
+    'Ruvo Admin',
     '+2348000000003'
   )
 on conflict (clerk_user_id) do nothing;

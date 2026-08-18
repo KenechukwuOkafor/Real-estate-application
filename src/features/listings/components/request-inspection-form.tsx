@@ -13,7 +13,7 @@ type RequestInspectionFormProps = {
 export function RequestInspectionForm({
   listingId,
 }: RequestInspectionFormProps) {
-  const { isDevAuthEnabled, isSignedIn } = useEffectiveAuth();
+  const { isSignedIn } = useEffectiveAuth();
   const [message, setMessage] = useState(
     "Hi, I want to inspect this property. Please let me know your next available time.",
   );
@@ -87,20 +87,11 @@ export function RequestInspectionForm({
       {!isSignedIn ? (
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <p className="text-sm text-stone-700">You need an account before requesting.</p>
-          {isDevAuthEnabled ? (
-            <Link
-              className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
-              href="/dev-login"
-            >
-              Dev login to continue
-            </Link>
-          ) : (
-            <SignInButton mode="modal">
-              <button className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white">
-                Sign in to continue
-              </button>
-            </SignInButton>
-          )}
+          <SignInButton mode="modal">
+            <button className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white">
+              Sign in to continue
+            </button>
+          </SignInButton>
         </div>
       ) : (
         <form className="mt-4 flex flex-col gap-3" onSubmit={onSubmit}>

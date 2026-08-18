@@ -2,6 +2,7 @@ import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 
+import { AppError } from "@/lib/api/errors";
 import { getCurrentSessionToken } from "@/lib/auth/clerk";
 import { appEnv } from "@/lib/env";
 import type { Database } from "@/types/database";
@@ -30,9 +31,18 @@ export async function createSupabaseAuthenticatedClient() {
   const token = await getCurrentSessionToken();
 
   if (!token) {
-    // Fail closed. REB-DOM-003: "The platform should fail securely. Access
-    // should be denied rather than granted."
-    throw new Error("SESSION_TOKEN_UNAVAILABLE");
+    // Fail closed and loudly. REB-DOM-003: "The platform should fail securely.
+    // Access should be denied rather than granted."
+    //
+    // Throwing rather than returning an anon client is the important part. An
+    // anon client would sail through every query and return empty arrays,
+    // which read as "no data" — the failure mode that cost real time before
+    // dev personas became real Clerk sessions. A thrown error names the cause.
+    throw new AppError(
+      "SESSION_TOKEN_UNAVAILABLE",
+      "No Clerk session token is available for this request, so no row-level-security policy can match. If this is local development, sign in again from /dev-login — persona sessions are real Clerk sessions and may have expired.",
+      401,
+    );
   }
 
   return createClient<Database>(appEnv.supabaseUrl(), appEnv.supabaseAnonKey(), {
