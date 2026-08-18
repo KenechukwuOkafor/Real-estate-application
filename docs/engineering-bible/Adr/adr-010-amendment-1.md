@@ -2,7 +2,7 @@
 id: ADR-010-A1
 title: Amendment 1 to ADR-010 — Privilege Grants Are Part of the Authorization Boundary
 category: Architecture Decision Record Amendment
-status: Proposed
+status: Accepted
 version: 1.0
 owners: Ruvo Engineering
 date: 2026
@@ -18,7 +18,7 @@ related:
 
 ## Status
 
-Proposed
+Accepted
 
 ---
 
