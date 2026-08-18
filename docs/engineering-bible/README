@@ -1,0 +1,288 @@
+Document ID: REB-001
+Title: Engineering Bible README
+Version: 1.0.0
+Status: Active
+Owner: Ruvo Engineering
+Last Updated:
+Review Cycle: Quarterly
+Classification: Canonical
+
+
+# Ruvo Engineering Bible (REB)
+
+**Version:** 1.0.0  
+**Status:** Active  
+**Classification:** Canonical Project Documentation
+
+---
+
+# Purpose
+
+The Ruvo Engineering Bible (REB) is the authoritative source of truth for the Ruvo platform.
+
+It exists to preserve product knowledge, document architectural decisions, eliminate ambiguity, and ensure that every engineer, designer, product manager, AI coding agent, and future contributor works from a single, consistent specification.
+
+The REB is treated as a core part of the codebase.
+
+If the implementation changes, the documentation must change.
+
+If the documentation and implementation disagree, the discrepancy must be resolved immediately.
+
+---
+
+# About Ruvo
+
+Ruvo is a trust-first real estate platform built to connect property seekers with legitimate agents and verified property listings across Nigeria.
+
+The platform launches in **Nsukka, Enugu State**, with a focused MVP centered on yearly rental accommodation before expanding geographically and functionally.
+
+The long-term vision is to become one of Nigeria's most trusted digital property platforms for:
+
+- Residential rentals
+- Student accommodation
+- Commercial property
+- Land sales
+- Future property-related services
+
+Ruvo prioritizes **trust, verification, operational excellence, and scalability** over rapid feature expansion.
+
+---
+
+# Mission
+
+To make finding property in Nigeria safer, simpler, and significantly more trustworthy.
+
+---
+
+# Vision
+
+To become Nigeria's most trusted platform for discovering, verifying, and transacting real estate.
+
+---
+
+# Product Philosophy
+
+The following principles guide every product and engineering decision.
+
+## 1. Trust Before Growth
+
+User trust is more valuable than marketplace size.
+
+Every feature should increase confidence in the platform rather than maximize listing volume.
+
+---
+
+## 2. Simplicity Before Complexity
+
+The platform intentionally begins with a focused feature set.
+
+Complex systems are introduced only after the simpler solution can no longer meet product requirements.
+
+---
+
+## 3. Correctness Before Speed
+
+Stable, maintainable implementations are preferred over rushed delivery.
+
+Every subsystem should be implemented properly before expanding functionality.
+
+---
+
+## 4. Architecture Before Features
+
+Features should conform to the platform architecture.
+
+Architecture should not be repeatedly modified to accommodate individual features.
+
+---
+
+## 5. Documentation Is Part of the Product
+
+Documentation is not an afterthought.
+
+The Engineering Bible evolves alongside the application and remains synchronized with implementation.
+
+---
+
+# Objectives
+
+The Engineering Bible exists to:
+
+- Preserve institutional knowledge
+- Document architectural decisions
+- Define business rules
+- Standardize engineering practices
+- Enable consistent AI-assisted development
+- Reduce onboarding time
+- Prevent architectural drift
+
+---
+
+# Intended Audience
+
+This documentation is written for:
+
+- Software engineers
+- Technical architects
+- Product managers
+- Designers
+- AI coding agents (Claude Code, Codex, Cursor, future AI systems)
+- Future contributors
+
+No prior knowledge of the project should be required.
+
+---
+
+# Documentation Principles
+
+## Single Source of Truth
+
+Every important concept should have exactly one authoritative definition.
+
+Avoid duplicated specifications.
+
+Reference documents instead of repeating them.
+
+---
+
+## Explicit Over Implicit
+
+Business rules must be documented explicitly.
+
+Implementation should never rely on assumptions.
+
+---
+
+## Decisions Over Discussions
+
+The Engineering Bible documents final decisions.
+
+Exploration, brainstorming, and abandoned ideas are intentionally excluded unless they explain why a final decision was made.
+
+---
+
+## Backend Enforcement
+
+Business rules belong primarily in the backend.
+
+Frontend validation improves user experience but must never be relied upon for enforcing business logic.
+
+---
+
+## AI-First Documentation
+
+Every specification should be understandable by both humans and AI coding assistants.
+
+Documents should avoid ambiguity and provide sufficient context for implementation.
+
+---
+
+# Repository Structure
+
+```text
+docs/
+│
+├── README.md
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── 00_INDEX.md
+│
+├── Product/
+│   ├── Executive Overview
+│   ├── Vision
+│   ├── Personas
+│   ├── User Journeys
+│   ├── Product Requirements
+│   └── Business Rules
+│
+├── Domain/
+│   ├── Listings
+│   ├── Verification
+│   ├── Search
+│   ├── Messaging
+│   ├── Inspection
+│   ├── Subscription
+│   ├── Admin
+│   └── Notifications
+│
+├── Architecture/
+│   ├── System Architecture
+│   ├── Database
+│   ├── APIs
+│   ├── Security
+│   ├── RBAC
+│   ├── State Machines
+│   ├── Deployment
+│   └── Observability
+│
+├── Engineering/
+│   ├── Coding Standards
+│   ├── Git Workflow
+│   ├── Testing Strategy
+│   ├── AI Agent Rules
+│   └── Build Roadmap
+│
+└── ADR/
+    ├── ADR-0001
+    ├── ADR-0002
+    └── ...
+```
+
+---
+
+# Engineering Philosophy
+
+Ruvo is engineered according to the following priorities:
+
+1. Trust over feature count.
+2. Simplicity over unnecessary complexity.
+3. Clean architecture over rapid expansion.
+4. Long-term maintainability over short-term convenience.
+5. Backend-enforced business rules.
+6. Progressive enhancement rather than premature optimization.
+7. Vertical slice development.
+8. Comprehensive testing before release.
+
+---
+
+# Versioning
+
+The Engineering Bible follows semantic versioning.
+
+Major versions indicate significant architectural or product changes.
+
+Minor versions indicate new specifications.
+
+Patch versions indicate documentation corrections and clarifications.
+
+---
+
+# Revision Policy
+
+Every significant architectural or product decision must be reflected in the Engineering Bible before implementation is considered complete.
+
+Documentation changes should accompany code changes whenever applicable.
+
+---
+
+# Success Criteria
+
+The Engineering Bible is successful if:
+
+- A new engineer can understand the system without historical conversations.
+- AI coding assistants consistently generate implementations aligned with project standards.
+- Architectural decisions remain discoverable months or years after they were made.
+- Product behavior remains consistent as the platform evolves.
+- The documentation serves as the definitive reference for both implementation and maintenance.
+
+---
+
+# Canonical Rule
+
+If uncertainty exists during implementation:
+
+1. Consult the relevant Engineering Bible document.
+2. If the answer is not documented, create an Architecture Decision Record (ADR) before implementing behavior that changes the system.
+3. Update the relevant specification once the decision is accepted.
+
+The Engineering Bible—not historical conversations—is the canonical source of truth for the Ruvo platform.
