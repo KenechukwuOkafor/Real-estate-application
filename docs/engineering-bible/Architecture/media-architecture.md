@@ -5,7 +5,7 @@ version: 1.0.0
 status: Active
 classification: Canonical
 owner: Ruvo Engineering
-last_updated:
+last_updated: 2026-08-18
 review_cycle: Quarterly
 ---
 
