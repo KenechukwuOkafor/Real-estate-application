@@ -212,9 +212,9 @@ Users should receive notifications when:
 |----------|------|----------|
 | BR-SUB-001 | Publishing a new listing requires an active subscription **or remaining free listing quota**. *(Amended by ADR-034.)* | Critical |
 | BR-SUB-002 | Expired subscriptions do not remove existing approved listings. | Critical |
-| BR-SUB-003 | Expired agents cannot create new listings. *(In tension with ADR-034 — see note below.)* | Critical |
-| BR-SUB-004 | Expired agents cannot republish archived listings. | Critical |
-| BR-SUB-005 | Expired agents cannot renew expired listings. | Critical |
+| BR-SUB-003 | An agent without entitlement cannot submit a listing for review. Drafting and editing remain available. | Critical |
+| BR-SUB-004 | An agent without entitlement cannot resubmit an archived or expired listing. | Critical |
+| BR-SUB-005 | Lapsed entitlement does not remove listings already approved. | Critical |
 | BR-SUB-006 | Subscription status never bypasses moderation. | Critical |
 | BR-SUB-007 | Subscription status never grants verification. | Critical |
 
@@ -275,19 +275,64 @@ This specification is complete when:
 
 ---
 
-# Open Question — BR-SUB-003 and Draft Creation
+# Entitlement Gates the Queue, Not the Workspace
 
-ADR-034 states that draft creation is not entitlement-gated: an agent may create
-and edit drafts regardless of verification status or quota, and entitlement is
-checked at submission.
+Every rule in this document should be readable against one sentence:
+**entitlement gates the moderation queue, never the workspace.**
 
-BR-SUB-003 says expired agents cannot *create* new listings. If "create" means
-"draft", the two conflict. If it means "publish", they agree and the wording is
-merely imprecise.
+Drafting, editing, uploading images and preparing a listing are workspace
+activities. They produce no marketplace inventory, cost no reviewer time, and
+are never entitlement-gated under any circumstance. Submitting for review is
+the moment work enters a queue a human has to process, and that is where
+entitlement is checked.
 
-ADR-034 amends BR-SUB-001 explicitly and is silent on BR-SUB-003, so this is
-recorded rather than resolved. The implementation currently follows ADR-034 —
-drafts are free and unlimited, and entitlement is enforced on submit.
+"Create" in earlier wording meant publish. BR-SUB-003, BR-SUB-004 and
+BR-SUB-005 were reworded around the submission boundary because the original
+phrasing could be read either way, and read one way it contradicted ADR-034.
 
-The same ambiguity affects BR-SUB-004 and BR-SUB-005, which speak of
-republishing and renewing. Neither path exists yet.
+See ADR-034.
+
+---
+
+# Ambiguities Under the Workspace/Queue Principle
+
+Recorded, not reworded. Each of these reads ambiguously against "entitlement
+gates the moderation queue, never the workspace", and none was changed here
+because the decision belongs to the document owner.
+
+## 1. "Create listings" appears on both sides
+
+The **Subscription Entitlements** list says an active subscription allows an
+agent to "Create listings", and the **Subscription Expiry** list says an
+expired agent "may no longer: Create new listings".
+
+Under the principle both are wrong as written: creating a draft is a workspace
+activity and is never entitlement-gated. BR-SUB-003 now says so explicitly, so
+the prose contradicts the rule table. If "create" means publish in both places,
+they should say submit.
+
+## 2. BR-SUB-005 now overlaps BR-SUB-002
+
+- BR-SUB-002 — "Expired subscriptions do not remove existing approved listings."
+- BR-SUB-005 — "Lapsed entitlement does not remove listings already approved."
+
+These state the same thing. BR-SUB-005 is the broader of the two, because
+"entitlement" covers quota as well as subscriptions, so it arguably subsumes
+BR-SUB-002 entirely.
+
+## 3. Listing renewal no longer has a rule
+
+BR-SUB-005 previously read "Expired agents cannot renew expired listings" and
+now covers a different subject. No rule governs listing renewal any more.
+
+Note that nothing in the system supports the concept: `listing_status` has no
+`expired` value — the states are draft, pending_review, approved, rejected,
+archived, flagged and under_dispute — and no renewal or republish code path
+exists. The "Renew listings" and "Republish eligible listings" entitlements
+describe capabilities that have never been built, so the missing rule may be
+correct rather than a gap.
+
+## 4. "Republish" is undefined
+
+BR-SUB-004 governs resubmitting an archived listing, but `archived` is
+unreachable: no code path sets it. The rule is currently unexercisable.
