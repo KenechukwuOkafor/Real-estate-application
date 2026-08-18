@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { AppError } from "@/lib/api/errors";
 import { getCurrentSessionToken } from "@/lib/auth/clerk";
+import { assertSessionTokenHasRoleClaim } from "@/lib/auth/verify-role-claim";
 import { appEnv } from "@/lib/env";
 import type { Database } from "@/types/database";
 
@@ -44,6 +45,11 @@ export async function createSupabaseAuthenticatedClient() {
       401,
     );
   }
+
+  // Once per process, not once per request. This is the point where a missing
+  // role claim would otherwise turn into empty result sets, so it is the point
+  // that names the cause. The token is already in hand — no extra network call.
+  assertSessionTokenHasRoleClaim(token);
 
   return createClient<Database>(appEnv.supabaseUrl(), appEnv.supabaseAnonKey(), {
     auth: {
