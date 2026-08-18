@@ -63,6 +63,14 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: string | null;
       };
+      create_inspection_request_with_chat: {
+        Args: {
+          expires_at: string;
+          request_message: string;
+          target_listing_id: string;
+        };
+        Returns: Array<{ chat_id: string; inspection_request_id: string }>;
+      };
       current_user_has_role: {
         Args: { target: Database["public"]["Enums"]["app_role"] };
         Returns: boolean;

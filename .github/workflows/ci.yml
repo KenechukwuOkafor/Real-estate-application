@@ -35,3 +35,105 @@ jobs:
 
       - name: Test
         run: npm test
+
+  migrations:
+    name: Replay migrations from zero
+    runs-on: ubuntu-latest
+
+    # Deliberately a separate job from the typecheck/lint/test one. It needs
+    # Docker and a Postgres container, it is slower, and its failure mode is
+    # completely different: it catches drift between the migration files and
+    # what has actually been applied.
+    #
+    # This exists because 0007_reports.sql was never applied to the local
+    # database and 0008-0013 were applied by hand and never recorded. Nothing
+    # in the pipeline would have noticed. public.reports did not exist while
+    # code referenced it, and the only reason nobody hit a 500 is that the
+    # route had no caller. Replaying from an empty database on every PR is the
+    # only check that catches this class of problem.
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install the Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase, applying every migration to an empty database
+        run: supabase start
+
+      # supabase start applies migrations in order and then runs seed.sql. A
+      # failure above is already a failing build; this asserts the outcome
+      # rather than trusting the exit code, so a migration that "succeeds"
+      # while leaving the schema wrong is still caught.
+      - name: Assert the schema and seed landed
+        run: |
+          set -euo pipefail
+
+          psql() {
+            docker exec "$(docker ps -qf name=supabase_db)" \
+              psql -U postgres -d postgres -t -A -c "$1" | tr -d '[:space:]'
+          }
+
+          missing=$(psql "
+            select count(*) from (
+              values ('users'),('user_roles'),('agent_profiles'),
+                     ('agent_verification_submissions'),('listings'),
+                     ('listing_images'),('listing_views'),('saved_listings'),
+                     ('inspection_requests'),('chats'),('messages'),
+                     ('subscriptions'),('reports'),('audit_logs')
+            ) as expected(name)
+            where not exists (
+              select 1 from information_schema.tables
+              where table_schema='public' and table_name=expected.name
+            );")
+          echo "tables missing: $missing"
+          test "$missing" = "0"
+
+          # ADR-010 / BR-RLS-001: every business table enforces RLS.
+          unprotected=$(psql "
+            select count(*) from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname='public' and c.relkind='r' and not c.relrowsecurity;")
+          echo "tables without RLS: $unprotected"
+          test "$unprotected" = "0"
+
+          # A table with RLS on and no policy denies everything, which is safe
+          # but almost always a mistake.
+          policyless=$(psql "
+            select count(*) from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname='public' and c.relkind='r' and c.relrowsecurity
+              and not exists (
+                select 1 from pg_policies p
+                where p.schemaname='public' and p.tablename = c.relname
+              );")
+          echo "tables with RLS but no policy: $policyless"
+          test "$policyless" = "0"
+
+          # The service-role client bypasses RLS but still needs table grants.
+          # A fresh database did not grant them, which broke every admin, audit
+          # and user-sync path until 0010 made them explicit.
+          ungranted=$(psql "
+            select count(*) from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname='public' and c.relkind='r'
+              and not has_table_privilege('service_role', c.oid, 'SELECT');")
+          echo "tables service_role cannot read: $ungranted"
+          test "$ungranted" = "0"
+
+          seeded=$(psql "select count(*) from public.listings where status='approved';")
+          echo "approved listings seeded: $seeded"
+          test "$seeded" = "3"
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup
+

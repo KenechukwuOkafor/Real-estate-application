@@ -196,3 +196,42 @@ export async function updateInspectionRequestStatus(
 
   return data as InspectionRequestRow;
 }
+
+/**
+ * Atomic creation via public.create_inspection_request_with_chat.
+ *
+ * Replaces three sequential writes that had no transaction between them.
+ * Returns the same shape the service previously assembled by hand.
+ */
+export async function createInspectionRequestWithChat(
+  client: DbClient,
+  input: { expiresAt: string; listingId: string; message: string },
+) {
+  const { data, error } = await client
+    .rpc("create_inspection_request_with_chat", {
+      expires_at: input.expiresAt,
+      request_message: input.message,
+      target_listing_id: input.listingId,
+    })
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const created = data as { chat_id: string; inspection_request_id: string };
+
+  const [{ data: request }, { data: chat }] = await Promise.all([
+    client
+      .from("inspection_requests")
+      .select("*")
+      .eq("id", created.inspection_request_id)
+      .single(),
+    client.from("chats").select("*").eq("id", created.chat_id).single(),
+  ]);
+
+  return {
+    chat: chat as ChatRow,
+    inspectionRequest: request as InspectionRequestRow,
+  };
+}

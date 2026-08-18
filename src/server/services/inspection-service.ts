@@ -1,14 +1,9 @@
 import "server-only";
 
 import { AppError } from "@/lib/api/errors";
+import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import {
-  createSupabaseAuthenticatedClient,
-  getSupabaseAdminClient,
-} from "@/lib/db/supabase";
-import {
-  attachChatToInspectionRequest,
-  createInspectionChat,
-  createInspectionRequest,
+  createInspectionRequestWithChat,
   findActiveInspectionRequest,
   getInspectionRequestById,
   getInspectableListingById,
@@ -40,14 +35,13 @@ export async function requestInspection(input: {
     throw new Error("Unauthenticated request.");
   }
 
-  // SERVICE ROLE for the creation path, deliberately. requestInspection writes
-  // three rows with no transaction — the request, the chat, and the backlink —
-  // and the chat belongs to both parties, so the seeker's own credentials are
-  // the wrong authority for it. A half-applied sequence under RLS would strand
-  // a request with no conversation. Reads and the agent's response are
-  // RLS-enforced (migration 0012).
-  const adminClient = getSupabaseAdminClient();
-  const listing = await getInspectableListingById(adminClient, input.listingId);
+  // One statement, therefore one transaction. The three writes — request, chat,
+  // and the backlink between them — used to be sequential with no transaction,
+  // so a failure between them stranded a request with no conversation. The
+  // function is SECURITY DEFINER and re-validates every rule below, so this
+  // path no longer needs the service-role client at all.
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getInspectableListingById(client, input.listingId);
 
   if (!listing || listing.deleted_at || listing.status !== "approved") {
     throw new Error("Listing not found.");
@@ -65,7 +59,7 @@ export async function requestInspection(input: {
   }
 
   const activeRequest = await findActiveInspectionRequest(
-    adminClient,
+    client,
     listing.id,
     appUser.user.id,
   );
@@ -75,26 +69,12 @@ export async function requestInspection(input: {
   }
 
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-  const inspectionRequest = await createInspectionRequest(adminClient, {
-    agentProfileId: listing.agent_profile_id,
-    expiresAt,
-    listingId: listing.id,
-    message: input.message.trim(),
-    requesterUserId: appUser.user.id,
-  });
-
-  const chat = await createInspectionChat(adminClient, {
-    agentProfileId: listing.agent_profile_id,
-    inspectionRequestId: inspectionRequest.id,
-    listingId: listing.id,
-    studentUserId: appUser.user.id,
-  });
-
-  const updatedRequest = await attachChatToInspectionRequest(
-    adminClient,
-    inspectionRequest.id,
-    chat.id,
-  );
+  const { chat, inspectionRequest: updatedRequest } =
+    await createInspectionRequestWithChat(client, {
+      expiresAt,
+      listingId: listing.id,
+      message: input.message.trim(),
+    });
 
   await writeAuditLog({
     action: "inspection_request.created",
@@ -171,21 +151,17 @@ export async function respondToInspectionRequest(input: {
     throw new Error("Agent profile not found.");
   }
 
-  // SERVICE ROLE for this read specifically, to preserve existing behaviour.
+  // Read through the caller's own credentials. RLS restricts inspection
+  // requests to their two parties, so an agent who does not own this one gets
+  // nothing back and the request reads as "not found" — a 404 rather than the
+  // 403 this used to return.
   //
-  // RLS and the service layer disagree here, and the disagreement is
-  // observable. Reading through the authenticated client would deny agent B
-  // the row entirely, so the ownership branch below would never fire and a
-  // request belonging to someone else would answer 404 "not found" instead of
-  // 403 INSPECTION_NOT_OWNED.
-  //
-  // The RLS answer is arguably the better one — 404 closes the existence
-  // oracle that lets a caller probe which inspection request ids are real —
-  // but that is a product decision, not one to make as a side effect of a
-  // policy migration. Flagged for decision; behaviour left unchanged.
-  const adminClient = getSupabaseAdminClient();
+  // That is deliberate. A 403 confirms the id names a real request, which lets
+  // a caller enumerate valid ids; the 404 closes that oracle. The ownership
+  // branch below is retained as defence in depth for the case where a future
+  // policy change widens the read.
   const inspectionRequest = await getInspectionRequestById(
-    adminClient,
+    client,
     input.inspectionRequestId,
   );
 

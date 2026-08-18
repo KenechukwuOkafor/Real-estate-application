@@ -12,8 +12,7 @@ vi.mock("@/lib/db/supabase", () => ({
 
 vi.mock("@/server/repositories/inspection-repository", () => ({
   attachChatToInspectionRequest: vi.fn(),
-  createInspectionChat: vi.fn(),
-  createInspectionRequest: vi.fn(),
+  createInspectionRequestWithChat: vi.fn(),
   findActiveInspectionRequest: vi.fn(),
   getInspectableListingById: vi.fn(),
   getInspectionRequestById,

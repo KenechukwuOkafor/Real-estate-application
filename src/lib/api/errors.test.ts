@@ -63,7 +63,11 @@ describe("resolveRouteError", () => {
     ).toMatchObject({ code: "VALIDATION_ERROR", httpStatus: 422 });
   });
 
-  it("maps an ownership denial to 403, not 500", () => {
+  it("still maps an explicit ownership denial to 403, not 500", () => {
+    // INSPECTION_NOT_OWNED is now largely unreachable: RLS denies the read
+    // first, so an agent asking about another agent's request gets 404. The
+    // branch is retained as defence in depth if a policy change ever widens
+    // the read, and this pins its mapping for that case.
     expect(
       resolveRouteError(
         new AppError(
