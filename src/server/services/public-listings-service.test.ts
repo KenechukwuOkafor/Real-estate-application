@@ -46,7 +46,9 @@ describe("trackListingView", () => {
   it("does not query the database for a malformed identifier", async () => {
     const result = await trackListingView({ slugOrPublicId: "not-a-listing" });
 
-    expect(result).toEqual({ tracked: false });
+    // Crawler noise. Reported as its own reason so it can stay unlogged
+    // without also silencing the case below.
+    expect(result).toEqual({ reason: "malformed", tracked: false });
     expect(getPublicListingIdByUuid).not.toHaveBeenCalled();
     expect(createListingView).not.toHaveBeenCalled();
   });
@@ -56,7 +58,10 @@ describe("trackListingView", () => {
 
     const result = await trackListingView({ slugOrPublicId: LISTING_UUID });
 
-    expect(result).toEqual({ tracked: false });
+    // Distinct from `malformed`: a well-formed UUID that matched nothing is the
+    // shape of a caller sending the wrong column, which is the defect that hid
+    // here behind an undifferentiated `{ tracked: false }`.
+    expect(result).toEqual({ reason: "unresolved", tracked: false });
     expect(createListingView).not.toHaveBeenCalled();
   });
 
