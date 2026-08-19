@@ -1,12 +1,23 @@
 name: CI
 
+# Every branch, not just main.
+#
+# The trigger used to be `push: branches: [main]` plus `pull_request`, which
+# meant a branch with no PR open got no CI at all. That is not a hypothetical
+# gap: the observability branch sat typecheck-clean with six failing tests
+# across several commits, and nothing ran because no PR existed yet. Work is
+# done on branches, so branches are where the signal has to arrive.
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
 
+# Keyed on the branch name rather than the ref, so the push run and the
+# pull_request run for the same branch share a group and the newer cancels the
+# older. Without this, every commit on a branch with an open PR would run the
+# whole pipeline twice — including the Postgres replay.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
