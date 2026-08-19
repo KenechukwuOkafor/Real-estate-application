@@ -6,6 +6,8 @@ import { AppError } from "@/lib/api/errors";
 import { getCurrentClerkUser, requireAuthenticatedUser } from "@/lib/auth/clerk";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { setContextUser } from "@/lib/observability/context";
+import { log } from "@/lib/observability/logger";
+import { captureUnconditionally } from "@/lib/observability/sentry";
 import {
   ensureUserRoles,
   getUserByClerkUserId,
@@ -99,9 +101,19 @@ async function recordDeniedRoleRequest(input: {
     // writes audit entries after the mutation they describe, so a throw here
     // would turn a succeeded signup into a 500. Phase 1 addresses audit
     // failure handling globally.
-    console.error("Failed to record denied role request", {
+    // A denied role request is a security-relevant event, so losing the audit
+    // entry is worth an alert even though the request itself succeeded.
+    log.error({
       error,
+      errorCode: "AUDIT_WRITE_FAILED",
+      event: "DeniedRoleRequestNotAudited",
       userId: input.userId,
+    });
+
+    captureUnconditionally(error, {
+      category: "infrastructure",
+      errorCode: "AUDIT_WRITE_FAILED",
+      extra: { userId: input.userId },
     });
   }
 }
