@@ -2,12 +2,16 @@
   "name": "ruvo-web",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.6.2",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
+    "agent": "node agent/controller.js",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint .",
-    "typecheck": "next typegen && tsc --noEmit"
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.0.7",
@@ -20,11 +24,17 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
+    "express": "^5.2.1",
+    "pg": "^8.23.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.10",
+    "ws": "^8.20.0"
   }
 }

@@ -2,59 +2,33 @@
 
 import Link from "next/link";
 
-import {
-  SignInButton,
-  SignUpButton,
-  useAuth,
-  UserButton,
-} from "@clerk/nextjs";
+import { AccountMenu } from "@/components/account-menu";
 
 export function AppShellHeader() {
-  const { isSignedIn } = useAuth();
-
   return (
     <header className="border-b border-stone-900/10 bg-white/75 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-4">
-        <Link href="/" className="text-lg font-semibold tracking-tight text-stone-900">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3.5">
+        <Link
+          className="text-lg font-semibold tracking-tight text-stone-900"
+          href="/"
+        >
           Ruvo
         </Link>
 
-        <nav className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-2">
           <Link
-            className="rounded-full px-4 py-2 text-stone-700 transition-colors hover:bg-stone-100"
+            className="rounded-full px-3 py-2 text-sm text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-900"
             href="/listings"
           >
-            Listings
+            Browse
           </Link>
 
-          {!isSignedIn ? (
-            <>
-            <SignInButton mode="modal">
-              <button className="rounded-full border border-stone-900/10 bg-white px-4 py-2 font-medium text-stone-800">
-                Sign in
-              </button>
-            </SignInButton>
-
-            <SignUpButton mode="modal">
-              <button className="rounded-full bg-stone-900 px-4 py-2 font-medium text-white">
-                Create account
-              </button>
-            </SignUpButton>
-            </>
-          ) : null}
-
-          {isSignedIn ? (
-            <>
-            <Link
-              className="rounded-full border border-stone-900/10 bg-white px-4 py-2 font-medium text-stone-800"
-              href="/dashboard"
-            >
-              Dashboard
-            </Link>
-            <UserButton />
-            </>
-          ) : null}
-        </nav>
+          {/*
+            The dev-auth harness must not appear in the product surface.
+            /dev-login remains reachable by typing the URL.
+          */}
+          <AccountMenu />
+        </div>
       </div>
     </header>
   );

@@ -27,7 +27,11 @@ export function SubmitListingReviewButton({
       | null;
 
     if (!response.ok) {
-      setError(payload?.error?.message ?? "Unable to submit listing.");
+      setError(
+        payload?.error?.message === "LISTING_SUBSCRIPTION_REQUIRED"
+          ? "An active subscription or free listing quota is required before this listing can be submitted."
+          : payload?.error?.message ?? "Unable to submit listing.",
+      );
       setIsSubmitting(false);
       return;
     }

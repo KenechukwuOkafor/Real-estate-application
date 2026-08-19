@@ -4,14 +4,21 @@ Trust-first real estate marketplace infrastructure for verified listings, starti
 
 ## Stack
 
-- Next.js App Router
+- Next.js App Router (v16)
 - Node.js route handlers and server-side logic
-- Supabase Postgres
-- Clerk
-- Paystack
-- Sentry
+- Supabase Postgres (RLS-enforced)
+- Clerk (authentication)
+- Paystack (subscriptions and payments)
+- Sentry (monitoring)
+- Vercel (hosting)
 
 ## Getting Started
+
+Copy the environment file and fill in your values:
+
+```bash
+cp .env.example .env.local
+```
 
 Install dependencies and start the development server:
 
@@ -20,57 +27,114 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in the browser.
+The dev server runs at [http://localhost:3001](http://localhost:3001).
 
-## Core Project Docs
+## Local Database Setup
 
-- `ARCHITECTURE.md`
-- `SCHEMA.md`
-- `API_CONTRACTS.md`
-- `AGENT_RULES.md`
-
-## Initial Structure
-
-```text
-src/
-  app/
-  components/
-  features/
-  lib/
-  server/
-  types/
-supabase/
-  migrations/
-  policies/
-```
-
-## Next Steps
-
-- add environment variables
-- integrate Clerk
-- integrate Supabase
-- add first migration set for Slice 1
-- build the public listing system
-
-## Environment Variables
-
-See `.env.example`.
-
-## Local Supabase Workflow
-
-Start the local Supabase stack if needed:
+Start the local Supabase stack:
 
 ```bash
 npx supabase start
 ```
 
-Reset the local database and apply migrations plus the seed file:
+Apply migrations and seed data:
 
 ```bash
 npx supabase db reset
 ```
 
-Files involved:
-- `supabase/migrations/0001_initial_slice_1.sql`
-- `supabase/migrations/0002_public_listing_policies.sql`
-- `supabase/seed.sql`
+Migrations applied (in order):
+- `0001_initial_slice_1.sql` — core tables: users, listings, images, saved_listings, audit_logs
+- `0002_public_listing_policies.sql` — public RLS policies for listings
+- `0003_agent_verification_submissions.sql` — agent verification workflow
+- `0004_listing_media_bucket.sql` — Supabase Storage bucket for listing images
+- `0005_inspection_requests_and_chats.sql` — inspection requests, chats, messages
+- `0006_subscriptions.sql` — agent subscription plans and entitlement
+- `0007_reports.sql` — user reports on listings, agents, and messages
+
+## Development Auth
+
+### Dev auth
+
+The dev-auth harness impersonates the seeded student, agent and admin
+accounts without Clerk. It is disabled in production unconditionally.
+
+To enable it locally, `.env.local` needs **both**:
+
+```
+ENABLE_DEV_AUTH=true
+NEXT_PUBLIC_ENABLE_DEV_AUTH=true
+```
+
+`ENABLE_DEV_AUTH` is server-only and is the sole flag that can produce a
+session. `NEXT_PUBLIC_ENABLE_DEV_AUTH` only controls whether the dev login
+panel is visible and grants nothing.
+
+If you previously set only `NEXT_PUBLIC_ENABLE_DEV_AUTH`, add
+`ENABLE_DEV_AUTH=true` or dev login will stop working.
+
+The dev login panel is available at `/dev-login`. Seeded test users:
+
+| Role | Email |
+|------|-------|
+| Student | student1@ruvo.local |
+| Agent (verified) | agent1@ruvo.local |
+| Admin | admin1@ruvo.local |
+
+Dev auth only works when seeded users exist in the connected database.
+
+## Type Checking
+
+Run type check and build **sequentially**, not in parallel (Next.js generates `.next/types` during the build step):
+
+```bash
+npm run typecheck
+npm run build
+```
+
+## Project Docs
+
+- `ARCHITECTURE.md` — system rules, RBAC, state machines, listing constraints
+- `SCHEMA.md` — database schema, enums, table definitions, RLS expectations
+- `API_CONTRACTS.md` — endpoint contracts, request/response shapes, pagination format
+- `AGENT_RULES.md` — engineering rules, coding standards, migration rules
+
+## Folder Structure
+
+```text
+src/
+  app/           Next.js App Router pages and API routes
+  components/    Shared UI components
+  features/      Domain feature modules (listings, agents, chats, auth)
+  lib/           Infrastructure utilities (auth, db, api helpers)
+  server/
+    services/    Business logic layer
+    repositories/  Database access layer
+  types/         Shared TypeScript types (database.ts is auto-generated)
+supabase/
+  migrations/    Version-controlled SQL migrations
+  policies/      Exported RLS policy SQL
+```
+
+## What Is Built
+
+- Public listing browse, filter, and detail pages
+- Cursor-based paginated listing API
+- Listing view tracking
+- Agent workspace: profile, verification, draft listing creation, image upload, review submission
+- Admin moderation queue: approve, reject, flag, dispute listings
+- Admin verification review: approve and reject agent verification submissions
+- Inspection request creation from listing detail
+- Chat inbox and threaded messages for inspection conversations
+- Agent accept/decline inspection response
+- Subscription entitlement gating for listing creation and submission
+- Saved listings (save and unsave)
+- User reporting (listings, agents, messages)
+- Audit logging across all critical workflow actions
+- Dev login flow for local development
+
+## Next Priority
+
+1. Paystack subscription purchase and webhook handling
+2. Inspection expiry job and completion flow
+3. Notification delivery on moderation decisions

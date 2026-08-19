@@ -392,7 +392,26 @@ Rules:
 
 ## `PATCH /api/agent/listings/:id`
 
-Updates a draft or rejected listing that the agent owns.
+Updates a draft or rejected listing that the agent owns. Send only the fields to change.
+
+Request body (all fields optional):
+
+```json
+{
+  "title": "Updated title",
+  "description": "Updated description",
+  "propertyType": "self_contain",
+  "priceNaira": 280000,
+  "bedrooms": 1,
+  "bathrooms": 1,
+  "area": "Okwuoji",
+  "city": "Nsukka",
+  "state": "Enugu",
+  "latitude": 6.856,
+  "longitude": 7.395,
+  "amenities": ["water", "tiled_floor"]
+}
+```
 
 Response `200`:
 
@@ -408,6 +427,11 @@ Response `200`:
   }
 }
 ```
+
+Validation:
+- listing must be in `draft` or `rejected` state
+- agent must own the listing
+- merged field values are validated against all listing content rules
 
 ## `POST /api/agent/listings/:id/images`
 

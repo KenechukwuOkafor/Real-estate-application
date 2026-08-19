@@ -55,7 +55,11 @@ export function DraftListingForm() {
       | null;
 
     if (!response.ok) {
-      setError(payload?.error?.message ?? "Unable to create draft listing.");
+      setError(
+        payload?.error?.message === "LISTING_SUBSCRIPTION_REQUIRED"
+          ? "An active subscription or free listing quota is required before you can create a new draft."
+          : payload?.error?.message ?? "Unable to create draft listing.",
+      );
       setIsSubmitting(false);
       return;
     }

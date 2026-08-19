@@ -8,14 +8,36 @@ export type AgentProfileInput = {
   displayName: string;
 };
 
+/**
+ * Verification submission.
+ *
+ * `documents` used to be agent-typed "type|url" strings — links to wherever
+ * the agent happened to host a photo of their government ID. Nothing ever
+ * reached Ruvo, so BR-MEDIA-003 and BR-SEC-005 could not be met by any amount
+ * of application code. They are now references to objects already uploaded to
+ * the private verification-documents bucket.
+ */
 export type AgentVerificationSubmissionInput = {
   documents: Array<{
-    type: string;
-    url: string;
+    documentType: string;
+    originalFilename?: string;
+    storagePath: string;
   }>;
   fullLegalName: string;
   notes?: string;
 };
+
+export type VerificationDocumentUploadRequest = {
+  files: Array<{ contentType: string; fileName: string }>;
+};
+
+/** REB-ARCH-005 lists these as the verification document kinds. */
+export const VERIFICATION_DOCUMENT_TYPES = [
+  { label: "Government ID", value: "government_id" },
+  { label: "CAC certificate", value: "cac_certificate" },
+  { label: "Utility bill", value: "utility_bill" },
+  { label: "Agency license", value: "agency_license" },
+] as const;
 
 export type AgentDraftListingInput = {
   amenities: string[];
@@ -40,13 +62,26 @@ export type AgentProfileSummary = {
   verificationStatus: AgentVerificationStatus;
 };
 
+/**
+ * Registration payload for already-uploaded listing images.
+ *
+ * Only the storage path and ordering come from the client. publicUrl, mimeType
+ * and sizeBytes are derived server-side from the object that actually exists in
+ * the bucket — they used to be client-supplied and were written to the database
+ * unverified.
+ */
 export type AgentListingImageInput = {
   images: Array<{
-    mimeType: string;
     position: number;
-    publicUrl: string;
-    sizeBytes: number;
     storagePath: string;
+  }>;
+  listingId: string;
+};
+
+export type AgentListingImageUploadRequest = {
+  files: Array<{
+    contentType: string;
+    fileName: string;
   }>;
   listingId: string;
 };

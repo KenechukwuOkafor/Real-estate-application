@@ -20,11 +20,11 @@ export default async function AgentWorkspacePage() {
             Agent workspace
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight">
-            Agent tools start here.
+            Manage your listings.
           </h1>
           <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-700">
-            Profile setup, verification submission, and draft listing creation are
-            now active.
+            Set up your profile, complete identity verification, create draft listings,
+            and respond to inspection requests from students.
           </p>
         </section>
 
@@ -49,6 +49,11 @@ export default async function AgentWorkspacePage() {
               description: "Register listing images and submit drafts for moderation.",
               href: "/agent/listings",
               title: "Manage listings",
+            },
+            {
+              description: "Review inspection conversations and respond to incoming requests.",
+              href: "/chats",
+              title: "Inspection chats",
             },
           ].map((item) => (
             <Link

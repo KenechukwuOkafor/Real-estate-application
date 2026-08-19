@@ -25,7 +25,7 @@ export function ListingFilters({ filters }: ListingFiltersProps) {
               Filters
             </p>
             <h2 className="mt-2 text-2xl font-semibold text-stone-900">
-              Refine the public listing feed.
+              Filter listings
             </h2>
           </div>
 
@@ -99,25 +99,25 @@ export function ListingFilters({ filters }: ListingFiltersProps) {
           </label>
 
           <label className="flex flex-col gap-2 text-sm text-stone-600">
-            <span>Minimum price</span>
+            <span>Min price (₦)</span>
             <input
               className={inputClassName()}
               defaultValue={filters.minPrice ?? ""}
               min={0}
               name="minPrice"
-              placeholder="100000"
+              placeholder="e.g. 100000"
               type="number"
             />
           </label>
 
           <label className="flex flex-col gap-2 text-sm text-stone-600">
-            <span>Maximum price</span>
+            <span>Max price (₦)</span>
             <input
               className={inputClassName()}
               defaultValue={filters.maxPrice ?? ""}
               min={0}
               name="maxPrice"
-              placeholder="800000"
+              placeholder="e.g. 800000"
               type="number"
             />
           </label>

@@ -38,7 +38,9 @@ export type ListingListItem = {
   area: string;
   city: string;
   state: string;
+  /** Signed at render time; null when the caller may not read it. */
   coverImageUrl: string | null;
+  coverImageStoragePath: string | null;
   approvedAt: string | null;
   agent: {
     displayName: string;
@@ -55,7 +57,8 @@ export type ListingDetail = ListingListItem & {
   videoUrl: string | null;
   images: Array<{
     id: string;
-    url: string;
+    url: string | null;
+  storagePath: string;
     position: number;
     isCover: boolean;
   }>;

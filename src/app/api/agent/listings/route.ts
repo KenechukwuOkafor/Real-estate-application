@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { routeErrorResponse } from "@/lib/api/errors";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { createCurrentAgentDraftListing } from "@/server/services/agent-service";
@@ -46,43 +47,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        data: {
-          id: result.listing.id,
-          status: result.listing.status,
-        },
+        data: { id: result.listing.id, status: result.listing.status },
         meta: createApiMeta(requestId),
       },
       { status: 201 },
     );
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to create draft listing.";
-    const status =
-      message === "Unauthenticated request."
-        ? 401
-        : message === "Agent role is required."
-          ? 403
-          : message.includes("required") || message.includes("before") || message.includes("Invalid")
-            ? 422
-            : 500;
-
-    return NextResponse.json(
-      {
-        error: {
-          code:
-            status === 401
-              ? "UNAUTHENTICATED"
-              : status === 403
-                ? "UNAUTHORIZED"
-                : status === 422
-                  ? "VALIDATION_ERROR"
-                  : "INTERNAL_ERROR",
-          details: null,
-          message,
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }

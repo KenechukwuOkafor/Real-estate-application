@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template. .env.example holds no values, only the names of the
+# variables the app requires, and it is the only record of what a new
+# environment must provide. The .env* rule above was swallowing it.
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +43,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/
+
+# supabase local cli state
+/supabase/.branches
+/supabase/.temp
+
+# Vitest JSON report, written by the CI no-skip assertion
+vitest-results.json

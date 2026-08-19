@@ -60,7 +60,8 @@
 ### `inspection_status`
 
 - `requested`
-- `responded`
+- `accepted`
+- `declined`
 - `expired`
 - `cancelled`
 - `completed`
@@ -69,6 +70,19 @@
 
 - `inspection`
 - `support`
+
+### `report_target_type`
+
+- `listing`
+- `agent`
+- `message`
+
+### `report_status`
+
+- `open`
+- `under_review`
+- `resolved`
+- `dismissed`
 
 ### `report_target_type`
 

@@ -1,14 +1,18 @@
 import { redirect } from "next/navigation";
 
 import { DraftListingForm } from "@/features/agents/components/draft-listing-form";
-import { getCurrentAgentContext } from "@/server/services/agent-service";
+import {
+  getCurrentAgentContext,
+  getCurrentAgentListingEntitlement,
+} from "@/server/services/agent-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewAgentListingPage() {
   const context = await getCurrentAgentContext().catch(() => null);
+  const entitlement = await getCurrentAgentListingEntitlement().catch(() => null);
 
-  if (!context) {
+  if (!context || !entitlement) {
     redirect("/dashboard");
   }
 
@@ -22,9 +26,19 @@ export default async function NewAgentListingPage() {
           Create a listing draft.
         </h1>
         <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-700">
-          This creates a draft only. Submission, moderation, and media workflows
-          will build in the next step.
+          Drafts are free and unlimited. Verification and a submission slot are
+          checked later, when you submit this listing for review.
         </p>
+
+        <div className="mt-6 rounded-[1.5rem] bg-stone-50 p-5 text-sm leading-7 text-stone-700">
+          {!entitlement.isVerified
+            ? "You can save drafts now. Submitting one for review needs identity verification — start that from Verification in your workspace."
+            : entitlement.activeSubscription
+              ? `Active ${entitlement.activeSubscription.plan} subscription in place until ${entitlement.activeSubscription.expires_at}.`
+              : entitlement.freeListingQuota > 0
+                ? `${entitlement.freeListingQuota} submission slot${entitlement.freeListingQuota === 1 ? "" : "s"} remaining.`
+                : "No submission slots remaining. You can keep drafting, but submitting for review needs a new slot."}
+        </div>
 
         <div className="mt-8">
           <DraftListingForm />

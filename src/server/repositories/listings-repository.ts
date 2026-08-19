@@ -21,7 +21,7 @@ type AgentProfileSummaryRow = Pick<
 
 type ListingImageSummaryRow = Pick<
   Database["public"]["Tables"]["listing_images"]["Row"],
-  "created_at" | "deleted_at" | "height" | "id" | "is_cover" | "listing_id" | "mime_type" | "position" | "public_url" | "size_bytes" | "storage_path" | "width"
+  "created_at" | "deleted_at" | "height" | "id" | "is_cover" | "listing_id" | "mime_type" | "position" | "size_bytes" | "storage_path" | "width"
 >;
 
 type PublicListingListRow = Pick<
@@ -184,7 +184,9 @@ function mapListingCard(row: PublicListingListRow | PublicListingDetailRow): Lis
     bathrooms: row.bathrooms,
     bedrooms: row.bedrooms,
     city: row.city,
-    coverImageUrl: coverImage?.public_url ?? null,
+    coverImageStoragePath: coverImage?.storage_path ?? null,
+    // Signed later by public-listings-service; the repository never mints URLs.
+    coverImageUrl: null,
     id: row.id,
     priceNaira: row.price_naira,
     propertyType: row.property_type,
@@ -234,11 +236,10 @@ export async function getPublicListings(
           verified_at,
           verified_by
         ),
-        listing_images (
+        listing_images!listing_images_listing_id_fkey (
           id,
           listing_id,
           storage_path,
-          public_url,
           position,
           width,
           height,
@@ -329,11 +330,10 @@ export async function getPublicListingByIdentifier(
           verified_at,
           verified_by
         ),
-        listing_images (
+        listing_images!listing_images_listing_id_fkey (
           id,
           listing_id,
           storage_path,
-          public_url,
           position,
           width,
           height,
@@ -381,7 +381,8 @@ export async function getPublicListingByIdentifier(
       id: image.id,
       isCover: image.is_cover,
       position: image.position,
-      url: image.public_url,
+      storagePath: image.storage_path,
+      url: null,
     })),
     latitude: row.latitude,
     longitude: row.longitude,
@@ -391,6 +392,59 @@ export async function getPublicListingByIdentifier(
     status: "approved",
     videoUrl: row.video_url,
   };
+}
+
+export async function getPublicListingIdByUuid(
+  client: DbClient,
+  publicId: string,
+): Promise<{ id: string } | null> {
+  const { data, error } = await client
+    .from("listings")
+    .select("id")
+    .eq("public_uuid", publicId)
+    .eq("status", "approved")
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function saveListing(
+  client: DbClient,
+  userId: string,
+  listingId: string,
+) {
+  const { data, error } = await client
+    .from("saved_listings")
+    .upsert({ listing_id: listingId, user_id: userId }, { onConflict: "user_id,listing_id" })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function unsaveListing(
+  client: DbClient,
+  userId: string,
+  listingId: string,
+) {
+  const { error } = await client
+    .from("saved_listings")
+    .delete()
+    .eq("user_id", userId)
+    .eq("listing_id", listingId);
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function createListingView(

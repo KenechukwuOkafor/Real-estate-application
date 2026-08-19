@@ -6,6 +6,13 @@ import { getCurrentAppUser } from "@/server/services/user-sync-service";
 export const dynamic = "force-dynamic";
 
 function getPrimaryCta(roles: string[]) {
+  if (roles.includes("admin")) {
+    return {
+      href: "/admin/verification",
+      label: "Open admin review",
+    };
+  }
+
   if (roles.includes("agent")) {
     return {
       href: "/agent",
@@ -39,15 +46,15 @@ export default async function DashboardPage() {
             Welcome{result.user.full_name ? `, ${result.user.full_name}` : ""}.
           </h1>
           <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-700">
-            Your Ruvo account is active and linked to the app database. The next
-            product slices will build on these roles and permissions.
+            Your Ruvo account is active. Use the shortcuts below to jump to your
+            workspace, inspect listings, or manage your active conversations.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
             {result.roles.map((role) => (
               <span
                 key={role}
-                className="rounded-full bg-stone-100 px-4 py-2 text-sm font-medium text-stone-700"
+                className="rounded-full bg-stone-100 px-4 py-2 text-sm font-medium capitalize text-stone-700"
               >
                 {role}
               </span>
@@ -61,6 +68,20 @@ export default async function DashboardPage() {
             >
               {primaryCta.label}
             </Link>
+            <Link
+              className="rounded-full border border-stone-900/10 bg-white px-5 py-3 text-sm font-medium text-stone-800"
+              href="/chats"
+            >
+              Open chats
+            </Link>
+            {result.roles.includes("admin") ? (
+              <Link
+                className="rounded-full border border-stone-900/10 bg-white px-5 py-3 text-sm font-medium text-stone-800"
+                href="/admin/listings"
+              >
+                Open listing moderation
+              </Link>
+            ) : null}
             <Link
               className="rounded-full border border-stone-900/10 bg-white px-5 py-3 text-sm font-medium text-stone-800"
               href="/onboarding"

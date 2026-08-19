@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { routeErrorResponse } from "@/lib/api/errors";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { rejectListingAsAdmin } from "@/server/services/admin-service";
@@ -20,31 +21,10 @@ export async function POST(request: Request, context: RouteContext) {
     );
 
     return NextResponse.json({
-      data: {
-        id: listing.id,
-        status: listing.status,
-      },
+      data: { id: listing.id, status: listing.status },
       meta: createApiMeta(requestId),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to reject listing.";
-    const status =
-      message === "Unauthenticated request."
-        ? 401
-        : message === "Admin role is required."
-          ? 403
-          : 500;
-
-    return NextResponse.json(
-      {
-        error: {
-          code: status === 401 ? "UNAUTHENTICATED" : status === 403 ? "UNAUTHORIZED" : "INTERNAL_ERROR",
-          details: null,
-          message,
-        },
-        meta: createApiMeta(requestId),
-      },
-      { status },
-    );
+    return routeErrorResponse(error, requestId);
   }
 }

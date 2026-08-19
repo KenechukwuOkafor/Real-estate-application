@@ -19,6 +19,21 @@ export type Database = {
         | "rejected"
         | "suspended";
       app_role: "student" | "agent" | "admin";
+      job_queue: "default" | "media";
+      job_status:
+        | "queued"
+        | "running"
+        | "completed"
+        | "retrying"
+        | "failed_permanently";
+      chat_type: "inspection";
+      inspection_status:
+        | "requested"
+        | "accepted"
+        | "declined"
+        | "expired"
+        | "cancelled"
+        | "completed";
       listing_status:
         | "draft"
         | "pending_review"
@@ -27,6 +42,10 @@ export type Database = {
         | "archived"
         | "flagged"
         | "under_dispute";
+      report_status: "open" | "under_review" | "resolved" | "dismissed";
+      report_target_type: "listing" | "agent" | "message";
+      subscription_plan: "basic" | "pro" | "enterprise";
+      subscription_status: "active" | "expired" | "cancelled" | "grace_period";
       property_type:
         | "self_contain"
         | "1_bedroom"
@@ -36,7 +55,76 @@ export type Database = {
         | "lodge_room";
     };
     Functions: {
-      [_ in never]: never;
+      // RLS identity helpers (migration 0008). Policies call these in SQL;
+      // they are exposed to .rpc() so tests can assert the token path
+      // directly rather than inferring it from an empty result set.
+      clerk_user_id: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
+      current_agent_profile_id: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
+      current_app_user_id: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
+      create_inspection_request_with_chat: {
+        Args: {
+          expires_at: string;
+          request_message: string;
+          target_listing_id: string;
+        };
+        Returns: Array<{ chat_id: string; inspection_request_id: string }>;
+      };
+      uuidv7: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
+      claim_jobs: {
+        Args: {
+          batch_size: number;
+          target_queue: Database["public"]["Enums"]["job_queue"];
+        };
+        Returns: Array<Database["public"]["Tables"]["jobs"]["Row"]>;
+      };
+      complete_job: {
+        Args: { job_id: string; job_result?: Json | null };
+        Returns: undefined;
+      };
+      enqueue_job: {
+        Args: {
+          attempts_allowed?: number;
+          job_payload?: Json;
+          job_type: string;
+          run_at?: string;
+          target_queue?: Database["public"]["Enums"]["job_queue"];
+        };
+        Returns: string;
+      };
+      fail_job: {
+        Args: {
+          base_delay_seconds?: number;
+          error_message: string;
+          job_id: string;
+        };
+        Returns: Database["public"]["Enums"]["job_status"];
+      };
+      job_queue_health: {
+        Args: Record<PropertyKey, never>;
+        Returns: Array<{
+          failed_permanently_count: number;
+          oldest_queued_age_seconds: number;
+          queue: Database["public"]["Enums"]["job_queue"];
+          queued_count: number;
+          running_count: number;
+        }>;
+      };
+      current_user_has_role: {
+        Args: { target: Database["public"]["Enums"]["app_role"] };
+        Returns: boolean;
+      };
     };
     Tables: {
       agent_profiles: {
@@ -92,7 +180,6 @@ export type Database = {
           agent_profile_id: string;
           created_at?: string;
           deleted_at?: string | null;
-          documents?: Json;
           full_legal_name: string;
           id?: string;
           notes?: string | null;
@@ -104,7 +191,6 @@ export type Database = {
           agent_profile_id: string;
           created_at: string;
           deleted_at: string | null;
-          documents: Json;
           full_legal_name: string;
           id: string;
           notes: string | null;
@@ -115,6 +201,34 @@ export type Database = {
         Update: Partial<
           Database["public"]["Tables"]["agent_verification_submissions"]["Insert"]
         >;
+        Relationships: [];
+      };
+      verification_documents: {
+        Insert: {
+          agent_profile_id: string;
+          agent_verification_submission_id: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          document_type: string;
+          id?: string;
+          mime_type: string;
+          original_filename?: string | null;
+          size_bytes: number;
+          storage_path: string;
+        };
+        Row: {
+          agent_profile_id: string;
+          agent_verification_submission_id: string;
+          created_at: string;
+          deleted_at: string | null;
+          document_type: string;
+          id: string;
+          mime_type: string;
+          original_filename: string | null;
+          size_bytes: number;
+          storage_path: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["verification_documents"]["Insert"]>;
         Relationships: [];
       };
       audit_logs: {
@@ -143,6 +257,122 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
         Relationships: [];
       };
+      chats: {
+        Insert: {
+          agent_profile_id: string;
+          closed_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+          id?: string;
+          inspection_request_id?: string | null;
+          last_message_at?: string | null;
+          listing_id?: string | null;
+          student_user_id: string;
+          type: "inspection";
+          updated_at?: string;
+        };
+        Row: {
+          agent_profile_id: string;
+          closed_at: string | null;
+          created_at: string;
+          deleted_at: string | null;
+          id: string;
+          inspection_request_id: string | null;
+          last_message_at: string | null;
+          listing_id: string | null;
+          student_user_id: string;
+          type: "inspection";
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["chats"]["Insert"]>;
+        Relationships: [];
+      };
+      inspection_requests: {
+        Insert: {
+          agent_profile_id: string;
+          cancelled_at?: string | null;
+          chat_id?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+          expires_at: string;
+          id?: string;
+          listing_id: string;
+          message?: string | null;
+          requested_at?: string;
+          requester_user_id: string;
+          responded_at?: string | null;
+          status?:
+            | "requested"
+            | "accepted"
+            | "declined"
+            | "expired"
+            | "cancelled"
+            | "completed";
+          updated_at?: string;
+        };
+        Row: {
+          agent_profile_id: string;
+          cancelled_at: string | null;
+          chat_id: string | null;
+          completed_at: string | null;
+          created_at: string;
+          deleted_at: string | null;
+          expires_at: string;
+          id: string;
+          listing_id: string;
+          message: string | null;
+          requested_at: string;
+          requester_user_id: string;
+          responded_at: string | null;
+          status:
+            | "requested"
+            | "accepted"
+            | "declined"
+            | "expired"
+            | "cancelled"
+            | "completed";
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["inspection_requests"]["Insert"]>;
+        Relationships: [];
+      };
+      jobs: {
+        Insert: {
+          attempts?: number;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          max_attempts?: number;
+          payload?: Json;
+          queue?: Database["public"]["Enums"]["job_queue"];
+          result?: Json | null;
+          scheduled_at?: string;
+          started_at?: string | null;
+          status?: Database["public"]["Enums"]["job_status"];
+          type: string;
+          updated_at?: string;
+        };
+        Row: {
+          attempts: number;
+          completed_at: string | null;
+          created_at: string;
+          id: string;
+          last_error: string | null;
+          max_attempts: number;
+          payload: Json;
+          queue: Database["public"]["Enums"]["job_queue"];
+          result: Json | null;
+          scheduled_at: string;
+          started_at: string | null;
+          status: Database["public"]["Enums"]["job_status"];
+          type: string;
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["jobs"]["Insert"]>;
+        Relationships: [];
+      };
       listing_images: {
         Insert: {
           created_at?: string;
@@ -153,7 +383,6 @@ export type Database = {
           listing_id: string;
           mime_type: string;
           position: number;
-          public_url: string;
           size_bytes: number;
           storage_path: string;
           width?: number | null;
@@ -167,7 +396,6 @@ export type Database = {
           listing_id: string;
           mime_type: string;
           position: number;
-          public_url: string;
           size_bytes: number;
           storage_path: string;
           width: number | null;
@@ -295,6 +523,60 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["listings"]["Insert"]>;
         Relationships: [];
       };
+      messages: {
+        Insert: {
+          body: string;
+          chat_id: string;
+          created_at?: string;
+          deleted_at?: string | null;
+          id?: string;
+          read_at?: string | null;
+          sender_user_id: string;
+        };
+        Row: {
+          body: string;
+          chat_id: string;
+          created_at: string;
+          deleted_at: string | null;
+          id: string;
+          read_at: string | null;
+          sender_user_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["messages"]["Insert"]>;
+        Relationships: [];
+      };
+      reports: {
+        Insert: {
+          created_at?: string;
+          deleted_at?: string | null;
+          id?: string;
+          reason: string;
+          reporter_user_id: string;
+          resolution_notes?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          status?: "open" | "under_review" | "resolved" | "dismissed";
+          target_id: string;
+          target_type: "listing" | "agent" | "message";
+          updated_at?: string;
+        };
+        Row: {
+          created_at: string;
+          deleted_at: string | null;
+          id: string;
+          reason: string;
+          reporter_user_id: string;
+          resolution_notes: string | null;
+          resolved_at: string | null;
+          resolved_by: string | null;
+          status: "open" | "under_review" | "resolved" | "dismissed";
+          target_id: string;
+          target_type: "listing" | "agent" | "message";
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["reports"]["Insert"]>;
+        Relationships: [];
+      };
       saved_listings: {
         Insert: {
           created_at?: string;
@@ -309,6 +591,40 @@ export type Database = {
           user_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["saved_listings"]["Insert"]>;
+        Relationships: [];
+      };
+      subscriptions: {
+        Insert: {
+          agent_profile_id: string;
+          cancelled_at?: string | null;
+          created_at?: string;
+          deleted_at?: string | null;
+          expires_at: string;
+          id?: string;
+          metadata?: Json;
+          plan: "basic" | "pro" | "enterprise";
+          provider?: string;
+          provider_reference?: string | null;
+          starts_at: string;
+          status: "active" | "expired" | "cancelled" | "grace_period";
+          updated_at?: string;
+        };
+        Row: {
+          agent_profile_id: string;
+          cancelled_at: string | null;
+          created_at: string;
+          deleted_at: string | null;
+          expires_at: string;
+          id: string;
+          metadata: Json;
+          plan: "basic" | "pro" | "enterprise";
+          provider: string;
+          provider_reference: string | null;
+          starts_at: string;
+          status: "active" | "expired" | "cancelled" | "grace_period";
+          updated_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["subscriptions"]["Insert"]>;
         Relationships: [];
       };
       user_roles: {

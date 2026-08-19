@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 
 import { AgentProfileForm } from "@/features/agents/components/agent-profile-form";
-import { getCurrentAgentContext } from "@/server/services/agent-service";
+import { getAgentOnboardingContext } from "@/server/services/agent-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function AgentProfilePage() {
-  const context = await getCurrentAgentContext().catch(() => null);
+  const context = await getAgentOnboardingContext().catch(() => null);
 
   if (!context) {
     redirect("/dashboard");

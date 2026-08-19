@@ -1,86 +1,103 @@
-import { HomeHeroActions } from "@/components/home-hero-actions";
+import type { Metadata } from "next";
 
-export default function Home() {
+import { ListingFeed } from "@/features/listings/components/listing-feed";
+import { ListingSearchBar } from "@/features/listings/components/listing-search-bar";
+import { PropertyTypeTiles } from "@/features/listings/components/property-type-tiles";
+import { parseListingListFilters } from "@/features/listings/parsers";
+import {
+  buildListingSearchQuery,
+  countActiveFilters,
+  toSearchParams,
+} from "@/features/listings/search-params";
+import { deriveAreaSuggestions } from "@/features/listings/suggestions";
+import { getAuthContext } from "@/lib/auth/clerk";
+import { listPublicListings } from "@/server/services/public-listings-service";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Ruvo — Verified rentals in Nsukka",
+  description:
+    "Browse rentals in Nsukka. Every listing is reviewed before publishing.",
+};
+
+type HomePageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const resolved = toSearchParams(await searchParams);
+  const filters = parseListingListFilters(resolved);
+  const [result, authState] = await Promise.all([
+    listPublicListings(filters),
+    getAuthContext(),
+  ]);
+
+  const isSignedIn = Boolean(authState.userId);
+  const activeFilterCount = countActiveFilters(resolved);
+  const query = buildListingSearchQuery(filters);
+
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(196,214,181,0.55),_transparent_32%),linear-gradient(180deg,_#f7f4ec_0%,_#f1ede4_100%)] px-6 py-10 text-stone-900">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-14">
-        <section className="rounded-[2rem] border border-stone-900/10 bg-white/75 p-8 shadow-[0_20px_80px_rgba(48,38,24,0.08)] backdrop-blur md:p-12">
-          <div className="flex flex-col gap-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.28em] text-stone-500">
-                  Ruvo
-                </p>
-                <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">
-                  Trust-first real estate infrastructure for verified rentals.
-                </h1>
-              </div>
-              <div className="rounded-full border border-emerald-900/15 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900">
-                Slice 1 in progress
-              </div>
-            </div>
+    <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#f0eadf_100%)] text-stone-900">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-5 py-2 md:gap-7 md:py-8">
+        {!isSignedIn ? (
+          <section className="text-center md:pt-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+              Live in Nsukka, Enugu
+            </span>
 
-            <p className="max-w-3xl text-lg leading-8 text-stone-700">
-              Ruvo now has a public listing slice, account bootstrap endpoints,
-              and role-aware onboarding. The next product work builds directly
-              on verified users, agents, and moderated listings.
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight md:mt-3 md:text-4xl">
+              Verified rentals. No surprises.
+            </h1>
+
+            <p className="mx-auto mt-1.5 max-w-xl text-sm leading-5 text-stone-600 md:mt-2 md:leading-6 md:text-base">
+              Every listing is reviewed before publishing, priced upfront, and open
+              for an inspection request in-app.
             </p>
+          </section>
+        ) : null}
 
-            <HomeHeroActions />
+        <ListingSearchBar
+          activeFilterCount={activeFilterCount}
+          areas={deriveAreaSuggestions(result.items)}
+        />
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <article className="rounded-3xl border border-stone-900/10 bg-stone-50 p-5">
-                <p className="text-sm font-medium uppercase tracking-[0.2em] text-stone-500">
-                  Market
-                </p>
-                <h2 className="mt-3 text-xl font-semibold">Nsukka first</h2>
-                <p className="mt-2 text-sm leading-7 text-stone-700">
-                  Launch for students and local renters, then expand to Enugu,
-                  Port Harcourt, Lagos, and Abuja.
-                </p>
-              </article>
+        <PropertyTypeTiles />
 
-              <article className="rounded-3xl border border-stone-900/10 bg-stone-50 p-5">
-                <p className="text-sm font-medium uppercase tracking-[0.2em] text-stone-500">
-                  Principle
-                </p>
-                <h2 className="mt-3 text-xl font-semibold">Verified only</h2>
-                <p className="mt-2 text-sm leading-7 text-stone-700">
-                  Clear pricing, structured details, in-app communication, and
-                  moderation-backed trust.
-                </p>
-              </article>
+        <ListingFeed
+          hasActiveFilters={activeFilterCount > 0}
+          initialCursor={result.nextCursor}
+          initialHasMore={result.hasMore}
+          initialItems={result.items}
+          query={query}
+        />
 
-              <article className="rounded-3xl border border-stone-900/10 bg-stone-50 p-5">
-                <p className="text-sm font-medium uppercase tracking-[0.2em] text-stone-500">
-                  Stack
-                </p>
-                <h2 className="mt-3 text-xl font-semibold">Next.js + Supabase</h2>
-                <p className="mt-2 text-sm leading-7 text-stone-700">
-                  Node.js backend routes, Postgres with RLS, Clerk auth,
-                  Paystack billing, Sentry monitoring.
-                </p>
-              </article>
+        {!isSignedIn ? (
+          <section className="mt-4 grid gap-4 border-t border-stone-900/10 pt-8 md:grid-cols-3">
+            <div>
+              <h2 className="text-base font-semibold">Agents are reviewed before they can list</h2>
+              <p className="mt-2 text-sm leading-6 text-stone-600">
+                An administrator reviews every agent before their listings can go
+                live, so one bad actor cannot flood the feed.
+              </p>
             </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            "ARCHITECTURE.md",
-            "SCHEMA.md",
-            "API_CONTRACTS.md",
-            "AGENT_RULES.md",
-          ].map((item) => (
-            <div
-              key={item}
-              className="rounded-3xl border border-stone-900/10 bg-white/70 p-5 shadow-[0_12px_40px_rgba(48,38,24,0.06)]"
-            >
-              <p className="text-sm font-medium text-stone-500">Working spec</p>
-              <p className="mt-2 text-lg font-semibold">{item}</p>
+            <div>
+              <h2 className="text-base font-semibold">Price upfront, always</h2>
+              <p className="mt-2 text-sm leading-6 text-stone-600">
+                Rent is shown on every card and detail page. No asking for price,
+                no post-viewing surprises.
+              </p>
             </div>
-          ))}
-        </section>
+            <div>
+              <h2 className="text-base font-semibold">Request an inspection in-app</h2>
+              <p className="mt-2 text-sm leading-6 text-stone-600">
+                Send an inspection request from any listing. The agent accepts or
+                declines in-app, and a chat opens for that listing.
+              </p>
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );

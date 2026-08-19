@@ -10,7 +10,8 @@ const roleOptions = [
     value: "student",
   },
   {
-    description: "Create listings, manage drafts, and handle inquiries.",
+    description:
+      "Create drafts and manage inquiries right away. Publishing a listing needs identity verification first.",
     label: "Agent",
     value: "agent",
   },

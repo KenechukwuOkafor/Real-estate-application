@@ -339,7 +339,8 @@ Rules:
 
 States:
 - `requested`
-- `responded`
+- `accepted`
+- `declined`
 - `expired`
 - `cancelled`
 - `completed`
@@ -348,11 +349,12 @@ Allowed transitions:
 
 | From | To |
 | --- | --- |
-| `requested` | `responded` |
+| `requested` | `accepted` |
+| `requested` | `declined` |
 | `requested` | `expired` |
 | `requested` | `cancelled` |
-| `responded` | `completed` |
-| `responded` | `cancelled` |
+| `accepted` | `completed` |
+| `accepted` | `cancelled` |
 
 ## Operational Constraints
 

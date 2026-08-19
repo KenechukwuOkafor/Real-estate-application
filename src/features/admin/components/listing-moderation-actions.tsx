@@ -1,25 +1,45 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+export type ModerationListingStatus =
+  | "approved"
+  | "flagged"
+  | "pending_review"
+  | "rejected"
+  | "under_dispute";
 
 type ListingModerationActionsProps = {
   listingId: string;
+  listingStatus: ModerationListingStatus;
 };
 
 export function ListingModerationActions({
   listingId,
+  listingStatus,
 }: ListingModerationActionsProps) {
-  const [rejectionReason, setRejectionReason] = useState("Duplicate or invalid listing.");
+  const router = useRouter();
+  const [moderationReason, setModerationReason] = useState(
+    listingStatus === "approved"
+      ? "Ownership mismatch."
+      : listingStatus === "flagged"
+        ? "Competing ownership claim received."
+        : "Duplicate or invalid listing.",
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function approve() {
+  async function submit(action: "approve" | "reject" | "flag" | "dispute") {
     setIsSubmitting(true);
     setMessage(null);
     setError(null);
 
-    const response = await fetch(`/api/admin/listings/${listingId}/approve`, {
+    const requiresReason = action !== "approve";
+    const response = await fetch(`/api/admin/listings/${listingId}/${action}`, {
+      body: requiresReason ? JSON.stringify({ reason: moderationReason }) : undefined,
+      headers: requiresReason ? { "Content-Type": "application/json" } : undefined,
       method: "POST",
     });
 
@@ -28,65 +48,76 @@ export function ListingModerationActions({
       | null;
 
     if (!response.ok) {
-      setError(payload?.error?.message ?? "Unable to approve listing.");
+      setError(
+        payload?.error?.message ??
+          `Unable to ${action === "dispute" ? "move listing under dispute" : action} listing.`,
+      );
       setIsSubmitting(false);
       return;
     }
 
-    setMessage("Listing approved.");
+    setMessage(
+      action === "approve"
+        ? "Listing approved."
+        : action === "reject"
+          ? "Listing rejected."
+          : action === "flag"
+            ? "Listing flagged for review."
+            : "Listing moved under dispute.",
+    );
     setIsSubmitting(false);
-  }
-
-  async function reject() {
-    setIsSubmitting(true);
-    setMessage(null);
-    setError(null);
-
-    const response = await fetch(`/api/admin/listings/${listingId}/reject`, {
-      body: JSON.stringify({ reason: rejectionReason }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-
-    const payload = (await response.json().catch(() => null)) as
-      | { error?: { message?: string } }
-      | null;
-
-    if (!response.ok) {
-      setError(payload?.error?.message ?? "Unable to reject listing.");
-      setIsSubmitting(false);
-      return;
-    }
-
-    setMessage("Listing rejected.");
-    setIsSubmitting(false);
+    router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex gap-3">
-        <button
-          className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          disabled={isSubmitting}
-          onClick={approve}
-          type="button"
-        >
-          Approve
-        </button>
-        <button
-          className="rounded-full bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          disabled={isSubmitting}
-          onClick={reject}
-          type="button"
-        >
-          Reject
-        </button>
+      <div className="flex flex-wrap gap-3">
+        {listingStatus !== "approved" ? (
+          <button
+            className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            disabled={isSubmitting}
+            onClick={() => submit("approve")}
+            type="button"
+          >
+            Approve
+          </button>
+        ) : null}
+        {listingStatus !== "rejected" ? (
+          <button
+            className="rounded-full bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            disabled={isSubmitting}
+            onClick={() => submit("reject")}
+            type="button"
+          >
+            Reject
+          </button>
+        ) : null}
+        {listingStatus === "pending_review" || listingStatus === "approved" ? (
+          <button
+            className="rounded-full bg-amber-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            disabled={isSubmitting}
+            onClick={() => submit("flag")}
+            type="button"
+          >
+            Flag
+          </button>
+        ) : null}
+        {listingStatus === "approved" || listingStatus === "flagged" ? (
+          <button
+            className="rounded-full bg-stone-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            disabled={isSubmitting}
+            onClick={() => submit("dispute")}
+            type="button"
+          >
+            Dispute
+          </button>
+        ) : null}
       </div>
 
-      <input
-        className="h-11 rounded-2xl border border-stone-900/10 bg-white px-4 text-sm"
-        onChange={(event) => setRejectionReason(event.target.value)}
-        value={rejectionReason}
+      <textarea
+        className="min-h-24 rounded-2xl border border-stone-900/10 bg-white px-4 py-3 text-sm"
+        onChange={(event) => setModerationReason(event.target.value)}
+        value={moderationReason}
       />
 
       {error ? <p className="text-xs text-rose-700">{error}</p> : null}
