@@ -30,6 +30,8 @@ export type RequestContext = {
   service: string;
   /** For a job, the request that enqueued it. Absent for ordinary requests. */
   enqueuedByRequestId?: string;
+  /** The job being executed, when this context belongs to a drain. */
+  jobId?: string;
 };
 
 const storage = new AsyncLocalStorage<RequestContext>();

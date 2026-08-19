@@ -5,6 +5,7 @@ import type { User } from "@clerk/nextjs/server";
 import { AppError } from "@/lib/api/errors";
 import { getCurrentClerkUser, requireAuthenticatedUser } from "@/lib/auth/clerk";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
+import { setContextUser } from "@/lib/observability/context";
 import {
   ensureUserRoles,
   getUserByClerkUserId,
@@ -203,6 +204,15 @@ export async function getCurrentAppUser() {
   if (!user) {
     return null;
   }
+
+  // Every log line below this point carries the user. REB-ENG-005 lists user id
+  // among the required structured fields, and until now none of them had one.
+  //
+  // Deliberately the app-level id and never the Clerk id: ADR-026 permits a
+  // user id in an event, and the Clerk id is an external identifier there is no
+  // reason to export. A no-op outside a request context, so calling it can
+  // never itself be a failure.
+  setContextUser(user.id);
 
   const roles = await listUserRoles(adminClient, user.id);
 
