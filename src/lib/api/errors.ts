@@ -96,29 +96,46 @@ export function resolveRouteError(error: unknown): ResolvedError {
 export function routeErrorResponse(error: unknown, requestId: string) {
   const resolved = resolveRouteError(error);
 
-  log[resolved.unexpected ? "error" : "warn"]({
-    error,
-    errorCode: resolved.code,
-    event: resolved.unexpected ? "RequestFailedUnexpectedly" : "RequestRejected",
-    httpStatus: resolved.httpStatus,
-    // The category is the field an operator filters on to separate "the system
-    // said no" from "the system broke".
-    errorCategory: resolved.category,
-    message: resolved.unexpected
-      ? // The opaque message goes to the client; the real one goes here.
-        error instanceof Error
-        ? error.message
-        : String(error)
-      : resolved.message,
-    requestId,
-  });
+  // Both observability calls are wrapped, and the wrapping is the point.
+  //
+  // reportError already swallows its own failures, and the logger writes to a
+  // console that does not normally throw. Neither guarantee is enforced by
+  // anything, and both live in modules this one does not own. A monitoring
+  // failure turning a handled 404 into an unhandled 500 is the precise
+  // inversion this slice exists to prevent, so the boundary asserts it rather
+  // than trusting it.
+  try {
+    log[resolved.unexpected ? "error" : "warn"]({
+      error,
+      errorCode: resolved.code,
+      event: resolved.unexpected ? "RequestFailedUnexpectedly" : "RequestRejected",
+      httpStatus: resolved.httpStatus,
+      // The category is the field an operator filters on to separate "the
+      // system said no" from "the system broke".
+      errorCategory: resolved.category,
+      message: resolved.unexpected
+        ? // The opaque message goes to the client; the real one goes here.
+          error instanceof Error
+          ? error.message
+          : String(error)
+        : resolved.message,
+      requestId,
+    });
+  } catch {
+    // Intentionally empty. Nothing above this can help, and the response below
+    // is what the caller is waiting for.
+  }
 
-  reportError(error, {
-    category: resolved.category,
-    errorCode: resolved.code,
-    requestId,
-    userId: currentContext()?.userId,
-  });
+  try {
+    reportError(error, {
+      category: resolved.category,
+      errorCode: resolved.code,
+      requestId,
+      userId: currentContext()?.userId,
+    });
+  } catch {
+    // Intentionally empty. See above.
+  }
 
   return NextResponse.json(
     {
