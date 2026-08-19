@@ -1,6 +1,7 @@
 import "server-only";
 
 import { parseListingIdentifier } from "@/features/listings/parsers";
+import { isUuid } from "@/lib/api/identifiers";
 import type { ListingListFilters } from "@/features/listings/types";
 import { createSupabaseServerClient } from "@/lib/db/supabase";
 import {
@@ -54,8 +55,18 @@ export async function listPublicListings(filters: ListingListFilters) {
 }
 
 export async function getPublicListing(slugOrPublicId: string) {
-  const client = await createSupabaseServerClient();
   const identifier = parseListingIdentifier(slugOrPublicId);
+
+  // parseListingIdentifier never fails: with no "--" it hands back the input
+  // verbatim as publicId. Comparing that against a uuid column raises Postgres
+  // 22P02, which surfaced as HTTP 500 — so any crawler requesting a junk path
+  // produced a server error and a wasted round trip on a query that could never
+  // have matched. Absent, not broken.
+  if (!isUuid(identifier.publicId)) {
+    return null;
+  }
+
+  const client = await createSupabaseServerClient();
 
   const listing = await getPublicListingByIdentifier(
     client,
@@ -86,8 +97,31 @@ export async function getPublicListing(slugOrPublicId: string) {
   };
 }
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * Why a view was not recorded.
+ *
+ * `tracked: false` used to be a single undifferentiated outcome, and that is
+ * what let this endpoint fail silently for months: the page passed the listing's
+ * primary key where its `public_uuid` was required, nothing resolved, and the
+ * route answered HTTP 200 exactly as it does for a crawler hitting a junk URL.
+ * Both cases looked identical from outside and neither was worth an alert on its
+ * own.
+ *
+ * They are not the same event:
+ *
+ * - `malformed` is expected background noise. Crawlers request paths that are
+ *   not identifiers. Nobody should be paged for it.
+ * - `unresolved` is a well-formed UUID that matched no public listing. That is
+ *   overwhelmingly either a caller passing the wrong column — the bug this
+ *   distinction exists to surface — or a listing that has since been withdrawn.
+ *
+ * Separating them keeps BR-ANA-003 intact. The caller still never fails; it just
+ * stops discarding the reason.
+ */
+export type ViewTrackingOutcome =
+  | { reason: "malformed"; tracked: false }
+  | { reason: "unresolved"; tracked: false }
+  | { tracked: true };
 
 export async function trackListingView(input: {
   ipHash?: string | null;
@@ -96,22 +130,22 @@ export async function trackListingView(input: {
   slugOrPublicId: string;
   userAgent?: string | null;
   viewerUserId?: string | null;
-}): Promise<{ tracked: boolean }> {
+}): Promise<ViewTrackingOutcome> {
   const { publicId } = parseListingIdentifier(input.slugOrPublicId);
 
   // parseListingIdentifier never fails: given input with no "--" it returns the
   // input verbatim as publicId. Querying with that produces a Postgres 22P02
   // invalid-uuid error, so every crawler hitting this endpoint would cost a
   // round-trip and an exception. Reject the shape before touching the database.
-  if (!UUID_PATTERN.test(publicId)) {
-    return { tracked: false };
+  if (!isUuid(publicId)) {
+    return { reason: "malformed", tracked: false };
   }
 
   const client = await createSupabaseServerClient();
   const listing = await getPublicListingIdByUuid(client, publicId);
 
   if (!listing) {
-    return { tracked: false };
+    return { reason: "unresolved", tracked: false };
   }
 
   await createListingView(client, {

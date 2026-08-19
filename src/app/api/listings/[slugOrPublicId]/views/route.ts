@@ -38,6 +38,23 @@ export async function POST(request: Request, context: RouteContext) {
       viewerUserId: appUser?.user.id ?? null,
     });
 
+    // A well-formed identifier that resolved to nothing is the shape of a
+    // caller passing the wrong column, which is how this endpoint recorded
+    // nothing for months while answering 200. It stays a 200 — BR-ANA-003 is
+    // not negotiable and the client must not care — but it stops being silent.
+    //
+    // Malformed input is deliberately not logged: crawlers generate it
+    // constantly and drowning the real signal is how it gets ignored again.
+    if (!result.tracked && result.reason === "unresolved") {
+      console.warn("Listing view not recorded: identifier resolved to nothing", {
+        hint:
+          "Callers must send the listing's public_uuid, not its primary key. " +
+          "Both are UUIDs, so a wrong column resolves to nothing rather than erroring.",
+        requestId,
+        slugOrPublicId,
+      });
+    }
+
     return NextResponse.json(
       {
         data: { tracked: result.tracked },

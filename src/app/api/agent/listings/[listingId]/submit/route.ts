@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { routeErrorResponse } from "@/lib/api/errors";
+import { requireUuid } from "@/lib/api/identifiers";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { submitCurrentAgentListingForReview } from "@/server/services/agent-service";
@@ -14,6 +15,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
   try {
     const { listingId } = await context.params;
+    requireUuid(listingId, "Listing");
     const result = await submitCurrentAgentListingForReview(listingId);
 
     return NextResponse.json({

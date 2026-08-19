@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { routeErrorResponse } from "@/lib/api/errors";
+import { requireUuid } from "@/lib/api/identifiers";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { rejectListingAsAdmin } from "@/server/services/admin-service";
@@ -15,6 +16,7 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     const body = ((await request.json().catch(() => null)) ?? {}) as { reason?: string };
     const { listingId } = await context.params;
+    requireUuid(listingId, "Listing");
     const listing = await rejectListingAsAdmin(
       listingId,
       body.reason ?? "Rejected by admin review.",

@@ -413,14 +413,49 @@ export async function getPublicListingIdByUuid(
   return data;
 }
 
+/**
+ * Save a listing for a user. Idempotent.
+ *
+ * Deliberately NOT `.upsert()`, for the same reason as upsertAgentProfile:
+ * PostgREST compiles it to `INSERT ... ON CONFLICT DO UPDATE SET`, and Postgres
+ * checks the SET list's column privileges when it plans the statement rather
+ * than per row. `authenticated` holds INSERT and SELECT on this table and no
+ * UPDATE at all, so the upsert failed 42501 permission denied on every save,
+ * including first ones where no conflict was possible.
+ *
+ * The grant is right and an UPDATE grant would be wrong. Every column here —
+ * id, user_id, listing_id, created_at — is part of the fact being recorded.
+ * There is nothing to update: the row's existence *is* the saved state, which
+ * is why the policies are SELECT, INSERT and DELETE with no UPDATE.
+ *
+ * Reading first keeps the call idempotent without asking for a privilege that
+ * should not exist. The race is benign: a concurrent insert loses on the
+ * (user_id, listing_id) unique constraint, and losing means the listing is
+ * saved, which is what the caller wanted.
+ */
 export async function saveListing(
   client: DbClient,
   userId: string,
   listingId: string,
 ) {
+  const { data: existing, error: readError } = await client
+    .from("saved_listings")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("listing_id", listingId)
+    .maybeSingle();
+
+  if (readError) {
+    throw readError;
+  }
+
+  if (existing) {
+    return existing;
+  }
+
   const { data, error } = await client
     .from("saved_listings")
-    .upsert({ listing_id: listingId, user_id: userId }, { onConflict: "user_id,listing_id" })
+    .insert({ listing_id: listingId, user_id: userId })
     .select("id")
     .single();
 

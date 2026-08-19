@@ -50,7 +50,7 @@ export default async function ListingDetailPage({
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#efe7da_100%)] px-6 py-10 text-stone-900">
-      <ListingViewTracker listingId={listing.id} />
+      <ListingViewTracker publicId={listing.publicId} />
 
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <div className="flex items-center justify-between gap-4">
