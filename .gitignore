@@ -50,3 +50,6 @@ next-env.d.ts
 # supabase local cli state
 /supabase/.branches
 /supabase/.temp
+
+# Vitest JSON report, written by the CI no-skip assertion
+vitest-results.json

@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Typecheck, lint and test
+    name: Typecheck and lint
     runs-on: ubuntu-latest
 
     steps:
@@ -33,11 +33,16 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm test
+      # `npm test` deliberately does NOT run here.
+      #
+      # Without credentials the integration suites skip, and a green run that
+      # skipped 116 of 328 tests is worse than no run at all: it reports success
+      # for work it never did. That is the exact failure this pipeline was
+      # changed to eliminate, so the only place tests run is the job that has a
+      # database and a Clerk instance to run them against.
 
-  migrations:
-    name: Replay migrations from zero
+  integration:
+    name: Replay migrations from zero and run the full suite
     runs-on: ubuntu-latest
 
     # Deliberately a separate job from the typecheck/lint/test one. It needs
@@ -61,10 +66,46 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Install the Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
+
+      # Supabase verifies Clerk JWTs against the JWKS of the domain configured
+      # here, so it must name the instance CI actually mints tokens from. The
+      # committed value is a developer's personal instance; CI uses its own, so
+      # that personas can be created and deleted without touching anyone's
+      # working setup and so a leaked CI credential compromises nothing else.
+      #
+      # Substituted rather than parameterised because the committed default has
+      # to keep local `supabase start` working with no extra setup. The grep
+      # guard makes config drift a build failure instead of a silent mismatch
+      # that would surface as every RLS test failing against no identity.
+      - name: Point Supabase at the CI Clerk instance
+        env:
+          CLERK_DOMAIN: ${{ vars.CLERK_CI_DOMAIN }}
+        run: |
+          set -euo pipefail
+
+          test -n "$CLERK_DOMAIN" || {
+            echo "CLERK_CI_DOMAIN repository variable is not set."
+            echo "The RLS suites cannot authenticate without it."
+            exit 1
+          }
+
+          grep -q '^domain = ".*\.clerk\.accounts\.dev"$' supabase/config.toml || {
+            echo "Could not find the Clerk domain line in supabase/config.toml."
+            echo "It moved or changed shape; this override needs updating."
+            exit 1
+          }
+
+          sed -i "s|^domain = \".*\.clerk\.accounts\.dev\"$|domain = \"$CLERK_DOMAIN\"|" \
+            supabase/config.toml
+
+          grep -n '^domain = ' supabase/config.toml
 
       - name: Start Supabase, applying every migration to an empty database
         run: supabase start
@@ -156,6 +197,81 @@ jobs:
           seeded=$(psql "select count(*) from public.listings where status='approved';")
           echo "approved listings seeded: $seeded"
           test "$seeded" = "3"
+
+      # The integration suites run against THIS database — the one just built by
+      # replaying every migration into an empty Postgres. That is the point: the
+      # schema they test is the schema the replay proved, not a long-lived local
+      # database that has drifted from the migration files.
+      #
+      # These keys are the Supabase CLI's local development keys, generated per
+      # run and thrown away with the container. They are not repository secrets
+      # and there is nothing to leak.
+      - name: Export the ephemeral database credentials
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "SUPABASE_DB_URL=$DB_URL"
+          } >> "$GITHUB_ENV"
+
+      - name: Test
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_CI_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+
+          test -n "$CLERK_SECRET_KEY" || {
+            echo "CLERK_CI_SECRET_KEY secret is not set."
+            echo "Every RLS suite would skip and this job would pass having"
+            echo "verified nothing. Failing instead."
+            exit 1
+          }
+
+          npm test -- --reporter=json --outputFile=vitest-results.json
+
+      # A skipped test is not a passing test.
+      #
+      # Every integration suite gates itself on credentials being present and
+      # skips when they are not. That is correct behaviour locally and a trap in
+      # CI: it is the difference between 328 tests passing and 212 passing while
+      # 116 quietly do not run, and both render as a green check. This asserts
+      # the number rather than the colour.
+      - name: Assert nothing skipped
+        if: always()
+        run: |
+          set -euo pipefail
+
+          test -f vitest-results.json || {
+            echo "No test results were written; the run did not complete."
+            exit 1
+          }
+
+          node -e '
+            const r = require("./vitest-results.json");
+            const tests = r.testResults.flatMap((f) => f.assertionResults);
+            const skipped = tests.filter((t) =>
+              t.status === "skipped" || t.status === "pending",
+            );
+            const passed = tests.filter((t) => t.status === "passed");
+
+            console.log(`files:   ${r.testResults.length}`);
+            console.log(`passed:  ${passed.length}`);
+            console.log(`skipped: ${skipped.length}`);
+            console.log(`failed:  ${r.numFailedTests ?? 0}`);
+
+            if (skipped.length > 0) {
+              console.error("\nSkipped tests (these did not run):");
+              for (const t of skipped) console.error(`  - ${t.fullName}`);
+              console.error(
+                "\nA suite that skips in CI verifies nothing. Either supply the" +
+                " credentials it needs or delete it.",
+              );
+              process.exit(1);
+            }
+          '
 
       - name: Stop Supabase
         if: always()
