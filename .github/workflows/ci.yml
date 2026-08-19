@@ -230,16 +230,32 @@ jobs:
             exit 1
           }
 
-          npm test -- --reporter=json --outputFile=vitest-results.json
+          # Two reporters. `verbose` prints every test as it runs and the full
+          # error for each failure, so a red run is diagnosable from the log
+          # alone. `json` is what the assertion below reads.
+          #
+          # The first credentialed run used the JSON reporter by itself. It
+          # recorded `failed: 4`, named none of them, and discarded every detail
+          # that made it red — costing an entire run to recover information the
+          # failing run already had.
+          npm test -- \
+            --reporter=verbose \
+            --reporter=json \
+            --outputFile.json=vitest-results.json
 
-      # A skipped test is not a passing test.
+      # The run summary, and the two ways a run looks fine without being fine.
       #
-      # Every integration suite gates itself on credentials being present and
-      # skips when they are not. That is correct behaviour locally and a trap in
-      # CI: it is the difference between 328 tests passing and 212 passing while
-      # 116 quietly do not run, and both render as a green check. This asserts
-      # the number rather than the colour.
-      - name: Assert nothing skipped
+      # A skipped test is not a passing test. Every integration suite gates on
+      # credentials and skips without them, which is right locally and a trap in
+      # CI, where it is the difference between 328 passing and 212 passing while
+      # 116 quietly do not run. Both render as a green check.
+      #
+      # A failed test must be legible here too. Failures print with their error
+      # messages, and so do file-level errors: a hook that throws is recorded
+      # against the file rather than any test, and takes its whole suite with it
+      # while reporting those tests as skipped. That is how token-path.test.ts
+      # lost all five of its tests with the reason appearing nowhere.
+      - name: Summarize the run and assert nothing failed or skipped
         if: always()
         run: |
           set -euo pipefail
@@ -251,26 +267,47 @@ jobs:
 
           node -e '
             const r = require("./vitest-results.json");
-            const tests = r.testResults.flatMap((f) => f.assertionResults);
-            const skipped = tests.filter((t) =>
-              t.status === "skipped" || t.status === "pending",
-            );
-            const passed = tests.filter((t) => t.status === "passed");
+            const files = r.testResults ?? [];
+            const tests = files.flatMap((f) => f.assertionResults ?? []);
+            const withStatus = (s) => tests.filter((t) => t.status === s);
+            const skipped = [...withStatus("skipped"), ...withStatus("pending")];
+            const failed = withStatus("failed");
+            const fileErrors = files.filter((f) => f.failureMessage);
 
-            console.log(`files:   ${r.testResults.length}`);
-            console.log(`passed:  ${passed.length}`);
-            console.log(`skipped: ${skipped.length}`);
-            console.log(`failed:  ${r.numFailedTests ?? 0}`);
+            console.log("files:   " + files.length);
+            console.log("passed:  " + withStatus("passed").length);
+            console.log("failed:  " + failed.length);
+            console.log("skipped: " + skipped.length);
 
-            if (skipped.length > 0) {
+            const indent = (text) =>
+              String(text).split("\n").map((l) => "      " + l).join("\n");
+
+            if (fileErrors.length) {
+              console.error("\nFile-level errors (a failing hook takes its whole suite):");
+              for (const f of fileErrors) {
+                console.error("\n  " + f.name);
+                console.error(indent(f.failureMessage));
+              }
+            }
+
+            if (failed.length) {
+              console.error("\nFailed tests:");
+              for (const t of failed) {
+                console.error("\n  - " + t.fullName);
+                for (const m of t.failureMessages ?? []) console.error(indent(m));
+              }
+            }
+
+            if (skipped.length) {
               console.error("\nSkipped tests (these did not run):");
-              for (const t of skipped) console.error(`  - ${t.fullName}`);
+              for (const t of skipped) console.error("  - " + t.fullName);
               console.error(
                 "\nA suite that skips in CI verifies nothing. Either supply the" +
-                " credentials it needs or delete it.",
+                " credentials it needs or delete it."
               );
-              process.exit(1);
             }
+
+            if (failed.length || skipped.length || fileErrors.length) process.exit(1);
           '
 
       - name: Stop Supabase
