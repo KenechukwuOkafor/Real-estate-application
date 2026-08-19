@@ -107,6 +107,14 @@ export function baseSentryOptions() {
 
 export type ReportContext = {
   requestId?: string;
+  /**
+   * What kind of alert this is, as a Sentry tag.
+   *
+   * The alert rules a human configures match on this, so an event without it
+   * lands in Sentry and notifies nobody. "absence" for a signal that should be
+   * arriving and is not; "view-unresolved" for a view that recorded nothing.
+   */
+  alertKind?: string;
   userId?: string;
   errorCode?: string;
   category?: ErrorCategory;
@@ -150,6 +158,7 @@ export function captureUnconditionally(
     Sentry.withScope((scope) => {
       scope.setTag("error.category", category);
 
+      if (context.alertKind) scope.setTag("alert.kind", context.alertKind);
       if (context.errorCode) scope.setTag("error.code", context.errorCode);
       if (context.requestId) scope.setTag("request.id", context.requestId);
       if (context.route) scope.setTag("route", context.route);
@@ -184,6 +193,7 @@ export function captureMessage(
       scope.setLevel(context.level ?? "warning");
       scope.setTag("error.category", context.category ?? "infrastructure");
 
+      if (context.alertKind) scope.setTag("alert.kind", context.alertKind);
       if (context.requestId) scope.setTag("request.id", context.requestId);
       if (context.extra) scope.setExtras(context.extra);
 
