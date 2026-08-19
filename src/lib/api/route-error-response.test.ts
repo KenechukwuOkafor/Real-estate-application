@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // vi.mock factories are hoisted above const declarations, so the spy has to be
 // created inside vi.hoisted or the factory closes over a temporal-dead-zone
 // binding and the module fails to mock at all.
-const { reportError } = vi.hoisted(() => ({ reportError: vi.fn(() => true) }));
+// Typed with its real signature, not just its return value. `vi.fn(() => true)`
+// infers zero arguments, which makes `mock.calls[0][0]` a type error and
+// quietly rules out asserting on what was passed. Declared as a type parameter
+// rather than as named parameters so there are no unused bindings to lint.
+const { reportError } = vi.hoisted(() => ({
+  reportError: vi.fn<(error: unknown, context?: unknown) => boolean>(() => true),
+}));
 
 vi.mock("@/lib/observability/sentry", () => ({
   reportError,
