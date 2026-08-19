@@ -81,25 +81,66 @@ export async function getAgentProfileWithSubscriptionsByUserId(
   return data as unknown as AgentProfileWithSubscriptionRow | null;
 }
 
+/**
+ * Create or update an agent's profile.
+ *
+ * Deliberately NOT `.upsert()`.
+ *
+ * PostgREST compiles an upsert to `INSERT ... ON CONFLICT DO UPDATE SET`, with
+ * every column in the payload appearing in the SET list — including `user_id`.
+ * Postgres checks column privileges for that SET list statically, when it plans
+ * the statement, not per row. So the UPDATE privilege on `user_id` is required
+ * even on a first insert where no conflict is possible.
+ *
+ * `authenticated` holds UPDATE on exactly (bio, display_name, updated_at) by
+ * design: migration 0013 withholds verification_status, verified_at,
+ * verified_by, founding_agent, free_listing_quota, rejection_reason and
+ * suspension_reason because each is a self-grant, and it withholds `user_id`
+ * because a profile must not be reassignable to another account.
+ *
+ * The grant is right. The upsert was wrong: it demanded a privilege nobody
+ * should hold and failed with 42501 permission denied, which surfaced as a 500
+ * and blocked agent onboarding at its first step — no profile, so no
+ * verification, no quota, no listings.
+ *
+ * Reading first and then writing only the granted columns keeps the least
+ * privilege intact. The read is not a TOCTOU risk: `agent_profiles.user_id` is
+ * UNIQUE, so a concurrent insert loses on the constraint rather than producing
+ * a second profile.
+ */
 export async function upsertAgentProfile(
   client: DbClient,
   userId: string,
   input: AgentProfileInput,
 ) {
-  const { data, error } = await client
+  const fields = {
+    bio: input.bio?.trim() || null,
+    display_name: input.displayName.trim(),
+  };
+
+  const { data: existing, error: readError } = await client
     .from("agent_profiles")
-    .upsert(
-      {
-        bio: input.bio?.trim() || null,
-        display_name: input.displayName.trim(),
-        user_id: userId,
-      },
-      {
-        onConflict: "user_id",
-      },
-    )
-    .select("*")
-    .single();
+    .select("id")
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (readError) {
+    throw readError;
+  }
+
+  const { data, error } = existing
+    ? await client
+        .from("agent_profiles")
+        .update(fields)
+        .eq("id", existing.id)
+        .select("*")
+        .single()
+    : await client
+        .from("agent_profiles")
+        .insert({ ...fields, user_id: userId })
+        .select("*")
+        .single();
 
   if (error) {
     throw error;
