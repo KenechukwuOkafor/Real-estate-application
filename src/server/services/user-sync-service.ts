@@ -123,13 +123,19 @@ export async function syncCurrentUserToDatabase(options?: {
   const clerkUser = await getCurrentClerkUser();
 
   if (!clerkUser || !authState.userId) {
-    throw new Error("Authenticated Clerk user could not be loaded.");
+    throw new AppError(
+      "CLERK_USER_UNAVAILABLE",
+      "Authenticated Clerk user could not be loaded.",
+    );
   }
 
   const email = getPrimaryEmailAddress(clerkUser);
 
   if (!email) {
-    throw new Error("Authenticated Clerk user does not have an email address.");
+    throw new AppError(
+      "CLERK_USER_EMAIL_MISSING",
+      "Authenticated Clerk user does not have an email address.",
+    );
   }
 
   const adminClient = getSupabaseAdminClient();

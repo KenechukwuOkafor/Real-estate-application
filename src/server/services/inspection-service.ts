@@ -15,11 +15,14 @@ import { getCurrentAppUser } from "@/server/services/user-sync-service";
 
 function assertInspectionMessage(message: string) {
   if (!message.trim()) {
-    throw new Error("Inspection message is required.");
+    throw new AppError("VALIDATION_ERROR", "Inspection message is required.");
   }
 
   if (message.trim().length > 500) {
-    throw new Error("Inspection message must be 500 characters or fewer.");
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Inspection message must be 500 characters or fewer.",
+    );
   }
 }
 
@@ -32,7 +35,7 @@ export async function requestInspection(input: {
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
-    throw new Error("Unauthenticated request.");
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
   }
 
   // One statement, therefore one transaction. The three writes — request, chat,
@@ -44,7 +47,7 @@ export async function requestInspection(input: {
   const listing = await getInspectableListingById(client, input.listingId);
 
   if (!listing || listing.deleted_at || listing.status !== "approved") {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   if (listing.agent_profiles?.user_id === appUser.user.id) {
@@ -65,7 +68,10 @@ export async function requestInspection(input: {
   );
 
   if (activeRequest) {
-    throw new Error("An active inspection request already exists for this listing.");
+    throw new AppError(
+      "INSPECTION_ALREADY_ACTIVE",
+      "An active inspection request already exists for this listing.",
+    );
   }
 
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
@@ -134,11 +140,11 @@ export async function respondToInspectionRequest(input: {
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
-    throw new Error("Unauthenticated request.");
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
   }
 
   if (!appUser.roles.includes("agent")) {
-    throw new Error("Agent role is required.");
+    throw new AppError("UNAUTHORIZED", "Agent role is required.");
   }
 
   // The write below is RLS-respecting: 0012 restricts UPDATE to the owning
@@ -148,7 +154,7 @@ export async function respondToInspectionRequest(input: {
   const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
 
   if (!agentProfile) {
-    throw new Error("Agent profile not found.");
+    throw new AppError("AGENT_PROFILE_NOT_FOUND", "Agent profile not found.");
   }
 
   // Read through the caller's own credentials. RLS restricts inspection
@@ -166,7 +172,7 @@ export async function respondToInspectionRequest(input: {
   );
 
   if (!inspectionRequest) {
-    throw new Error("Inspection request not found.");
+    throw new AppError("INSPECTION_NOT_FOUND", "Inspection request not found.");
   }
 
   if (inspectionRequest.agent_profile_id !== agentProfile.id) {

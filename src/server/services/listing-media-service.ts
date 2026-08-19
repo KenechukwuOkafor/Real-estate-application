@@ -22,6 +22,7 @@ import "server-only";
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { AppError } from "@/lib/api/errors";
 import type { Database } from "@/types/database";
 
 export const PROPERTY_IMAGES_BUCKET = "property-images";
@@ -227,7 +228,7 @@ async function createUploadTargets(
       const extension = extensionForMimeType(file.contentType);
 
       if (!extension) {
-        throw new Error("MEDIA_MIME_TYPE_UNSUPPORTED");
+        throw new AppError("MEDIA_MIME_TYPE_UNSUPPORTED", "MEDIA_MIME_TYPE_UNSUPPORTED");
       }
 
       // uuidv7.ext, with the original name kept only as metadata for the

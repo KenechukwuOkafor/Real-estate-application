@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AppError } from "@/lib/api/errors";
 import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import {
   getPublicListingIdByUuid,
@@ -12,14 +13,14 @@ export async function saveListingForCurrentUser(listingPublicId: string) {
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
-    throw new Error("Unauthenticated request.");
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
   }
 
   const client = await createSupabaseAuthenticatedClient();
   const listing = await getPublicListingIdByUuid(client, listingPublicId);
 
   if (!listing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   await saveListing(client, appUser.user.id, listing.id);
@@ -31,14 +32,14 @@ export async function unsaveListingForCurrentUser(listingPublicId: string) {
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
-    throw new Error("Unauthenticated request.");
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
   }
 
   const client = await createSupabaseAuthenticatedClient();
   const listing = await getPublicListingIdByUuid(client, listingPublicId);
 
   if (!listing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   await unsaveListing(client, appUser.user.id, listing.id);

@@ -39,7 +39,7 @@ import { getCurrentAppUser } from "@/server/services/user-sync-service";
 
 function requireAdminRole(roles: string[]) {
   if (!roles.includes("admin")) {
-    throw new Error("Admin role is required.");
+    throw new AppError("UNAUTHORIZED", "Admin role is required.");
   }
 }
 
@@ -47,7 +47,7 @@ async function requireAdminContext() {
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
-    throw new Error("Unauthenticated request.");
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
   }
 
   requireAdminRole(appUser.roles);
@@ -61,7 +61,10 @@ function requireListingState(
   action: string,
 ) {
   if (!allowedStatuses.includes(currentStatus)) {
-    throw new Error(`Listing cannot be ${action} from status ${currentStatus}.`);
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      `Listing cannot be ${action} from status ${currentStatus}.`,
+    );
   }
 }
 
@@ -115,7 +118,10 @@ export async function approveAgentVerificationAsAdmin(submissionId: string) {
   const submission = await getVerificationSubmissionById(adminClient, submissionId);
 
   if (!submission || !submission.agent_profiles) {
-    throw new Error("Verification submission not found.");
+    throw new AppError(
+      "VERIFICATION_SUBMISSION_NOT_FOUND",
+      "Verification submission not found.",
+    );
   }
 
   requirePendingVerificationState(
@@ -206,7 +212,10 @@ export async function rejectAgentVerificationAsAdmin(
   const submission = await getVerificationSubmissionById(adminClient, submissionId);
 
   if (!submission || !submission.agent_profiles) {
-    throw new Error("Verification submission not found.");
+    throw new AppError(
+      "VERIFICATION_SUBMISSION_NOT_FOUND",
+      "Verification submission not found.",
+    );
   }
 
   requirePendingVerificationState(
@@ -252,7 +261,7 @@ export async function approveListingAsAdmin(listingId: string) {
   const currentListing = await getListingById(adminClient, listingId);
 
   if (!currentListing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   requireListingState(
@@ -290,7 +299,7 @@ export async function rejectListingAsAdmin(listingId: string, reason: string) {
   const currentListing = await getListingById(adminClient, listingId);
 
   if (!currentListing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   requireListingState(
@@ -326,7 +335,7 @@ export async function flagListingAsAdmin(listingId: string, reason: string) {
   const currentListing = await getListingById(adminClient, listingId);
 
   if (!currentListing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   requireListingState(
@@ -361,7 +370,7 @@ export async function disputeListingAsAdmin(listingId: string, reason: string) {
   const currentListing = await getListingById(adminClient, listingId);
 
   if (!currentListing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   requireListingState(

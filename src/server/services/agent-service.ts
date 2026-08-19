@@ -48,7 +48,7 @@ import type { Database } from "@/types/database";
 
 function requireAgentRole(roles: string[]) {
   if (!roles.includes("agent")) {
-    throw new Error("Agent role is required.");
+    throw new AppError("UNAUTHORIZED", "Agent role is required.");
   }
 }
 
@@ -56,7 +56,7 @@ export async function getCurrentAgentContext() {
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
-    throw new Error("Unauthenticated request.");
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
   }
 
   requireAgentRole(appUser.roles);
@@ -83,7 +83,7 @@ export async function getAgentOnboardingContext() {
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
-    throw new Error("Unauthenticated request.");
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
   }
 
   const client = await createSupabaseAuthenticatedClient();
@@ -147,7 +147,10 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
   const context = await getCurrentAgentContext();
 
   if (!context.agentProfile) {
-    throw new Error("Create your agent profile before managing listings.");
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listings.",
+    );
   }
 
   const client = await createSupabaseAuthenticatedClient();
@@ -187,7 +190,7 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
     };
   }
 
-  throw new Error("LISTING_SUBSCRIPTION_REQUIRED");
+  throw new AppError("SUBSCRIPTION_REQUIRED", "LISTING_SUBSCRIPTION_REQUIRED");
 }
 
 export async function saveCurrentAgentProfile(input: AgentProfileInput) {
@@ -268,7 +271,10 @@ export async function submitCurrentAgentVerification(
   const context = await getAgentOnboardingContext();
 
   if (!context.agentProfile) {
-    throw new Error("Create your agent profile before submitting verification.");
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before submitting verification.",
+    );
   }
 
   assertVerificationSubmittable(context.agentProfile.verification_status);
@@ -364,7 +370,10 @@ export async function createCurrentAgentDraftListing(
   const context = await getCurrentAgentContext();
 
   if (!context.agentProfile) {
-    throw new Error("Create your agent profile before creating a draft listing.");
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before creating a draft listing.",
+    );
   }
 
   const client = await createSupabaseAuthenticatedClient();
@@ -395,18 +404,24 @@ export async function updateCurrentAgentDraftListing(
   const context = await getCurrentAgentContext();
 
   if (!context.agentProfile) {
-    throw new Error("Create your agent profile before managing listings.");
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listings.",
+    );
   }
 
   const client = await createSupabaseAuthenticatedClient();
   const existing = await getOwnedListing(client, context.agentProfile.id, listingId);
 
   if (!existing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   if (existing.status !== "draft" && existing.status !== "rejected") {
-    throw new Error("LISTING_STATE_TRANSITION_INVALID");
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      "LISTING_STATE_TRANSITION_INVALID",
+    );
   }
 
   const merged: AgentDraftListingInput = {
@@ -516,14 +531,17 @@ export async function createCurrentAgentListingImageUploadTargets(
   const context = await getCurrentAgentContext();
 
   if (!context.agentProfile) {
-    throw new Error("Create your agent profile before managing listing images.");
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listing images.",
+    );
   }
 
   const client = await createSupabaseAuthenticatedClient();
   const listing = await getOwnedListing(client, context.agentProfile.id, input.listingId);
 
   if (!listing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   if (listing.status !== "draft" && listing.status !== "rejected") {
@@ -540,7 +558,10 @@ export async function createCurrentAgentListingImageUploadTargets(
   const existingImages = (listing.listing_images ?? []).filter((image) => !image.deleted_at);
 
   if (existingImages.length + input.files.length > 10) {
-    throw new Error("A listing cannot have more than 10 active images.");
+    throw new AppError(
+      "LISTING_IMAGE_COUNT_INVALID",
+      "A listing cannot have more than 10 active images.",
+    );
   }
 
   return createListingImageUploadTargets(client, {
@@ -557,14 +578,17 @@ export async function registerCurrentAgentListingImages(
   const context = await getCurrentAgentContext();
 
   if (!context.agentProfile) {
-    throw new Error("Create your agent profile before managing listing images.");
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listing images.",
+    );
   }
 
   const client = await createSupabaseAuthenticatedClient();
   const listing = await getOwnedListing(client, context.agentProfile.id, input.listingId);
 
   if (!listing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   if (listing.status !== "draft" && listing.status !== "rejected") {
@@ -581,7 +605,10 @@ export async function registerCurrentAgentListingImages(
   const existingImages = (listing.listing_images ?? []).filter((image) => !image.deleted_at);
 
   if (existingImages.length + input.images.length > 10) {
-    throw new Error("A listing cannot have more than 10 active images.");
+    throw new AppError(
+      "LISTING_IMAGE_COUNT_INVALID",
+      "A listing cannot have more than 10 active images.",
+    );
   }
 
   // Every path must name an object that actually exists under this listing's
@@ -643,28 +670,34 @@ export async function submitCurrentAgentListingForReview(listingId: string) {
   const context = await getCurrentAgentContext();
 
   if (!context.agentProfile) {
-    throw new Error("Create your agent profile before submitting listings.");
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before submitting listings.",
+    );
   }
 
   if (context.agentProfile.verification_status !== "verified") {
-    throw new Error("AGENT_NOT_VERIFIED");
+    throw new AppError("AGENT_NOT_VERIFIED", "AGENT_NOT_VERIFIED");
   }
 
   const client = await createSupabaseAuthenticatedClient();
   const listing = await getOwnedListing(client, context.agentProfile.id, listingId);
 
   if (!listing) {
-    throw new Error("Listing not found.");
+    throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
   if (listing.status !== "draft" && listing.status !== "rejected") {
-    throw new Error("LISTING_STATE_TRANSITION_INVALID");
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      "LISTING_STATE_TRANSITION_INVALID",
+    );
   }
 
   const activeImages = (listing.listing_images ?? []).filter((image) => !image.deleted_at);
 
   if (activeImages.length < 3) {
-    throw new Error("LISTING_IMAGE_COUNT_INVALID");
+    throw new AppError("LISTING_IMAGE_COUNT_INVALID", "LISTING_IMAGE_COUNT_INVALID");
   }
 
   // Check entitlement without spending anything yet, then let the guarded
@@ -728,7 +761,10 @@ export async function createCurrentAgentVerificationUploadTargets(
   const context = await getAgentOnboardingContext();
 
   if (!context.agentProfile) {
-    throw new Error("Create your agent profile before uploading documents.");
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before uploading documents.",
+    );
   }
 
   assertVerificationSubmittable(context.agentProfile.verification_status);

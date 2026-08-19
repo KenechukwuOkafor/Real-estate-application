@@ -1,35 +1,18 @@
 import { NextResponse } from "next/server";
 
-import {
-  categoryForCode,
-  type ErrorCategory,
-  httpStatusForCode,
-} from "@/lib/api/error-codes";
+import { AppError } from "@/lib/api/app-error";
+import type { ErrorCategory } from "@/lib/api/error-codes";
 import { createApiMeta } from "@/lib/api/response";
 import { currentContext } from "@/lib/observability/context";
 import { log } from "@/lib/observability/logger";
 import { reportError } from "@/lib/observability/sentry";
 
-export class AppError extends Error {
-  public readonly httpStatus: number;
-
-  constructor(
-    public readonly code: string,
-    message: string,
-    httpStatus?: number,
-  ) {
-    super(message);
-    this.name = "AppError";
-    // The registry is the default so a code and its status cannot drift apart.
-    // An explicit status is still accepted for the handful of call sites that
-    // predate the registry.
-    this.httpStatus = httpStatus ?? httpStatusForCode(code);
-  }
-
-  get category(): ErrorCategory {
-    return categoryForCode(this.code);
-  }
-}
+/**
+ * Re-exported so every existing `import { AppError } from "@/lib/api/errors"`
+ * keeps resolving. The class itself lives in a module free of `server-only`,
+ * because this one is not — see app-error.ts for why that matters.
+ */
+export { AppError };
 
 type ResolvedError = {
   code: string;
