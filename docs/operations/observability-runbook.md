@@ -11,26 +11,37 @@ Implements ADR-026. Companion to
 events; **Sentry notifies nobody until the rules below exist.** Create them once,
 in Sentry → Alerts → Create Alert → Issues.
 
-### 1. The job drain has stopped
+**Create both. Only one of them can fire today.**
 
-| Field | Value |
-|---|---|
-| When | An issue matches tag `alert.kind` equals `absence` |
-| Then | Notify the engineering email / Slack channel |
-| Rate limit | At most once per hour per issue |
+| # | Alert | Tag `alert.kind` | Status | Becomes live when |
+|---|---|---|---|---|
+| 1 | Listing views are not being recorded | `view-unresolved` | **Works** — fires per event | the first `preview` or `production` deploy exists |
+| 2 | The job drain has stopped | `absence` | **Cannot fire at all** | something invokes `GET /api/monitoring/absence` on a schedule |
 
-**What it means.** A lane has work older than `JOB_QUEUE_MAX_AGE_SECONDS`
-(default 900).
+The asymmetry is the important part, and it runs the wrong way round.
 
-Per ADR-032, depth is deliberately **not** the signal: depth reads zero both
-when everything is healthy and when the drain has stopped, because nothing
-drains and nothing accumulates visibly. Age rises the moment draining stops.
+Alert 1 is driven by ordinary user traffic: a view beacon arrives, fails to
+resolve, and the event is reported on that single request. Nothing else has to
+be built for it to work.
 
-**What to do.** Confirm something is actually invoking
-`POST /api/jobs/drain?queue=<lane>`. See *Scheduling* below — as of this writing,
-**nothing is**.
+Alert 2 is driven by a route that **nothing calls**. `GET /api/monitoring/absence`
+computes the oldest-queued-job age correctly and reports a breach correctly — it
+has no caller. An alert rule matching `alert.kind: absence` will sit in Sentry
+matching zero events forever, and a rule that has never fired is
+indistinguishable from a system that has never broken.
 
-### 2. Listing views are not being recorded
+That is the failure this runbook most needs to prevent. A stalled drain is the
+single failure here **most likely to go unnoticed**: the queue does not grow
+visibly, no request 500s, no user sees an error, and every dashboard reads
+healthy while inspection requests and media jobs silently stop being processed.
+Alert 2 is the only thing that would say so, and until a scheduler exists it says
+nothing. See *Scheduling — UNRESOLVED* below; that decision, not this rule, is
+what makes alert 2 real.
+
+Neither alert fires from a local run. Transmission is gated to
+`NEXT_PUBLIC_APP_ENV` of exactly `preview` or `production` — see *Environments*.
+
+### 1. Listing views are not being recorded — WORKS
 
 | Field | Value |
 |---|---|
@@ -59,6 +70,33 @@ of requests.
 caller sending `listings.id` where `listings.public_uuid` is required — both are
 UUIDs, so the wrong column resolves to nothing rather than erroring.
 
+### 2. The job drain has stopped — INERT UNTIL A SCHEDULER EXISTS
+
+> **This rule cannot fire today.** It matches events emitted by
+> `GET /api/monitoring/absence`, and nothing invokes that route — there is no
+> `vercel.json`, no scheduled workflow, and no external caller. Creating the rule
+> now is still worth doing, so the alerting side is ready the moment a scheduler
+> is wired. Do not read its silence as a healthy queue.
+
+| Field | Value |
+|---|---|
+| When | An issue matches tag `alert.kind` equals `absence` |
+| Then | Notify the engineering email / Slack channel |
+| Rate limit | At most once per hour per issue |
+
+**What it means.** A lane has work older than `JOB_QUEUE_MAX_AGE_SECONDS`
+(default 900).
+
+Per ADR-032, depth is deliberately **not** the signal: depth reads zero both
+when everything is healthy and when the drain has stopped, because nothing
+drains and nothing accumulates visibly. Age rises the moment draining stops.
+
+**What to do.** First confirm the check itself is running at all — if nothing is
+invoking `GET /api/monitoring/absence` on a schedule, this alert proves nothing
+either way. Then confirm something is invoking
+`POST /api/jobs/drain?queue=<lane>`. See *Scheduling* below — as of this writing,
+**nothing is invoking either route**.
+
 ---
 
 ## Scheduling — UNRESOLVED
@@ -66,6 +104,11 @@ UUIDs, so the wrong column resolves to nothing rather than erroring.
 `GET /api/monitoring/absence` and `POST /api/jobs/drain` both need something to
 invoke them on a schedule. **Nothing does yet.** ADR-032 deferred this decision;
 it is still deferred, now with evidence.
+
+This is not only a queue problem. It is also what holds alert 2 above at zero
+events: with no caller, the absence check never runs, never reports, and never
+notifies. Resolving this section is what converts alert 2 from a rule that exists
+into a rule that works.
 
 ### Why there is no `vercel.json`
 
