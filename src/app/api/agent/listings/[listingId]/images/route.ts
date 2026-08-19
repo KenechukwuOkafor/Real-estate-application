@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { routeErrorResponse } from "@/lib/api/errors";
+import { requireUuid } from "@/lib/api/identifiers";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { registerCurrentAgentListingImages } from "@/server/services/agent-service";
@@ -14,6 +15,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const { listingId } = await context.params;
+    requireUuid(listingId, "Listing");
     // Only path and ordering are accepted. URL, content type and size are read
     // from the uploaded object server-side; taking them from the body meant
     // persisting unverified values.

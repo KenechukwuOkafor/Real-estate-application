@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { routeErrorResponse } from "@/lib/api/errors";
+import { requireUuid } from "@/lib/api/identifiers";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import {
@@ -17,6 +18,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   try {
     const { chatId } = await context.params;
+    requireUuid(chatId, "Chat");
     const result = await getCurrentUserChatThread(chatId);
 
     return NextResponse.json({
@@ -34,6 +36,7 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     const body = ((await request.json().catch(() => null)) ?? {}) as { body?: string };
     const { chatId } = await context.params;
+    requireUuid(chatId, "Chat");
     const message = await sendCurrentUserChatMessage({
       body: body.body ?? "",
       chatId,

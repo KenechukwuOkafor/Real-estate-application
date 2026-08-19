@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { routeErrorResponse } from "@/lib/api/errors";
+import { requireUuid } from "@/lib/api/identifiers";
 import { getRequestId } from "@/lib/api/request-id";
 import { createApiMeta } from "@/lib/api/response";
 import { updateCurrentAgentDraftListing } from "@/server/services/agent-service";
@@ -35,6 +36,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     };
 
     const { listingId } = await context.params;
+    requireUuid(listingId, "Listing");
     const result = await updateCurrentAgentDraftListing(listingId, {
       amenities: body.amenities,
       area: body.area,
