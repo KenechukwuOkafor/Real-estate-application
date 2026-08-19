@@ -274,10 +274,18 @@ jobs:
             const failed = withStatus("failed");
             const fileErrors = files.filter((f) => f.failureMessage);
 
-            console.log("files:   " + files.length);
-            console.log("passed:  " + withStatus("passed").length);
-            console.log("failed:  " + failed.length);
-            console.log("skipped: " + skipped.length);
+            // Vitest does not reliably populate failureMessage on the file, so
+            // a suite whose hook threw can appear here as zero failures and a
+            // pile of skips. numFailedTestSuites is the number that told the
+            // truth ("Test Files 2 failed") while this guard reported
+            // "failed: 0" and passed for the wrong reason.
+            const failedSuites = r.numFailedTestSuites ?? 0;
+
+            console.log("files:        " + files.length);
+            console.log("passed:       " + withStatus("passed").length);
+            console.log("failed:       " + failed.length);
+            console.log("skipped:      " + skipped.length);
+            console.log("failed suites: " + failedSuites);
 
             const indent = (text) =>
               String(text).split("\n").map((l) => "      " + l).join("\n");
@@ -307,7 +315,17 @@ jobs:
               );
             }
 
-            if (failed.length || skipped.length || fileErrors.length) process.exit(1);
+            if (failedSuites > 0 && !fileErrors.length && !failed.length) {
+              console.error(
+                "\n" + failedSuites + " suite(s) failed with no test-level detail" +
+                " in the JSON report. The verbose reporter output above carries" +
+                " the error — look for \"Failed Suites\"."
+              );
+            }
+
+            if (failed.length || skipped.length || fileErrors.length || failedSuites) {
+              process.exit(1);
+            }
           '
 
       - name: Stop Supabase

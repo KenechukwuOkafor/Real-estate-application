@@ -6,6 +6,15 @@
  * token turns every policy test into an intermittent false failure that looks
  * like a policy bug. Nothing here caches. `mintFreshToken` hits Clerk on every
  * call, and callers must call it per request rather than per test.
+ *
+ * There is deliberately no `createProbeUser` here any more.
+ *
+ * Identity creation lives in test/global-setup.ts and happens once per run,
+ * because doing it per suite meant nineteen users in fifteen seconds and an
+ * HTTP 429 from Clerk's Backend API — intermittent, and landing in `beforeAll`
+ * where it took whole suites down while reporting them as skipped. Removing the
+ * helper rather than documenting the rule is the point: a suite cannot casually
+ * reintroduce per-suite creation by calling a function that is not here.
  */
 
 const CLERK_API = "https://api.clerk.com/v1";
@@ -20,7 +29,7 @@ function secret() {
   return key;
 }
 
-async function clerk<T>(
+export async function clerkRequest<T>(
   path: string,
   init?: { body?: unknown; method?: string },
 ): Promise<T> {
@@ -42,47 +51,13 @@ async function clerk<T>(
   return (text ? JSON.parse(text) : null) as T;
 }
 
-export type ProbeUser = {
-  clerkUserId: string;
-  email: string;
-  sessionId: string;
-};
-
-/**
- * Create a throwaway Clerk user plus an active session.
- *
- * `+clerk_test` addresses bypass verification on development instances. The
- * `.local` TLD is rejected by Clerk, which is why these use example.com.
- */
-export async function createProbeUser(label: string): Promise<ProbeUser> {
-  const email = `rls_${label}_${Date.now()}+clerk_test@example.com`;
-
-  const user = await clerk<{ id: string }>("/users", {
-    body: {
-      email_address: [email],
-      password: `Pr0be-${label}-${Math.random().toString(36).slice(2, 10)}!Aa1`,
-      skip_password_checks: true,
-    },
-    method: "POST",
-  });
-
-  const session = await clerk<{ id: string }>("/sessions", {
-    body: { user_id: user.id },
-    method: "POST",
-  });
-
-  return { clerkUserId: user.id, email, sessionId: session.id };
-}
-
-export async function deleteProbeUser(user: ProbeUser) {
-  await clerk(`/users/${user.clerkUserId}`, { method: "DELETE" });
-}
-
 /**
  * Mint a token valid for the next ~60 seconds. Never cache the result.
  */
-export async function mintFreshToken(user: ProbeUser): Promise<string> {
-  const { jwt } = await clerk<{ jwt: string }>(
+export async function mintFreshToken(user: {
+  sessionId: string;
+}): Promise<string> {
+  const { jwt } = await clerkRequest<{ jwt: string }>(
     `/sessions/${user.sessionId}/tokens`,
     { body: {}, method: "POST" },
   );

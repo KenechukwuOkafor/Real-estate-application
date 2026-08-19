@@ -12,12 +12,8 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  createProbeUser,
-  deleteProbeUser,
-  mintFreshToken,
-  type ProbeUser,
-} from "../../../test/helpers/clerk-tokens";
+import { type CastMember, getCast } from "../../../test/helpers/cast";
+import { mintFreshToken } from "../../../test/helpers/clerk-tokens";
 import {
   asAnon,
   asServiceRole,
@@ -41,43 +37,26 @@ suite("RLS: chats and messages", () => {
     svc = asServiceRole();
   });
 
-  let seeker: ProbeUser;
-  let agent: ProbeUser;
-  let outsider: ProbeUser;
+  let seeker: CastMember;
+  let agent: CastMember;
+  let outsider: CastMember;
 
-  let seekerUserId: string;
-  let agentUserId: string;
-  let outsiderUserId: string;
   let agentProfileId: string;
   let listingId: string;
   let chatId: string;
   let seekerMessageId: string;
 
-  async function insertUser(probe: ProbeUser) {
-    const { data, error } = await svc
-      .from("users")
-      .insert({ clerk_user_id: probe.clerkUserId, email: probe.email })
-      .select("id")
-      .single();
-
-    if (error) throw error;
-    return data.id;
-  }
-
   beforeAll(async () => {
-    [seeker, agent, outsider] = await Promise.all([
-      createProbeUser("chatseeker"),
-      createProbeUser("chatagent"),
-      createProbeUser("chatoutsider"),
-    ]);
-
-    seekerUserId = await insertUser(seeker);
-    agentUserId = await insertUser(agent);
-    outsiderUserId = await insertUser(outsider);
+    // Identities from the shared cast; the outsider is a second ordinary user,
+    // not an agent, so "not a participant" is what the denials actually prove.
+    const cast = getCast();
+    seeker = cast.seeker;
+    agent = cast.owningAgent;
+    outsider = cast.otherSeeker;
 
     const { data: profile, error: profileError } = await svc
       .from("agent_profiles")
-      .insert({ display_name: "RLS Chat Agent", user_id: agentUserId })
+      .insert({ display_name: "RLS Chat Agent", user_id: agent.userId })
       .select("id")
       .single();
     if (profileError) throw profileError;
@@ -110,7 +89,7 @@ suite("RLS: chats and messages", () => {
       .insert({
         agent_profile_id: agentProfileId,
         listing_id: listingId,
-        student_user_id: seekerUserId,
+        student_user_id: seeker.userId,
         type: "inspection",
       })
       .select("id")
@@ -123,7 +102,7 @@ suite("RLS: chats and messages", () => {
       .insert({
         body: "Private message between the two participants.",
         chat_id: chatId,
-        sender_user_id: seekerUserId,
+        sender_user_id: seeker.userId,
       })
       .select("id")
       .single();
@@ -137,13 +116,9 @@ suite("RLS: chats and messages", () => {
       await svc.from("chats").delete().eq("id", chatId);
     }
     if (listingId) await svc.from("listings").delete().eq("id", listingId);
+    // Domain data only; the cast outlives this suite. agent_profiles.user_id is
+    // UNIQUE, so a leftover profile breaks the next suite that needs one.
     if (agentProfileId) await svc.from("agent_profiles").delete().eq("id", agentProfileId);
-    for (const id of [seekerUserId, agentUserId, outsiderUserId]) {
-      if (id) await svc.from("users").delete().eq("id", id);
-    }
-    for (const probe of [seeker, agent, outsider]) {
-      if (probe) await deleteProbeUser(probe);
-    }
   });
 
   describe("control: the fixture exists", () => {
@@ -251,7 +226,7 @@ suite("RLS: chats and messages", () => {
         .insert({
           body: "I should not be able to post here.",
           chat_id: chatId,
-          sender_user_id: outsiderUserId,
+          sender_user_id: outsider.userId,
         });
 
       expect(error).not.toBeNull();
@@ -269,7 +244,7 @@ suite("RLS: chats and messages", () => {
         .insert({
           body: "Posted while impersonating the seeker.",
           chat_id: chatId,
-          sender_user_id: seekerUserId,
+          sender_user_id: seeker.userId,
         });
 
       expect(error).not.toBeNull();
@@ -299,7 +274,7 @@ suite("RLS: chats and messages", () => {
       // column-level grant does.
       await asUser(await mintFreshToken(agent))
         .from("chats")
-        .update({ student_user_id: outsiderUserId })
+        .update({ student_user_id: outsider.userId })
         .eq("id", chatId);
 
       const { data: control } = await svc
@@ -307,7 +282,7 @@ suite("RLS: chats and messages", () => {
         .select("student_user_id")
         .eq("id", chatId)
         .single();
-      expect(control?.student_user_id).toBe(seekerUserId);
+      expect(control?.student_user_id).toBe(seeker.userId);
     });
 
     it("a participant can still stamp last_message_at", async () => {
@@ -334,7 +309,7 @@ suite("RLS: chats and messages", () => {
     it("user B cannot repoint the chat at themselves", async () => {
       await asUser(await mintFreshToken(outsider))
         .from("chats")
-        .update({ student_user_id: outsiderUserId })
+        .update({ student_user_id: outsider.userId })
         .eq("id", chatId);
 
       const { data: control } = await svc
@@ -342,7 +317,7 @@ suite("RLS: chats and messages", () => {
         .select("student_user_id")
         .eq("id", chatId)
         .single();
-      expect(control?.student_user_id).toBe(seekerUserId);
+      expect(control?.student_user_id).toBe(seeker.userId);
     });
   });
 });

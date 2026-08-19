@@ -6,12 +6,8 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  createProbeUser,
-  deleteProbeUser,
-  mintFreshToken,
-  type ProbeUser,
-} from "../../../test/helpers/clerk-tokens";
+import { type CastMember, getCast } from "../../../test/helpers/cast";
+import { mintFreshToken } from "../../../test/helpers/clerk-tokens";
 import {
   asAnon,
   asServiceRole,
@@ -35,29 +31,15 @@ suite("RLS: inspection_requests", () => {
     svc = asServiceRole();
   });
 
-  let seeker: ProbeUser;
-  let owningAgent: ProbeUser;
-  let otherAgent: ProbeUser;
-  let otherSeeker: ProbeUser;
+  let seeker: CastMember;
+  let owningAgent: CastMember;
+  let otherAgent: CastMember;
+  let otherSeeker: CastMember;
 
-  let seekerUserId: string;
-  let owningAgentUserId: string;
-  let otherAgentUserId: string;
-  let otherSeekerUserId: string;
   let owningProfileId: string;
   let otherProfileId: string;
   let listingId: string;
   let requestId: string;
-
-  async function seedUser(probe: ProbeUser) {
-    const { data, error } = await svc
-      .from("users")
-      .insert({ clerk_user_id: probe.clerkUserId, email: probe.email })
-      .select("id")
-      .single();
-    if (error) throw error;
-    return data.id;
-  }
 
   async function seedProfile(userId: string, name: string) {
     const { data, error } = await svc
@@ -70,20 +52,17 @@ suite("RLS: inspection_requests", () => {
   }
 
   beforeAll(async () => {
-    [seeker, owningAgent, otherAgent, otherSeeker] = await Promise.all([
-      createProbeUser("inspseeker"),
-      createProbeUser("inspowner"),
-      createProbeUser("inspother"),
-      createProbeUser("inspseeker2"),
-    ]);
+    // Identities from the shared cast. otherSeeker is why the cast has five
+    // members rather than four: proving a *different ordinary user* is refused
+    // is not the same assertion as proving an agent is.
+    const cast = getCast();
+    seeker = cast.seeker;
+    owningAgent = cast.owningAgent;
+    otherAgent = cast.otherAgent;
+    otherSeeker = cast.otherSeeker;
 
-    seekerUserId = await seedUser(seeker);
-    owningAgentUserId = await seedUser(owningAgent);
-    otherAgentUserId = await seedUser(otherAgent);
-    otherSeekerUserId = await seedUser(otherSeeker);
-
-    owningProfileId = await seedProfile(owningAgentUserId, "Owning Agent");
-    otherProfileId = await seedProfile(otherAgentUserId, "Other Agent");
+    owningProfileId = await seedProfile(owningAgent.userId, "Owning Agent");
+    otherProfileId = await seedProfile(otherAgent.userId, "Other Agent");
 
     const { data: listing, error: listingError } = await svc
       .from("listings")
@@ -114,7 +93,7 @@ suite("RLS: inspection_requests", () => {
         expires_at: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
         listing_id: listingId,
         message: "Is this still available?",
-        requester_user_id: seekerUserId,
+        requester_user_id: seeker.userId,
       })
       .select("id")
       .single();
@@ -125,19 +104,10 @@ suite("RLS: inspection_requests", () => {
   afterAll(async () => {
     if (requestId) await svc.from("inspection_requests").delete().eq("id", requestId);
     if (listingId) await svc.from("listings").delete().eq("id", listingId);
+    // Domain data only; the cast outlives this suite. agent_profiles.user_id is
+    // UNIQUE, so a leftover profile breaks the next suite that needs one.
     for (const id of [owningProfileId, otherProfileId]) {
       if (id) await svc.from("agent_profiles").delete().eq("id", id);
-    }
-    for (const id of [
-      seekerUserId,
-      owningAgentUserId,
-      otherAgentUserId,
-      otherSeekerUserId,
-    ]) {
-      if (id) await svc.from("users").delete().eq("id", id);
-    }
-    for (const probe of [seeker, owningAgent, otherAgent, otherSeeker]) {
-      if (probe) await deleteProbeUser(probe);
     }
   });
 
@@ -262,7 +232,7 @@ suite("RLS: inspection_requests", () => {
     // column grant, not the row predicate — the agent does satisfy the policy.
     await asUser(await mintFreshToken(owningAgent))
       .from("inspection_requests")
-      .update({ requester_user_id: otherSeekerUserId })
+      .update({ requester_user_id: otherSeeker.userId })
       .eq("id", requestId);
 
     const { data: control } = await svc
@@ -270,6 +240,6 @@ suite("RLS: inspection_requests", () => {
       .select("requester_user_id")
       .eq("id", requestId)
       .single();
-    expect(control?.requester_user_id).toBe(seekerUserId);
+    expect(control?.requester_user_id).toBe(seeker.userId);
   });
 });

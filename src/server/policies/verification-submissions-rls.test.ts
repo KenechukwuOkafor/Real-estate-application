@@ -7,12 +7,8 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  createProbeUser,
-  deleteProbeUser,
-  mintFreshToken,
-  type ProbeUser,
-} from "../../../test/helpers/clerk-tokens";
+import { type CastMember, getCast } from "../../../test/helpers/cast";
+import { mintFreshToken } from "../../../test/helpers/clerk-tokens";
 import {
   asAnon,
   asServiceRole,
@@ -36,32 +32,15 @@ suite("RLS: agent_verification_submissions", () => {
     svc = asServiceRole();
   });
 
-  let agentA: ProbeUser;
-  let agentB: ProbeUser;
-  let admin: ProbeUser;
+  // Identities come from the shared cast; this suite seeds only its own domain
+  // data. See test/helpers/cast.ts for why they are shared.
+  let agentA: CastMember;
+  let agentB: CastMember;
+  let admin: CastMember;
 
-  let agentAUserId: string;
-  let agentBUserId: string;
-  let adminUserId: string;
   let profileAId: string;
   let profileBId: string;
   let submissionAId: string;
-
-  async function seedUser(probe: ProbeUser, role: "agent" | "admin") {
-    const { data, error } = await svc
-      .from("users")
-      .insert({ clerk_user_id: probe.clerkUserId, email: probe.email })
-      .select("id")
-      .single();
-    if (error) throw error;
-
-    const { error: roleError } = await svc
-      .from("user_roles")
-      .insert({ role, user_id: data.id });
-    if (roleError) throw roleError;
-
-    return data.id;
-  }
 
   async function seedProfile(userId: string, name: string) {
     const { data, error } = await svc
@@ -74,18 +53,13 @@ suite("RLS: agent_verification_submissions", () => {
   }
 
   beforeAll(async () => {
-    [agentA, agentB, admin] = await Promise.all([
-      createProbeUser("verifagentA"),
-      createProbeUser("verifagentB"),
-      createProbeUser("verifadmin"),
-    ]);
+    const cast = getCast();
+    agentA = cast.owningAgent;
+    agentB = cast.otherAgent;
+    admin = cast.admin;
 
-    agentAUserId = await seedUser(agentA, "agent");
-    agentBUserId = await seedUser(agentB, "agent");
-    adminUserId = await seedUser(admin, "admin");
-
-    profileAId = await seedProfile(agentAUserId, "Agent A");
-    profileBId = await seedProfile(agentBUserId, "Agent B");
+    profileAId = await seedProfile(agentA.userId, "Agent A");
+    profileBId = await seedProfile(agentB.userId, "Agent B");
 
     const { data, error } = await svc
       .from("agent_verification_submissions")
@@ -99,20 +73,14 @@ suite("RLS: agent_verification_submissions", () => {
     submissionAId = data.id;
   });
 
+  // Domain data only. The cast's users and roles outlive this suite, and
+  // agent_profiles.user_id is UNIQUE — leaving a profile behind would break the
+  // next suite that needs one for the same agent.
   afterAll(async () => {
     if (submissionAId)
       await svc.from("agent_verification_submissions").delete().eq("id", submissionAId);
     for (const id of [profileAId, profileBId]) {
       if (id) await svc.from("agent_profiles").delete().eq("id", id);
-    }
-    for (const id of [agentAUserId, agentBUserId, adminUserId]) {
-      if (id) {
-        await svc.from("user_roles").delete().eq("user_id", id);
-        await svc.from("users").delete().eq("id", id);
-      }
-    }
-    for (const probe of [agentA, agentB, admin]) {
-      if (probe) await deleteProbeUser(probe);
     }
   });
 

@@ -9,14 +9,15 @@
  *
  * Deliberately asserts on a value, not on a status code.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import {
-  createProbeUser,
+  type CastMember,
+  getCast,
+} from "../../../../test/helpers/cast";
+import {
   decodeJwtPayload,
-  deleteProbeUser,
   mintFreshToken,
-  type ProbeUser,
 } from "../../../../test/helpers/clerk-tokens";
 import {
   asAnon,
@@ -27,16 +28,16 @@ import {
 const suite = rlsIntegrationEnabled() ? describe : describe.skip;
 
 suite("Clerk token path into Postgres", () => {
-  let probe: ProbeUser;
+  // Borrowed from the shared cast rather than minted here. This suite creating
+  // its own user is what earned the HTTP 429 that took all five of these tests
+  // down. See test/helpers/cast.ts.
+  //
+  // Nothing to tear down: the cast outlives the suite, and this suite writes no
+  // domain data of its own.
+  let probe: CastMember;
 
-  beforeAll(async () => {
-    probe = await createProbeUser("tokenpath");
-  });
-
-  afterAll(async () => {
-    if (probe) {
-      await deleteProbeUser(probe);
-    }
+  beforeAll(() => {
+    probe = getCast().seeker;
   });
 
   it("mints a token whose sub is the Clerk user id", async () => {

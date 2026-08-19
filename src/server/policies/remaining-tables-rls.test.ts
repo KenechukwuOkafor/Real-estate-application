@@ -6,12 +6,8 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  createProbeUser,
-  deleteProbeUser,
-  mintFreshToken,
-  type ProbeUser,
-} from "../../../test/helpers/clerk-tokens";
+import { type CastMember, getCast } from "../../../test/helpers/cast";
+import { mintFreshToken } from "../../../test/helpers/clerk-tokens";
 import {
   asAnon,
   asServiceRole,
@@ -35,37 +31,21 @@ suite("RLS: remaining tables", () => {
     svc = asServiceRole();
   });
 
-  let userA: ProbeUser;
-  let userB: ProbeUser;
-  let admin: ProbeUser;
-  let userAId: string;
-  let userBId: string;
-  let adminId: string;
+  let userA: CastMember;
+  let userB: CastMember;
+  let admin: CastMember;
   let listingId: string;
   let savedId: string;
   let reportId: string;
   let auditId: string;
 
-  async function seedUser(probe: ProbeUser, role: "student" | "admin") {
-    const { data, error } = await svc
-      .from("users")
-      .insert({ clerk_user_id: probe.clerkUserId, email: probe.email })
-      .select("id")
-      .single();
-    if (error) throw error;
-    await svc.from("user_roles").insert({ role, user_id: data.id });
-    return data.id;
-  }
-
   beforeAll(async () => {
-    [userA, userB, admin] = await Promise.all([
-      createProbeUser("remA"),
-      createProbeUser("remB"),
-      createProbeUser("remAdmin"),
-    ]);
-    userAId = await seedUser(userA, "student");
-    userBId = await seedUser(userB, "student");
-    adminId = await seedUser(admin, "admin");
+    // Identities from the shared cast. Both ordinary users are seekers: the
+    // point of userB is that one user cannot read another's saved listings.
+    const cast = getCast();
+    userA = cast.seeker;
+    userB = cast.otherSeeker;
+    admin = cast.admin;
 
     const { data: listing } = await svc
       .from("listings")
@@ -77,7 +57,7 @@ suite("RLS: remaining tables", () => {
 
     const { data: saved, error: savedError } = await svc
       .from("saved_listings")
-      .insert({ listing_id: listingId, user_id: userAId })
+      .insert({ listing_id: listingId, user_id: userA.userId })
       .select("id")
       .single();
     if (savedError) throw savedError;
@@ -87,7 +67,7 @@ suite("RLS: remaining tables", () => {
       .from("reports")
       .insert({
         reason: "Private report by user A.",
-        reporter_user_id: userAId,
+        reporter_user_id: userA.userId,
         target_id: listingId,
         target_type: "listing",
       })
@@ -100,7 +80,7 @@ suite("RLS: remaining tables", () => {
       .from("audit_logs")
       .insert({
         action: "test.rls_probe",
-        actor_user_id: userAId,
+        actor_user_id: userA.userId,
         entity_id: listingId,
         entity_type: "listing",
       })
@@ -114,15 +94,12 @@ suite("RLS: remaining tables", () => {
     if (auditId) await svc.from("audit_logs").delete().eq("id", auditId);
     if (reportId) await svc.from("reports").delete().eq("id", reportId);
     if (savedId) await svc.from("saved_listings").delete().eq("id", savedId);
-    for (const id of [userAId, userBId, adminId]) {
-      if (id) {
-        await svc.from("saved_listings").delete().eq("user_id", id);
-        await svc.from("user_roles").delete().eq("user_id", id);
-        await svc.from("users").delete().eq("id", id);
+    // Domain data only; the cast's users and roles outlive this suite. Saved
+    // listings are cleared per cast member because a test may create its own.
+    for (const member of [userA, userB, admin]) {
+      if (member?.userId) {
+        await svc.from("saved_listings").delete().eq("user_id", member.userId);
       }
-    }
-    for (const probe of [userA, userB, admin]) {
-      if (probe) await deleteProbeUser(probe);
     }
   });
 
@@ -165,7 +142,7 @@ suite("RLS: remaining tables", () => {
     it("a user cannot save on someone else's behalf", async () => {
       const { error } = await asUser(await mintFreshToken(userB))
         .from("saved_listings")
-        .insert({ listing_id: listingId, user_id: userAId });
+        .insert({ listing_id: listingId, user_id: userA.userId });
       expect(error).not.toBeNull();
     });
   });
@@ -220,7 +197,7 @@ suite("RLS: remaining tables", () => {
         .from("reports")
         .insert({
           reason: "Filed in another user's name.",
-          reporter_user_id: userAId,
+          reporter_user_id: userA.userId,
           target_id: listingId,
           target_type: "listing",
         });
@@ -259,7 +236,7 @@ suite("RLS: remaining tables", () => {
         .from("audit_logs")
         .insert({
           action: "forged.entry",
-          actor_user_id: adminId,
+          actor_user_id: admin.userId,
           entity_id: listingId,
           entity_type: "listing",
         });
@@ -299,7 +276,7 @@ suite("RLS: remaining tables", () => {
       const { data } = await asUser(await mintFreshToken(userA))
         .from("user_roles")
         .select("role")
-        .eq("user_id", userAId);
+        .eq("user_id", userA.userId);
       expect(data).toHaveLength(1);
       expect(data?.[0].role).toBe("student");
     });
@@ -308,20 +285,20 @@ suite("RLS: remaining tables", () => {
       const { data } = await asUser(await mintFreshToken(userA))
         .from("user_roles")
         .select("role")
-        .eq("user_id", adminId);
+        .eq("user_id", admin.userId);
       expect(data).toEqual([]);
     });
 
     it("a user cannot promote themselves to admin", async () => {
       const { error } = await asUser(await mintFreshToken(userA))
         .from("user_roles")
-        .insert({ role: "admin", user_id: userAId });
+        .insert({ role: "admin", user_id: userA.userId });
       expect(error).not.toBeNull();
 
       const { data: control } = await svc
         .from("user_roles")
         .select("role")
-        .eq("user_id", userAId);
+        .eq("user_id", userA.userId);
       expect(control).toHaveLength(1);
       expect(control?.[0].role).toBe("student");
     });
@@ -333,7 +310,7 @@ suite("RLS: remaining tables", () => {
         .from("users")
         .select("id, email");
       expect(data).toHaveLength(1);
-      expect(data?.[0].id).toBe(userAId);
+      expect(data?.[0].id).toBe(userA.userId);
     });
 
     it("an anonymous caller reads no users at all", async () => {
@@ -345,12 +322,12 @@ suite("RLS: remaining tables", () => {
       await asUser(await mintFreshToken(userA))
         .from("users")
         .update({ clerk_user_id: userB.clerkUserId })
-        .eq("id", userAId);
+        .eq("id", userA.userId);
 
       const { data: control } = await svc
         .from("users")
         .select("clerk_user_id")
-        .eq("id", userAId)
+        .eq("id", userA.userId)
         .single();
       expect(control?.clerk_user_id).toBe(userA.clerkUserId);
     });
