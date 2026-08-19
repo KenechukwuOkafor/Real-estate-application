@@ -2894,3 +2894,54 @@ Run before declaring the slice done. Evidence, not assertion.
   - unhandled route error reports and still returns sanitized → Task 6
   - `resolveRouteError` does not classify by message text → Task 4
   - Sentry failing does not fail the request → Task 6
+
+---
+
+## Follow-up slice: the API's vocabulary is the user's error copy
+
+**Not in this plan. The slice immediately after it.**
+
+Found while auditing what Task 5 could break. **14 components render
+`payload.error.message` verbatim as user-facing text**, and three branch on an
+exact message string:
+
+| Location | Branches on |
+|---|---|
+| `src/app/chats/[chatId]/page.tsx:23` | `error.message === "Chat not found."` |
+| `src/features/agents/components/draft-listing-form.tsx:59` | `=== "LISTING_SUBSCRIPTION_REQUIRED"` |
+| `src/features/agents/components/submit-listing-review-button.tsx:31` | `=== "LISTING_SUBSCRIPTION_REQUIRED"` |
+| 11 further components | render `payload.error.message` directly into the UI |
+
+The 11: `listing-moderation-actions.tsx:52`, `role-selection-form.tsx:62`,
+`listing-images-form.tsx:60,116`, `chat-thread.tsx:85,133`,
+`dev-login-panel.tsx:52`, `verification-submission-form.tsx:94,149`,
+`verification-review-actions.tsx:39`, `agent-profile-form.tsx:37`,
+`request-inspection-form.tsx:60`.
+
+**Why this is architectural rather than cosmetic.** There is no layer between the
+API's internal error vocabulary and what a user reads. That single fact produces
+the same defect from two directions:
+
+- *Outward:* a thrown message reaches a user's screen. The old resolver echoed
+  `invalid input syntax for type uuid` and the environment-variable name with the
+  variable in it; both were rendered, not merely returned. Task 4's opaque
+  message closes the disclosure, not the coupling.
+- *Inward:* codes leak out as copy. Users currently see error boxes reading
+  `AGENT_NOT_VERIFIED` and `LISTING_STATE_TRANSITION_INVALID`, because those
+  sentinels are the message.
+
+**Why this plan deliberately does not fix it.** Task 5 preserves every message
+byte-for-byte precisely so all 14 keep working. Changing copy inside a 60-site
+refactor would be a UI change wearing a refactor's clothes, and would break the
+two `===` branches silently — the friendly copy would become dead code while the
+fallback rendered a different sentence.
+
+**Shape of the follow-up:**
+
+1. The three `===` sites move to `error.code`, which is stable and now
+   registered. `AppError` already carries it.
+2. The 11 render sites get a code→copy map, so the UI owns its own words.
+3. Only then can API messages be reworded — including giving the sentinels real
+   prose, which is what makes the SCREAMING_CASE boxes go away.
+
+Order matters: step 3 before steps 1–2 is exactly the breakage this plan avoided.
