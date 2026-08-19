@@ -7,6 +7,7 @@ import type {
   AgentProfileInput,
   AgentVerificationSubmissionInput,
 } from "@/features/agents/types";
+import { AppError } from "@/lib/api/errors";
 import type { Database } from "@/types/database";
 
 type DbClient = SupabaseClient<Database>;
@@ -277,7 +278,10 @@ export async function updateAgentFreeListingQuota(
   }
 
   if (!data) {
-    throw new Error("AGENT_QUOTA_CONFLICT");
+    throw new AppError(
+      "AGENT_QUOTA_CONFLICT",
+      "Your listing quota changed while you were working. Reload and try again.",
+    );
   }
 
   return data as AgentProfileRow;
@@ -631,7 +635,10 @@ export async function updateListingStatus(
   }
 
   if (!data) {
-    throw new Error("LISTING_STATE_CONFLICT");
+    throw new AppError(
+      "LISTING_STATE_CONFLICT",
+      "This listing changed while you were working on it. Reload and try again.",
+    );
   }
 
   return data;

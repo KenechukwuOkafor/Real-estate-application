@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AppError } from "@/lib/api/app-error";
+
 const createDraftListing = vi.fn();
 const createVerificationSubmission = vi.fn();
 const listUploadedListingImageObjects = vi.fn();
@@ -253,11 +255,20 @@ describe("submitCurrentAgentListingForReview", () => {
     getAgentProfileByUserId.mockResolvedValue(
       agentProfile({ free_listing_quota: 3, verification_status: "verified" }),
     );
-    updateListingStatus.mockRejectedValue(new Error("LISTING_STATE_CONFLICT"));
+    // The AppError the repository actually throws, not a bare Error. A bare
+    // Error here would resolve to 500 through a route while the real thing
+    // resolves to 409, so the fixture has to carry the code or the test is
+    // asserting against a failure mode that no longer exists.
+    updateListingStatus.mockRejectedValue(
+      new AppError(
+        "LISTING_STATE_CONFLICT",
+        "This listing changed while you were working on it. Reload and try again.",
+      ),
+    );
 
     await expect(
       submitCurrentAgentListingForReview("listing_1"),
-    ).rejects.toThrow("LISTING_STATE_CONFLICT");
+    ).rejects.toMatchObject({ code: "LISTING_STATE_CONFLICT" });
 
     expect(updateAgentFreeListingQuota).not.toHaveBeenCalled();
   });

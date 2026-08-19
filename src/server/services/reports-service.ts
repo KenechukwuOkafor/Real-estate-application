@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AppError } from "@/lib/api/errors";
 import type { Database } from "@/types/database";
 import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import { createReport } from "@/server/repositories/reports-repository";
@@ -16,19 +17,22 @@ export async function reportTarget(input: {
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
-    throw new Error("Unauthenticated request.");
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
   }
 
   if (!VALID_TARGET_TYPES.has(input.targetType)) {
-    throw new Error("Invalid target type. Must be listing, agent, or message.");
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Invalid target type. Must be listing, agent, or message.",
+    );
   }
 
   if (!input.reason.trim()) {
-    throw new Error("Reason is required.");
+    throw new AppError("VALIDATION_ERROR", "Reason is required.");
   }
 
   if (!input.targetId?.trim()) {
-    throw new Error("Target ID is required.");
+    throw new AppError("VALIDATION_ERROR", "Target ID is required.");
   }
 
   const client = await createSupabaseAuthenticatedClient();

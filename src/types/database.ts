@@ -98,6 +98,7 @@ export type Database = {
           attempts_allowed?: number;
           job_payload?: Json;
           job_type: string;
+          request_id?: string | null;
           run_at?: string;
           target_queue?: Database["public"]["Enums"]["job_queue"];
         };
@@ -342,6 +343,7 @@ export type Database = {
           attempts?: number;
           completed_at?: string | null;
           created_at?: string;
+          enqueued_by_request_id?: string | null;
           id?: string;
           last_error?: string | null;
           max_attempts?: number;
@@ -358,6 +360,7 @@ export type Database = {
           attempts: number;
           completed_at: string | null;
           created_at: string;
+          enqueued_by_request_id: string | null;
           id: string;
           last_error: string | null;
           max_attempts: number;

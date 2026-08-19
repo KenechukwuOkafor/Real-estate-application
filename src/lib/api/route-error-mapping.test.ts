@@ -31,6 +31,14 @@ const INTENTIONAL_EXEMPTIONS: Record<string, string> = {
     "BR-ANA-003 (Critical): analytics collection must not block user actions. " +
     "This is a fire-and-forget beacon that reports failures as { tracked: false } " +
     "with a 200 rather than surfacing them. Mapping its errors would break the rule.",
+  "src/app/api/monitoring/absence/route.ts":
+    "An absence check reports a verdict, it does not raise one. It answers 200 " +
+    "even when a threshold is breached, because a non-200 would make a stopped " +
+    "drain and a broken monitoring route indistinguishable — which is the class " +
+    "of failure the route exists to detect. Its only error response is a 401 for " +
+    "an unauthorized caller, written by hand so that an authorization failure " +
+    "cannot be confused with a check result. A failed check is reported to " +
+    "Sentry and returned as status 'errored' in the body.",
 };
 
 function collectRouteFiles(dir: string): string[] {

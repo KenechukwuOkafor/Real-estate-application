@@ -2,113 +2,140 @@ import { describe, expect, it } from "vitest";
 
 import { AppError, resolveRouteError } from "@/lib/api/errors";
 
-describe("resolveRouteError", () => {
-  it("uses the status carried by an AppError", () => {
-    const resolved = resolveRouteError(new AppError("TEAPOT", "Nope.", 418));
+/**
+ * The status contract, pinned code by code.
+ *
+ * Each row is a code the throw-site migration produces and the HTTP status the
+ * old message-matching resolver produced for the same failure. Two rows are
+ * deliberate changes and are marked; every other row must match exactly. This
+ * table is what makes a 60-site refactor reviewable — the diff is large, but
+ * the client-visible surface is asserted here in one place.
+ */
+const PINNED: ReadonlyArray<[code: string, httpStatus: number]> = [
+  ["UNAUTHENTICATED", 401],
+  ["UNAUTHORIZED", 403],
+  ["AGENT_NOT_VERIFIED", 403],
+  ["SUBSCRIPTION_REQUIRED", 403],
+  ["NOT_FOUND", 404],
+  ["AGENT_PROFILE_NOT_FOUND", 404],
+  ["CHAT_NOT_FOUND", 404],
+  ["INSPECTION_NOT_FOUND", 404],
+  ["VERIFICATION_SUBMISSION_NOT_FOUND", 404],
+  ["CONFLICT", 409],
+  ["INSPECTION_ALREADY_ACTIVE", 409],
+  ["LISTING_STATE_CONFLICT", 409],
+  ["AGENT_QUOTA_CONFLICT", 409],
+  ["VALIDATION_ERROR", 422],
+  ["AGENT_PROFILE_REQUIRED", 422],
+  ["LISTING_IMAGE_COUNT_INVALID", 422],
+  ["LISTING_STATE_TRANSITION_INVALID", 422],
+  // Deliberate change: was 500. An unsupported MIME type is the caller's
+  // problem and always was; it reached 500 only because the sentinel string
+  // matched no pattern.
+  ["MEDIA_MIME_TYPE_UNSUPPORTED", 422],
+  // Deliberate change: was 422, because the message contains "required".
+  // A missing environment variable is a deployment fault.
+  ["CONFIG_ENV_VAR_MISSING", 500],
+  ["CLERK_USER_UNAVAILABLE", 500],
+  ["CLERK_USER_EMAIL_MISSING", 500],
+  ["INTERNAL_ERROR", 500],
+];
 
-    expect(resolved).toEqual({
-      code: "TEAPOT",
-      httpStatus: 418,
-      message: "Nope.",
-    });
+describe("the pinned status contract", () => {
+  it.each(PINNED)("%s resolves to %i", (code, httpStatus) => {
+    const resolved = resolveRouteError(new AppError(code, "Any message at all."));
+
+    expect(resolved.code).toBe(code);
+    expect(resolved.httpStatus).toBe(httpStatus);
   });
 
-  it("maps unauthenticated requests to 401", () => {
-    expect(resolveRouteError(new Error("Unauthenticated request."))).toMatchObject({
-      code: "UNAUTHENTICATED",
-      httpStatus: 401,
-    });
+  it("takes the status from the registry, not from the throw site", () => {
+    // No third argument. The code alone decides.
+    expect(resolveRouteError(new AppError("NOT_FOUND", "Gone.")).httpStatus).toBe(404);
+  });
+});
+
+describe("resolveRouteError does not classify by message text", () => {
+  /**
+   * The hazard this slice exists to remove.
+   *
+   * The old resolver matched `message.includes("invalid")` to 422 and returned
+   * the matched message verbatim. A Postgres error reads
+   * "invalid input syntax for type uuid", so any code path that wrapped a
+   * database failure in an Error would have echoed it to an unauthenticated
+   * caller with a 422. It was unreachable only because a PostgrestError is a
+   * plain object, not an Error instance. That is safety by accident.
+   */
+  it("does not echo a database error, and does not call it a 422", () => {
+    const resolved = resolveRouteError(
+      new Error('invalid input syntax for type uuid: "not-a-uuid"'),
+    );
+
+    expect(resolved.httpStatus).toBe(500);
+    expect(resolved.code).toBe("INTERNAL_ERROR");
+    expect(resolved.message).not.toContain("invalid input syntax");
+    expect(resolved.message).not.toContain("uuid");
   });
 
-  it("maps a missing role to 403", () => {
-    expect(resolveRouteError(new Error("Admin role is required."))).toMatchObject({
-      code: "UNAUTHORIZED",
-      httpStatus: 403,
-    });
+  const ONCE_MATCHED = [
+    "Unauthenticated request.",
+    "Admin role is required.",
+    "Listing not found.",
+    "AGENT_NOT_VERIFIED",
+    "LISTING_STATE_CONFLICT",
+    "Something is invalid.",
+    "A name is required.",
+    "This cannot be done.",
+    "That already exists.",
+  ];
+
+  it.each(ONCE_MATCHED)(
+    "treats %j as unexpected, because it is a bare Error",
+    (message) => {
+      const resolved = resolveRouteError(new Error(message));
+
+      expect(resolved.httpStatus).toBe(500);
+      expect(resolved.code).toBe("INTERNAL_ERROR");
+      expect(resolved.unexpected).toBe(true);
+    },
+  );
+
+  it("returns a fixed message for anything unclassified, never the thrown text", () => {
+    const secretish = new Error("connect ECONNREFUSED 10.0.0.5:5432");
+
+    expect(resolveRouteError(secretish).message).not.toContain("10.0.0.5");
   });
 
-  it("maps not-found messages to 404", () => {
-    expect(resolveRouteError(new Error("Listing not found."))).toMatchObject({
-      code: "NOT_FOUND",
-      httpStatus: 404,
-    });
+  it("classifies a PostgrestError-shaped plain object as unexpected", () => {
+    // Not an Error instance. The old resolver reached its 500 fallthrough by
+    // luck; this asserts it is now reached by rule.
+    const postgrest = {
+      code: "22P02",
+      details: null,
+      hint: null,
+      message: 'invalid input syntax for type uuid: "x"',
+    };
+
+    expect(resolveRouteError(postgrest).httpStatus).toBe(500);
+  });
+});
+
+describe("categories", () => {
+  it("marks an AppError as expected and a bare Error as unexpected", () => {
+    expect(resolveRouteError(new AppError("NOT_FOUND", "Gone.")).unexpected).toBe(false);
+    expect(resolveRouteError(new Error("Gone.")).unexpected).toBe(true);
   });
 
-  it("maps an unverified agent to 403", () => {
-    expect(resolveRouteError(new Error("AGENT_NOT_VERIFIED"))).toMatchObject({
-      code: "AGENT_NOT_VERIFIED",
-      httpStatus: 403,
-    });
+  it("carries the category so an operator can filter denials from breakage", () => {
+    expect(resolveRouteError(new AppError("UNAUTHORIZED", "No.")).category).toBe(
+      "authorization",
+    );
+    expect(resolveRouteError(new Error("boom")).category).toBe("unexpected");
   });
 
-  it("passes an AppError through with its own code and status", () => {
-    expect(
-      resolveRouteError(new AppError("SOME_CODE", "Some message.", 418)),
-    ).toMatchObject({ code: "SOME_CODE", httpStatus: 418, message: "Some message." });
-  });
+  it("preserves an AppError's own message, which is written for a human", () => {
+    const resolved = resolveRouteError(new AppError("NOT_FOUND", "Listing not found."));
 
-  // These previously resolved to 500 because their wording missed every
-  // string-matching branch. They are typed at the throw site now; the
-  // assertions below pin the contract so a future reword cannot silently
-  // turn a client error back into a server error.
-  it("maps a validation failure whose wording matches no pattern", () => {
-    expect(
-      resolveRouteError(
-        new AppError(
-          "VALIDATION_ERROR",
-          "Self contain listings must have 1 bedroom and 1 bathroom.",
-          422,
-        ),
-      ),
-    ).toMatchObject({ code: "VALIDATION_ERROR", httpStatus: 422 });
-  });
-
-  it("still maps an explicit ownership denial to 403, not 500", () => {
-    // INSPECTION_NOT_OWNED is now largely unreachable: RLS denies the read
-    // first, so an agent asking about another agent's request gets 404. The
-    // branch is retained as defence in depth if a policy change ever widens
-    // the read, and this pins its mapping for that case.
-    expect(
-      resolveRouteError(
-        new AppError(
-          "INSPECTION_NOT_OWNED",
-          "This inspection request belongs to another agent.",
-          403,
-        ),
-      ),
-    ).toMatchObject({ code: "INSPECTION_NOT_OWNED", httpStatus: 403 });
-  });
-
-  it("keeps verification state errors out of the listing namespace", () => {
-    // "Verification cannot be reviewed from status X" matches the resolver's
-    // includes("cannot be") branch, which would label it
-    // LISTING_STATE_TRANSITION_INVALID. Typing it at the throw site wins
-    // because AppError is checked first.
-    expect(
-      resolveRouteError(
-        new AppError(
-          "VERIFICATION_STATE_TRANSITION_INVALID",
-          "Verification cannot be reviewed from status verified.",
-          422,
-        ),
-      ),
-    ).toMatchObject({
-      code: "VERIFICATION_STATE_TRANSITION_INVALID",
-      httpStatus: 422,
-    });
-  });
-
-  it("maps a compare-and-set loss to 409", () => {
-    expect(resolveRouteError(new Error("LISTING_STATE_CONFLICT"))).toMatchObject({
-      code: "LISTING_STATE_CONFLICT",
-      httpStatus: 409,
-    });
-  });
-
-  it("falls back to 500 for unrecognised messages", () => {
-    expect(resolveRouteError(new Error("kaboom"))).toMatchObject({
-      code: "INTERNAL_ERROR",
-      httpStatus: 500,
-    });
+    expect(resolved.message).toBe("Listing not found.");
   });
 });

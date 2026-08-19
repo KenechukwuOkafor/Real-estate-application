@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AppError } from "@/lib/api/errors";
 import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import {
   createChatMessage,
@@ -16,7 +17,7 @@ async function getChatAccessContext() {
   const appUser = await getCurrentAppUser();
 
   if (!appUser) {
-    throw new Error("Unauthenticated request.");
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
   }
 
   // RLS-respecting. Chats and messages are the most sensitive data in the
@@ -38,11 +39,14 @@ async function getChatAccessContext() {
 
 function assertMessageBody(body: string) {
   if (!body.trim()) {
-    throw new Error("Message body is required.");
+    throw new AppError("VALIDATION_ERROR", "Message body is required.");
   }
 
   if (body.trim().length > 2000) {
-    throw new Error("Message body must be 2000 characters or fewer.");
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Message body must be 2000 characters or fewer.",
+    );
   }
 }
 
@@ -64,7 +68,7 @@ export async function getCurrentUserChatThread(chatId: string) {
   });
 
   if (!chat) {
-    throw new Error("Chat not found.");
+    throw new AppError("CHAT_NOT_FOUND", "Chat not found.");
   }
 
   const messages = await listChatMessages(context.client, chatId);
@@ -90,7 +94,7 @@ export async function sendCurrentUserChatMessage(input: {
   });
 
   if (!chat) {
-    throw new Error("Chat not found.");
+    throw new AppError("CHAT_NOT_FOUND", "Chat not found.");
   }
 
   const message = await createChatMessage(context.client, {

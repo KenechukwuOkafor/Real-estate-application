@@ -366,6 +366,54 @@ Metrics guide improvement rather than assign blame.
 
 ---
 
+# Test Fixture Fidelity
+
+> A fixture that cannot fail the way production fails is worse than no fixture,
+> because it converts an unknown into a false certainty.
+
+A missing test leaves a known gap. A test built on a fixture representing a
+state production never occupies reports success for a scenario that does not
+exist, and the green result is what stops anyone looking further. The first
+costs coverage; the second costs coverage *and* buys a false belief with it.
+
+## The rule
+
+A fixture must be able to reach the failure modes the code it stands in for can
+reach. When a fixture is a stand-in for a real component, it must fail the way
+that component fails — same error type, same identifiers, same shape.
+
+## Evidence
+
+Four instances in this codebase, all found after the fact and none found by the
+test that should have caught them:
+
+| Fixture | State it represented | What it hid |
+|---|---|---|
+| Seeded agent quota of 20 | A quota no real agent is issued | The entitlement check was never exercised at its boundary, so the break went unseen |
+| Seeded logins | Sessions minted outside the real auth path | The RLS policies were incompatible with the tokens production actually issues |
+| Fabricated storage paths | Object paths nothing had written | Nothing in the system ever read them, so the read path was untested |
+| `new Error("LISTING_STATE_CONFLICT")` | A compare-and-set loss thrown as a bare Error | The repository throws `AppError`, which resolves to 409; the bare Error resolves to 500. The test asserted a failure mode that no longer existed |
+
+The fourth is the clearest illustration because the divergence is one line: the
+mock and the real repository disagreed about the *type* thrown, and the
+assertion was on the message, which both happened to share. The test passed for
+a reason unrelated to the behaviour it claimed to cover.
+
+## Applying it
+
+- Prefer a fixture derived from the real thing — the real error class, a value
+  from the real seed path, an object the real writer produced.
+- When a stand-in must be hand-written, assert on the property that
+  distinguishes it. Asserting on a message both a correct and an incorrect
+  fixture share proves nothing.
+- When a value is chosen for convenience (a generous quota, a round number),
+  say so at the fixture and note which boundary it therefore does not test.
+- Treat a fixture drifting from its real counterpart as a defect in its own
+  right, not as tidying. The test is green either way, which is exactly the
+  problem.
+
+---
+
 # Common Quality Issues
 
 Avoid:
@@ -378,6 +426,7 @@ Avoid:
 - Magic numbers
 - Hardcoded configuration
 - Hidden business rules
+- Fixtures representing states production never occupies (see Test Fixture Fidelity)
 
 ---
 

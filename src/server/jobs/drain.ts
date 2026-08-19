@@ -1,6 +1,9 @@
 import "server-only";
 
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
+import { runWithContext } from "@/lib/observability/context";
+import { log } from "@/lib/observability/logger";
+import { captureUnconditionally } from "@/lib/observability/sentry";
 import { getJobHandler } from "@/server/jobs/registry";
 import type { JobQueue, JobRow } from "@/server/jobs/types";
 
@@ -56,6 +59,11 @@ export async function drainQueue(queue: JobQueue): Promise<DrainOutcome> {
   const config = DRAIN_CONFIG[queue];
   const startedAt = Date.now();
 
+  // Correlates this invocation's own lines, and stands in for jobs enqueued
+  // before the correlation column existed. Those rows lead nowhere further,
+  // but their lines still group together instead of being loose.
+  const drainRequestId = crypto.randomUUID();
+
   const outcome: DrainOutcome = {
     claimed: 0,
     completed: 0,
@@ -103,11 +111,47 @@ export async function drainQueue(queue: JobQueue): Promise<DrainOutcome> {
 
     try {
       const payload = handler.parse(job.payload);
-      const result = await handler.handle(payload, {
-        attempt: job.attempts,
-        client,
-        jobId: job.id,
-      });
+      const jobStartedAt = Date.now();
+
+      /**
+       * runWithContext, not enterWith.
+       *
+       * The drain is a long-lived shared context executing many jobs in
+       * sequence. enterWith mutates that shared context, so job two would
+       * inherit job one's request id — correlation that is worse than none,
+       * because it is confidently wrong. `run` scopes the store to this
+       * callback and cannot leak, in either direction: the drain's own context
+       * is also intact after the job returns.
+       *
+       * requestId is the ENQUEUING request's, not the drain's. That is the
+       * point of the whole task: one grep on the id a user quoted from a
+       * response header finds the request, the service lines beneath it, and
+       * the job that ran four minutes later.
+       */
+      const result = await runWithContext(
+        {
+          enqueuedByRequestId: job.enqueued_by_request_id ?? undefined,
+          jobId: job.id,
+          requestId: job.enqueued_by_request_id ?? drainRequestId,
+          service: `job:${job.type}`,
+        },
+        async () => {
+          const value = await handler.handle(payload, {
+            attempt: job.attempts,
+            client,
+            jobId: job.id,
+          });
+
+          log.info({
+            attempt: job.attempts,
+            duration: Date.now() - jobStartedAt,
+            event: "JobCompleted",
+            jobType: job.type,
+          });
+
+          return value;
+        },
+      );
 
       const { error: completeError } = await client.rpc("complete_job", {
         job_id: job.id,
@@ -124,6 +168,41 @@ export async function drainQueue(queue: JobQueue): Promise<DrainOutcome> {
         handlerError instanceof Error
           ? handlerError.message
           : String(handlerError);
+
+      // Reported under the job's own context, not the drain's, so the event
+      // carries the id of the request that queued the work. ADR-026 names
+      // background job failures in its monitoring scope, and until now a
+      // handler could throw on every attempt until the job died permanently
+      // without anything outside the jobs table ever saying so.
+      runWithContext(
+        {
+          enqueuedByRequestId: job.enqueued_by_request_id ?? undefined,
+          jobId: job.id,
+          requestId: job.enqueued_by_request_id ?? drainRequestId,
+          service: `job:${job.type}`,
+        },
+        () => {
+          log.error({
+            attempt: job.attempts,
+            error: handlerError,
+            event: "JobFailed",
+            jobType: job.type,
+            maxAttempts: job.max_attempts,
+            message,
+          });
+
+          captureUnconditionally(handlerError, {
+            errorCode: "JOB_HANDLER_FAILED",
+            extra: {
+              attempt: job.attempts,
+              jobId: job.id,
+              jobType: job.type,
+              maxAttempts: job.max_attempts,
+            },
+            requestId: job.enqueued_by_request_id ?? drainRequestId,
+          });
+        },
+      );
 
       await recordFailure(client, job, message, outcome);
     }
@@ -147,10 +226,12 @@ async function recordFailure(
     // The drain could not even record the failure. Surface it rather than
     // swallowing: the job is left in `running` and will need manual attention,
     // which is exactly the sort of thing that should not pass silently.
-    console.error("Failed to record job failure", {
+    log.error({
       cause: error.message,
+      event: "JobFailureNotRecorded",
       jobId: job.id,
-      originalError: message,
+      jobType: job.type,
+      message,
     });
     outcome.failed += 1;
     return;
