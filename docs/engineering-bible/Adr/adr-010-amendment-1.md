@@ -151,6 +151,62 @@ that denies everything.
 
 ---
 
+# Implementation Note — Column-Scoped Grants Are Incompatible With Upsert
+
+Column-scoped grants and `.upsert()` cannot both be used on the same table.
+
+PostgREST compiles an upsert to `INSERT ... ON CONFLICT DO UPDATE SET`, and every column
+in the payload appears in that SET list — including the identity column the payload must
+carry to identify the row. Postgres checks column privileges for the SET list **when it
+plans the statement**, not per row. The UPDATE privilege is therefore required even on a
+first insert into an empty table, where no conflict is possible and no update will ever
+run.
+
+Against a table-wide `GRANT UPDATE` this is invisible. Against the column-scoped grants
+this amendment requires, it fails.
+
+## The failure signature
+
+```
+42501  permission denied for table <name>
+```
+
+Raised on a **first insert, where no conflict was possible**. That combination is the
+diagnostic: a privilege error on a statement that was only ever going to insert. It does
+not name the column it wanted, and the plain `INSERT` of the same payload succeeds, which
+is the quickest way to confirm the diagnosis.
+
+It is easy to misread as a policy problem and "fix" by widening the grant. That is the
+wrong repair: it hands back exactly the privilege the column scoping withheld, and on
+these tables that privilege is usually a self-grant.
+
+## What to do instead
+
+Read, then insert or update, touching only granted columns:
+
+```ts
+const { data: existing } = await client
+  .from("agent_profiles").select("id").eq("user_id", userId).maybeSingle();
+
+const result = existing
+  ? await client.from("agent_profiles").update(fields).eq("id", existing.id)
+  : await client.from("agent_profiles").insert({ ...fields, user_id: userId });
+```
+
+The extra read is not a correctness risk where the conflict target is UNIQUE: a concurrent
+insert loses on the constraint rather than producing a duplicate.
+
+`ON CONFLICT DO NOTHING` — `.upsert(..., { ignoreDuplicates: true })` — needs no UPDATE
+privilege and is safe, but it returns no row for the conflicting case, so it suits
+fire-and-forget writes rather than ones whose id the caller needs.
+
+Both defects found this way were live. Creating an agent profile returned HTTP 500 for
+every new agent, blocking onboarding at its first step. Saving a listing failed for every
+user, on every attempt. In both cases the grant was correct and the application code was
+wrong.
+
+---
+
 # Related Documents
 
 - ADR-010 Row Level Security
@@ -170,6 +226,8 @@ that denies everything.
 - Never assume a column-level grant is effective while a table-wide grant exists on the same
   table.
 - Never grant `TRUNCATE` or `DELETE` without a deletion path requiring it.
+- Never use `.upsert()` on a table with column-scoped grants. It demands UPDATE on every
+  payload column at plan time, including on a first insert.
 - Never test a policy by status code alone.
 
 ## Common Mistakes
@@ -177,6 +235,13 @@ that denies everything.
 - Writing a correct ownership predicate and considering the boundary complete.
 - Adding a column-level grant alongside an existing table-wide grant, which is inert.
 - Assuming the service role holds privileges on newly created tables.
+- Using `.upsert()` against column-scoped grants. Postgres evaluates column privileges when
+  it plans the statement rather than per row, so the `ON CONFLICT DO UPDATE SET` list
+  demands UPDATE on every payload column even on a first insert where no conflict was
+  possible. It fails `42501 permission denied for table <name>` while the plain `INSERT`
+  of the same payload succeeds. Read-then-insert-or-update, touching only granted columns.
+- Widening a grant to make a 42501 go away. On these tables the withheld privilege is
+  usually the self-grant the scoping existed to prevent; the repair belongs in the query.
 - Asserting a denial by observing an empty result without proving the row exists.
 
 ## Definition of Done
