@@ -28,7 +28,18 @@ import {
 const suite = rlsIntegrationEnabled() ? describe : describe.skip;
 
 suite("RLS: chats and messages", () => {
-  const svc = asServiceRole();
+  // Built in a hook, not in the suite body.
+  //
+  // Vitest evaluates a describe body during collection even when the suite is
+  // skipped, so constructing a client here throws on a missing environment
+  // variable before the skip can take effect. That is how a missing credential
+  // became a collection failure instead of the skip this suite asks for.
+  // beforeAll does not run for a skipped suite, so the gate above holds.
+  let svc: ReturnType<typeof asServiceRole>;
+
+  beforeAll(() => {
+    svc = asServiceRole();
+  });
 
   let seeker: ProbeUser;
   let agent: ProbeUser;
