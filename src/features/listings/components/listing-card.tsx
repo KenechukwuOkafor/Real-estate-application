@@ -6,7 +6,10 @@ import {
   formatPriceNaira,
   formatPropertyType,
 } from "@/features/listings/format";
-import { RENT_PERIOD_LABEL } from "@/features/listings/rent-period";
+import {
+  formatListingTypeLine,
+  formatRentalDuration,
+} from "@/features/listings/rental-duration";
 import { SaveListingButton } from "@/features/listings/components/save-listing-button";
 import type { ListingListItem } from "@/features/listings/types";
 
@@ -47,11 +50,16 @@ export function ListingCard({ listing }: ListingCardProps) {
           <p className="text-xl font-semibold tracking-tight text-stone-900">
             {formatPriceNaira(listing.priceNaira)}
           </p>
-          <span className="text-xs text-stone-500">{RENT_PERIOD_LABEL}</span>
+          <span className="text-xs text-stone-500">
+            {formatRentalDuration(listing.rentalDuration, listing.subletMonths)}
+          </span>
         </div>
 
         <p className="text-sm uppercase tracking-[0.18em] text-stone-500">
-          {formatPropertyType(listing.propertyType)}
+          {formatListingTypeLine(
+            formatPropertyType(listing.propertyType),
+            listing.rentalDuration,
+          )}
         </p>
 
         <div className="flex items-center justify-between gap-2">

@@ -30,6 +30,8 @@ const base: ListingListItem = {
   priceNaira: 180000,
   propertyType: "self_contain",
   publicId: "20887cbf-53fc-4c45-adb2-c5d4d33cf001",
+  rentalDuration: "yearly",
+  subletMonths: null,
   slug: "clean-self-contain",
   state: "Enugu",
   title: "Clean Self Contain",
@@ -41,6 +43,71 @@ describe("ListingCard", () => {
 
     expect(html).toContain("180,000");
     expect(html).toContain("per year");
+  });
+
+  /**
+   * The three durations, rendered from the row.
+   *
+   * The previous version of this suite asserted "per year" against a hardcoded
+   * constant, so it passed for every listing regardless of what the listing
+   * actually was. These read the value off the item, which is the only way the
+   * card can be wrong in a way a test can see.
+   */
+  describe("duration", () => {
+    it("renders a yearly listing as a rate", () => {
+      const html = renderToStaticMarkup(
+        <ListingCard listing={{ ...base, rentalDuration: "yearly" }} />,
+      );
+
+      expect(html).toContain("per year");
+      expect(html).not.toContain("per month");
+      expect(html).not.toContain("Sublet");
+    });
+
+    it("renders a monthly listing as a rate", () => {
+      const html = renderToStaticMarkup(
+        <ListingCard listing={{ ...base, rentalDuration: "monthly" }} />,
+      );
+
+      expect(html).toContain("per month");
+      expect(html).not.toContain("per year");
+      expect(html).not.toContain("Sublet");
+    });
+
+    it("renders a sublet as its length in months", () => {
+      const html = renderToStaticMarkup(
+        <ListingCard
+          listing={{ ...base, rentalDuration: "sublet", subletMonths: 4 }}
+        />,
+      );
+
+      expect(html).toContain("4 months");
+      expect(html).not.toContain("per year");
+      expect(html).not.toContain("per month");
+    });
+
+    // A sublet is a different kind of offer from a tenancy, and a seeker should
+    // not have to infer that from the price suffix.
+    it("marks a sublet on the type line", () => {
+      const html = renderToStaticMarkup(
+        <ListingCard
+          listing={{ ...base, rentalDuration: "sublet", subletMonths: 4 }}
+        />,
+      );
+
+      expect(html).toContain("Sublet");
+    });
+
+    it("says month, singular, for a one month sublet", () => {
+      const html = renderToStaticMarkup(
+        <ListingCard
+          listing={{ ...base, rentalDuration: "sublet", subletMonths: 1 }}
+        />,
+      );
+
+      expect(html).toContain("1 month");
+      expect(html).not.toContain("1 months");
+    });
   });
 
   it("shows the verified badge when the agent is verified", () => {

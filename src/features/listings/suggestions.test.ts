@@ -20,6 +20,8 @@ function listing(area: string, id: string): ListingListItem {
     id,
     priceNaira: 100000,
     propertyType: "self_contain",
+  rentalDuration: "yearly" as const,
+  subletMonths: null,
     publicId: `p-${id}`,
     slug: `s-${id}`,
     state: "Enugu",

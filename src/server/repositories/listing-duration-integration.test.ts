@@ -8,9 +8,9 @@
  * CHECK exists and why this suite pushes malformed rows at it rather than at
  * the validator.
  *
- * The backfill assertions matter for a narrower reason. "per year" was
- * hardcoded and true, so every existing row is implicitly yearly; the migration
- * writes that assumption down. If the backfill were wrong the label would still
+ * The backfill assertions matter for a narrower reason. The old per-year label
+ * was hardcoded and true, so every existing row is implicitly yearly; the
+ * migration writes that assumption down. If the backfill were wrong the label would still
  * read correctly today and only diverge later, which is exactly how the
  * original hardcoding survived.
  */

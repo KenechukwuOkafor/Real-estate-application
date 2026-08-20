@@ -7,6 +7,11 @@ import { RequestInspectionForm } from "@/features/listings/components/request-in
 import { CopyUrlButton } from "@/features/listings/components/copy-url-button";
 import { ListingViewTracker } from "@/features/listings/components/listings-view-tracker";
 import { formatPriceNaira, formatPropertyType } from "@/features/listings/format";
+import {
+  formatListingTypeLine,
+  formatRentalDuration,
+  formatRentalPriceHeading,
+} from "@/features/listings/rental-duration";
 import { getPublicListing } from "@/server/services/public-listings-service";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +70,10 @@ export default async function ListingDetailPage({
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-sm uppercase tracking-[0.22em] text-stone-500">
-                  {formatPropertyType(listing.propertyType)}
+                  {formatListingTypeLine(
+                    formatPropertyType(listing.propertyType),
+                    listing.rentalDuration,
+                  )}
                 </p>
                 <h1 className="mt-2 text-4xl font-semibold tracking-tight md:text-5xl">
                   {listing.title}
@@ -77,10 +85,13 @@ export default async function ListingDetailPage({
 
               <div className="rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-right">
                 <p className="text-sm uppercase tracking-[0.2em] text-emerald-900/70">
-                  Annual price
+                  {formatRentalPriceHeading(listing.rentalDuration)}
                 </p>
                 <p className="mt-2 text-3xl font-semibold text-emerald-950">
                   {formatPriceNaira(listing.priceNaira)}
+                </p>
+                <p className="mt-1 text-sm text-emerald-900/70">
+                  {formatRentalDuration(listing.rentalDuration, listing.subletMonths)}
                 </p>
               </div>
             </div>
