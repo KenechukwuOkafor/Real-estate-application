@@ -6,6 +6,7 @@ import {
   type ModerationListingStatus,
 } from "@/features/admin/components/listing-moderation-actions";
 import { formatListingStatus, formatPriceNaira } from "@/features/listings/format";
+import { formatRentalDuration } from "@/features/listings/rental-duration";
 import { listAdminModerationQueue } from "@/server/services/admin-service";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { signListingImagePaths } from "@/server/services/listing-media-service";
@@ -118,6 +119,23 @@ export default async function AdminListingsPage() {
                         <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
                           <span>{formatListingStatus(listing.status)}</span>
                           <span>{listing.property_type.replaceAll("_", " ")}</span>
+                          {/*
+                            Called out rather than left to be read off the price.
+                            A moderator approving a sublet is approving a
+                            materially different offer — someone else's lease for
+                            a fixed run of months — and the decision should not
+                            depend on noticing a suffix further down the card.
+                          */}
+                          {listing.rental_duration === "sublet" ? (
+                            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-medium text-amber-900">
+                              Sublet
+                              {listing.sublet_months
+                                ? ` · ${listing.sublet_months} month${
+                                    listing.sublet_months === 1 ? "" : "s"
+                                  }`
+                                : ""}
+                            </span>
+                          ) : null}
                           <span>{listing.bedrooms} bed</span>
                           <span>{listing.bathrooms} bath</span>
                           <span>{activeImages.length} image{activeImages.length === 1 ? "" : "s"}</span>
@@ -134,7 +152,13 @@ export default async function AdminListingsPage() {
                           <span>
                             Location: {listing.city}, {listing.state}
                           </span>
-                          <span>Price: {formatPriceNaira(listing.price_naira)}</span>
+                          <span>
+                            Price: {formatPriceNaira(listing.price_naira)}{" "}
+                            {formatRentalDuration(
+                              listing.rental_duration,
+                              listing.sublet_months,
+                            )}
+                          </span>
                           <span>
                             Submitted: {listing.submitted_at ?? "Not submitted"}
                           </span>
