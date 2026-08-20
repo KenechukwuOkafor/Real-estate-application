@@ -17,6 +17,7 @@ export type ListingListFilters = {
     | "3_bedroom"
     | "shop"
     | "lodge_room";
+  rentalDuration?: RentalDuration;
   sort: ListingSort;
   state?: string;
   verifiedOnly?: boolean;

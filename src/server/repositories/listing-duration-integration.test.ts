@@ -16,6 +16,8 @@
  */
 import { afterAll, describe, expect, it } from "vitest";
 
+import { getPublicListings } from "@/server/repositories/listings-repository";
+
 import { asServiceRole, rlsIntegrationEnabled } from "../../../test/helpers/rls-clients";
 
 const suite = rlsIntegrationEnabled() ? describe : describe.skip;
@@ -142,6 +144,78 @@ suite("listing rental duration", () => {
 
       expect(data).toBeNull();
       expect(error?.message).toContain("listings_sublet_months_positive");
+    });
+  });
+
+  /**
+   * Filtering, against the seeded feed.
+   *
+   * The seed carries exactly one approved listing of each duration, which is
+   * what makes these assertions sharp: a filter that silently did nothing would
+   * return three rows, and a filter that matched the wrong column would return
+   * none. Both are visible here and neither would be visible in a unit test
+   * with a mocked repository.
+   */
+  describe("filtering by duration", () => {
+    const feed = { limit: 20, sort: "newest" as const };
+
+    it("the seeded feed contains all three durations", async () => {
+      const result = await getPublicListings(asServiceRole(), feed);
+      const durations = result.items.map((item) => item.rentalDuration).sort();
+
+      // Without this the filter assertions below could pass by returning
+      // nothing at all.
+      expect(durations).toEqual(["monthly", "sublet", "yearly"]);
+    });
+
+    it.each(["yearly", "monthly", "sublet"] as const)(
+      "returns only %s listings when filtered to it",
+      async (duration) => {
+        const result = await getPublicListings(asServiceRole(), {
+          ...feed,
+          rentalDuration: duration,
+        });
+
+        expect(result.items.length).toBeGreaterThan(0);
+        expect(
+          result.items.every((item) => item.rentalDuration === duration),
+        ).toBe(true);
+      },
+    );
+
+    it("returns fewer listings filtered than unfiltered", async () => {
+      const all = await getPublicListings(asServiceRole(), feed);
+      const yearly = await getPublicListings(asServiceRole(), {
+        ...feed,
+        rentalDuration: "yearly",
+      });
+
+      expect(yearly.items.length).toBeLessThan(all.items.length);
+    });
+
+    it("carries the month count through to the feed for a sublet", async () => {
+      const result = await getPublicListings(asServiceRole(), {
+        ...feed,
+        rentalDuration: "sublet",
+      });
+
+      for (const item of result.items) {
+        expect(item.subletMonths).not.toBeNull();
+        expect(item.subletMonths).toBeGreaterThan(0);
+      }
+    });
+
+    it("leaves the month count null on everything that is not a sublet", async () => {
+      for (const duration of ["yearly", "monthly"] as const) {
+        const result = await getPublicListings(asServiceRole(), {
+          ...feed,
+          rentalDuration: duration,
+        });
+
+        for (const item of result.items) {
+          expect(item.subletMonths).toBeNull();
+        }
+      }
     });
   });
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatPriceNaira } from "@/features/listings/format";
 import {
   getListingPropertyTypeLabel,
+  getListingRentalDurationLabel,
   getListingSortLabel,
 } from "@/features/listings/options";
 import { buildListingSearchQuery } from "@/features/listings/search-params";
@@ -38,6 +39,16 @@ function buildFilterChips(filters: ListingListFilters): FilterChip[] {
         propertyType: undefined,
       })}`,
       label: `Type: ${getListingPropertyTypeLabel(filters.propertyType)}`,
+    });
+  }
+
+  if (filters.rentalDuration) {
+    chips.push({
+      href: `/listings?${buildListingSearchQuery(filters, {
+        cursor: undefined,
+        rentalDuration: undefined,
+      })}`,
+      label: `Duration: ${getListingRentalDurationLabel(filters.rentalDuration)}`,
     });
   }
 

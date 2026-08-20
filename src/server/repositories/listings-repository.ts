@@ -100,6 +100,10 @@ function applyPublicListingFilters(
     nextQuery = nextQuery.eq("property_type", filters.propertyType);
   }
 
+  if (filters.rentalDuration) {
+    nextQuery = nextQuery.eq("rental_duration", filters.rentalDuration);
+  }
+
   if (typeof filters.bedrooms === "number") {
     nextQuery = nextQuery.eq("bedrooms", filters.bedrooms);
   }
