@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { DraftListingForm } from "@/features/agents/components/draft-listing-form";
+import { ListingForm } from "@/features/agents/components/listing-form";
 import {
   getCurrentAgentContext,
   getCurrentAgentListingEntitlement,
@@ -41,7 +41,7 @@ export default async function NewAgentListingPage() {
         </div>
 
         <div className="mt-8">
-          <DraftListingForm />
+          <ListingForm />
         </div>
       </div>
     </main>

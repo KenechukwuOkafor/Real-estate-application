@@ -14,6 +14,7 @@ import {
   validateDraftListingInput,
   validateVerificationSubmissionInput,
 } from "@/features/agents/validation";
+import { isListingEditable } from "@/features/listings/editability";
 import { AppError } from "@/lib/api/errors";
 import {
   createSupabaseAuthenticatedClient,
@@ -397,6 +398,40 @@ export async function createCurrentAgentDraftListing(
   };
 }
 
+/**
+ * One listing the caller owns, for the edit surface.
+ *
+ * Ownership is enforced by the query, not by a check after the fact:
+ * getOwnedListing filters on agent_profile_id, so another agent's listing
+ * simply is not found. That keeps "not yours" and "does not exist"
+ * indistinguishable to the caller, which is the same answer the RLS policies
+ * give and the reason the id of a listing you do not own tells you nothing.
+ *
+ * Editability is NOT decided here. This returns the row whatever its status,
+ * and the page decides what to offer — the write path already refuses anything
+ * that is not a draft or a rejection, and duplicating that rule in a third
+ * place is how the three come to disagree.
+ */
+export async function getCurrentAgentListingForEdit(listingId: string) {
+  const context = await getCurrentAgentContext();
+
+  if (!context.agentProfile) {
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listings.",
+    );
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getOwnedListing(client, context.agentProfile.id, listingId);
+
+  if (!listing) {
+    throw new AppError("NOT_FOUND", "Listing not found.");
+  }
+
+  return listing;
+}
+
 export async function updateCurrentAgentDraftListing(
   listingId: string,
   input: Partial<AgentDraftListingInput>,
@@ -417,7 +452,9 @@ export async function updateCurrentAgentDraftListing(
     throw new AppError("NOT_FOUND", "Listing not found.");
   }
 
-  if (existing.status !== "draft" && existing.status !== "rejected") {
+  // Same predicate the edit page and the edit link read, so a surface cannot
+  // offer an edit this will refuse.
+  if (!isListingEditable(existing.status)) {
     throw new AppError(
       "LISTING_STATE_TRANSITION_INVALID",
       "LISTING_STATE_TRANSITION_INVALID",
@@ -439,19 +476,43 @@ export async function updateCurrentAgentDraftListing(
     propertyType: input.propertyType ?? existing.property_type,
     rentalDuration,
     state: input.state ?? existing.state,
-    // Derived from the merged duration rather than carried forward blindly.
-    // An agent switching a sublet to yearly sends no month count, and keeping
-    // the old one would fail the CHECK on a change they made correctly.
+    /**
+     * Carried forward only when it still applies, and never invented.
+     *
+     * On a sublet, an absent month count means "leave it as it was" — an agent
+     * fixing a title must not have to resend the length. Off a sublet, an
+     * absent one means null, because keeping the old value would fail the CHECK
+     * on a change the agent made correctly.
+     *
+     * A month count the caller ACTUALLY SENT survives either way, so the
+     * validator below sees it and refuses it. Nulling it here instead would
+     * hide a caller's mistake from validation and then hand the raw value to
+     * the repository anyway — which is exactly the defect this shape fixes.
+     */
     subletMonths:
       rentalDuration === "sublet"
         ? (input.subletMonths ?? existing.sublet_months)
-        : null,
+        : (input.subletMonths ?? null),
     title: input.title ?? existing.title,
   };
 
   validateDraftListingInput(merged);
 
-  const listing = await updateDraftListing(client, context.agentProfile.id, listingId, input);
+  /**
+   * The validated pair, not the raw partial.
+   *
+   * Everything else stays partial so an edit touches only what it named, but
+   * rental_duration and sublet_months go together or the CHECK rejects the
+   * statement. Passing `input` here meant the repository could receive a month
+   * count the validator never inspected, because the validator ran against
+   * `merged`. Validation and the write now agree by construction rather than by
+   * both happening to be right.
+   */
+  const listing = await updateDraftListing(client, context.agentProfile.id, listingId, {
+    ...input,
+    rentalDuration: merged.rentalDuration,
+    subletMonths: merged.subletMonths,
+  });
 
   await writeAuditLog({
     action: "listing.draft_updated",
