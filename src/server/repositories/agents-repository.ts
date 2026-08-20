@@ -551,8 +551,19 @@ export async function registerListingImages(
   client: DbClient,
   input: RegisterListingImagesInput,
 ) {
-  const rows = input.images.map((image, index) => ({
-    is_cover: image.position === 0 && index === 0,
+  /**
+   * Never inserted as the cover.
+   *
+   * This used to set is_cover on a position-0 image, which collides with the
+   * one-cover-per-listing index the moment a listing already has a cover at
+   * another position — reachable by removing the cover, which promotes the
+   * next image, and then uploading a replacement at position 0.
+   *
+   * The cover is now set in exactly one place, updateListingCoverImage, which
+   * maintains the flag and the pointer together. Insertion does not get a vote.
+   */
+  const rows = input.images.map((image) => ({
+    is_cover: false,
     listing_id: input.listingId,
     mime_type: image.mimeType,
     position: image.position,
@@ -572,11 +583,41 @@ export async function registerListingImages(
   return data ?? [];
 }
 
+/**
+ * Set the cover, maintaining both halves of it.
+ *
+ * listings.cover_image_id is the pointer and listing_images.is_cover is its
+ * denormalisation, and they could previously disagree because only the pointer
+ * was ever written here. Since 0021 a partial unique index permits at most one
+ * live cover per listing, so the old flag must be cleared BEFORE the new one is
+ * set — doing it the other way round trips the index.
+ */
 export async function updateListingCoverImage(
   client: DbClient,
   listingId: string,
   coverImageId: string,
 ) {
+  const cleared = await client
+    .from("listing_images")
+    .update({ is_cover: false })
+    .eq("listing_id", listingId)
+    .eq("is_cover", true)
+    .neq("id", coverImageId);
+
+  if (cleared.error) {
+    throw cleared.error;
+  }
+
+  const flagged = await client
+    .from("listing_images")
+    .update({ is_cover: true })
+    .eq("id", coverImageId)
+    .eq("listing_id", listingId);
+
+  if (flagged.error) {
+    throw flagged.error;
+  }
+
   const { data, error } = await client
     .from("listings")
     .update({
