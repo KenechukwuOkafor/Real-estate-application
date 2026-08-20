@@ -150,6 +150,12 @@ insert into public.listings (
   slug,
   description,
   property_type,
+  -- All three durations are seeded, deliberately. A seed in which every listing
+  -- is yearly cannot show that the card, the detail page or the filter handle
+  -- the other two, which is the condition the hardcoded "per year" label
+  -- survived in for as long as it did.
+  rental_duration,
+  sublet_months,
   price_naira,
   bedrooms,
   bathrooms,
@@ -173,6 +179,8 @@ values
     'clean-self-contain-odenigbo',
     'Bright self contain with tiled floor, borehole water, prepaid meter, and easy access to campus transport routes.',
     'self_contain',
+    'yearly',
+    null,
     280000,
     1,
     1,
@@ -198,6 +206,8 @@ values
     'two-bedroom-flat-hilltop',
     'Well-ventilated two bedroom apartment with POP ceiling, wardrobe space, and accessible road network.',
     '2_bedroom',
+    'monthly',
+    null,
     750000,
     2,
     2,
@@ -220,6 +230,8 @@ values
     'lodge-room-close-to-unn-gate',
     'Student-friendly lodge room with security gate, stable water supply, and short walking distance to transport.',
     'lodge_room',
+    'sublet',
+    6,
     180000,
     1,
     1,
@@ -242,6 +254,8 @@ set
   slug = excluded.slug,
   description = excluded.description,
   property_type = excluded.property_type,
+  rental_duration = excluded.rental_duration,
+  sublet_months = excluded.sublet_months,
   price_naira = excluded.price_naira,
   bedrooms = excluded.bedrooms,
   bathrooms = excluded.bathrooms,

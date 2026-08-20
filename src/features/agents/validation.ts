@@ -16,6 +16,8 @@ const propertyTypes = new Set([
   "lodge_room",
 ]);
 
+const rentalDurations = new Set(["yearly", "monthly", "sublet"]);
+
 /**
  * Validation failures are AppError, not bare Error.
  *
@@ -86,6 +88,47 @@ export function validateDraftListingInput(input: AgentDraftListingInput) {
     (input.bedrooms !== 1 || input.bathrooms !== 1)
   ) {
     throw validationError("Self contain listings must have 1 bedroom and 1 bathroom.");
+  }
+
+  validateRentalDuration(input);
+}
+
+/**
+ * The duration and its month count, which are one rule rather than two fields.
+ *
+ * Enforced here as well as in the database. The CHECK constraint is the
+ * guarantee — it holds for PostgREST, a script, or any future caller — but a
+ * constraint violation surfaces as a raw Postgres error mapped to a 500, and an
+ * agent who forgot to type a month count deserves a 422 telling them so. The
+ * database stops the bad row; this stops the bad experience.
+ */
+function validateRentalDuration(input: {
+  rentalDuration: string;
+  subletMonths: number | null;
+}) {
+  if (!rentalDurations.has(input.rentalDuration)) {
+    throw validationError("Select how long the property is available for.");
+  }
+
+  if (input.rentalDuration === "sublet") {
+    if (input.subletMonths === null || input.subletMonths === undefined) {
+      throw validationError("A sublet must say how many months it runs for.");
+    }
+
+    if (!Number.isInteger(input.subletMonths) || input.subletMonths <= 0) {
+      throw validationError("Sublet length must be a whole number of months, greater than zero.");
+    }
+
+    return;
+  }
+
+  // Meaningless on a yearly or monthly listing, and refused rather than
+  // silently dropped: a caller sending one has misunderstood the model, and
+  // discarding it would hide that until the value was expected back.
+  if (input.subletMonths !== null && input.subletMonths !== undefined) {
+    throw validationError(
+      "Only a sublet carries a number of months. Yearly and monthly listings must not.",
+    );
   }
 }
 

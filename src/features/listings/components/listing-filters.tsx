@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   listingBedroomOptions,
   listingPropertyTypeOptions,
+  listingRentalDurationOptions,
   listingSortOptions,
 } from "@/features/listings/options";
 import type { ListingListFilters } from "@/features/listings/types";
@@ -59,6 +60,21 @@ export function ListingFilters({ filters }: ListingFiltersProps) {
               name="propertyType"
             >
               {listingPropertyTypeOptions.map((option) => (
+                <option key={option.value || "all"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-2 text-sm text-stone-600">
+            <span>Duration</span>
+            <select
+              className={inputClassName()}
+              defaultValue={filters.rentalDuration ?? ""}
+              name="rentalDuration"
+            >
+              {listingRentalDurationOptions.map((option) => (
                 <option key={option.value || "all"} value={option.value}>
                   {option.label}
                 </option>

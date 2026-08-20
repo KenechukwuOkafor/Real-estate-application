@@ -26,6 +26,7 @@ const ACTIVE_FILTER_KEYS = [
   "maxPrice",
   "minPrice",
   "propertyType",
+  "rentalDuration",
   "state",
   "verifiedOnly",
 ] as const;
@@ -79,6 +80,10 @@ export function buildListingSearchQuery(
 
   if (finalFilters.propertyType) {
     searchParams.set("propertyType", finalFilters.propertyType);
+  }
+
+  if (finalFilters.rentalDuration) {
+    searchParams.set("rentalDuration", finalFilters.rentalDuration);
   }
 
   if (finalFilters.sort) {

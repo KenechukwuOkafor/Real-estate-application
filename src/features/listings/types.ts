@@ -1,3 +1,5 @@
+import type { RentalDuration } from "@/features/listings/rental-duration";
+
 export type ListingSort = "newest" | "price_asc" | "price_desc";
 
 export type ListingListFilters = {
@@ -15,6 +17,7 @@ export type ListingListFilters = {
     | "3_bedroom"
     | "shop"
     | "lodge_room";
+  rentalDuration?: RentalDuration;
   sort: ListingSort;
   state?: string;
   verifiedOnly?: boolean;
@@ -32,6 +35,9 @@ export type ListingListItem = {
   slug: string;
   title: string;
   propertyType: string;
+  rentalDuration: RentalDuration;
+  /** Months. Non-null if and only if `rentalDuration` is `sublet`. */
+  subletMonths: number | null;
   priceNaira: number;
   bedrooms: number;
   bathrooms: number;

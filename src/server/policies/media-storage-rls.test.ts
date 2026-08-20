@@ -76,6 +76,7 @@ suite("media storage policies", () => {
         description: "Media policy fixture.",
         price_naira: 250000,
         property_type: "self_contain",
+        rental_duration: "yearly",
         slug: `media-${status}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         status: status as "draft",
         title: `Media fixture ${status}`,

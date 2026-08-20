@@ -318,8 +318,13 @@ export async function createDraftListing(
       longitude: input.longitude ?? null,
       price_naira: input.priceNaira,
       property_type: input.propertyType,
+      rental_duration: input.rentalDuration,
       slug,
       state: input.state?.trim() || "Enugu",
+      // Normalised here as well as validated: the CHECK refuses a month count on
+      // anything that is not a sublet, so passing one through would turn a
+      // caller's mistake into a 500 instead of a stored row.
+      sublet_months: input.rentalDuration === "sublet" ? input.subletMonths : null,
       title: input.title.trim(),
     })
     .select("*")
@@ -586,6 +591,27 @@ export async function updateDraftListing(
   if (input.latitude !== undefined) updates.latitude = input.latitude ?? null;
   if (input.longitude !== undefined) updates.longitude = input.longitude ?? null;
   if (input.amenities !== undefined) updates.amenities = input.amenities;
+
+  /**
+   * The duration and its month count are written as a pair, never singly.
+   *
+   * This is the one place the CHECK constraint makes itself felt. A partial
+   * update that set rental_duration = 'yearly' while leaving a stale
+   * sublet_months behind would violate the constraint and fail the whole
+   * statement, so switching away from a sublet has to clear the count in the
+   * same UPDATE. Deriving it here means a caller cannot forget.
+   */
+  if (input.rentalDuration !== undefined) {
+    updates.rental_duration = input.rentalDuration;
+    updates.sublet_months =
+      input.rentalDuration === "sublet" ? (input.subletMonths ?? null) : null;
+  } else if (input.subletMonths !== undefined) {
+    // A month count with no duration alongside it. Left to the constraint
+    // rather than guessed at: writing it blind could pair a count with a
+    // yearly listing, and inferring the duration from its presence would be
+    // the caller's intent invented rather than read.
+    updates.sublet_months = input.subletMonths;
+  }
 
   const { data, error } = await client
     .from("listings")

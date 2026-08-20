@@ -15,6 +15,9 @@ const propertyTypes = [
  ] as const;
 const propertyTypeSet = new Set<string>(propertyTypes);
 
+const rentalDurations = ["yearly", "monthly", "sublet"] as const;
+const rentalDurationSet = new Set<string>(rentalDurations);
+
 const sorts = new Set<ListingSort>(["newest", "price_asc", "price_desc"]);
 
 function parseInteger(value: string | null) {
@@ -49,6 +52,7 @@ export function parseListingListFilters(
   const limit = parseInteger(searchParams.get("limit")) ?? DEFAULT_LISTINGS_LIMIT;
   const sort = searchParams.get("sort");
   const propertyType = searchParams.get("propertyType");
+  const rentalDuration = searchParams.get("rentalDuration");
   const cursor = searchParams.get("cursor");
 
   return {
@@ -62,6 +66,13 @@ export function parseListingListFilters(
     propertyType:
       propertyType && propertyTypeSet.has(propertyType)
         ? (propertyType as (typeof propertyTypes)[number])
+        : undefined,
+    // Unrecognised values fall through to undefined rather than reaching the
+    // query, the same way an unknown property type does. A caller inventing a
+    // duration gets the unfiltered feed, not a Postgres enum cast error.
+    rentalDuration:
+      rentalDuration && rentalDurationSet.has(rentalDuration)
+        ? (rentalDuration as (typeof rentalDurations)[number])
         : undefined,
     sort: sort && sorts.has(sort as ListingSort) ? (sort as ListingSort) : "newest",
     state: searchParams.get("state")?.trim() || undefined,

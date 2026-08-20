@@ -36,8 +36,10 @@ type PublicListingListRow = Pick<
   | "price_naira"
   | "property_type"
   | "public_uuid"
+  | "rental_duration"
   | "slug"
   | "state"
+  | "sublet_months"
   | "status"
   | "title"
 > & {
@@ -61,8 +63,10 @@ type PublicListingDetailRow = Pick<
   | "price_naira"
   | "property_type"
   | "public_uuid"
+  | "rental_duration"
   | "slug"
   | "state"
+  | "sublet_months"
   | "status"
   | "title"
   | "video_url"
@@ -94,6 +98,10 @@ function applyPublicListingFilters(
 
   if (filters.propertyType) {
     nextQuery = nextQuery.eq("property_type", filters.propertyType);
+  }
+
+  if (filters.rentalDuration) {
+    nextQuery = nextQuery.eq("rental_duration", filters.rentalDuration);
   }
 
   if (typeof filters.bedrooms === "number") {
@@ -191,8 +199,10 @@ function mapListingCard(row: PublicListingListRow | PublicListingDetailRow): Lis
     priceNaira: row.price_naira,
     propertyType: row.property_type,
     publicId: row.public_uuid,
+    rentalDuration: row.rental_duration,
     slug: row.slug,
     state: row.state,
+    subletMonths: row.sublet_months,
     title: row.title,
   };
 }
@@ -210,6 +220,8 @@ export async function getPublicListings(
         slug,
         title,
         property_type,
+        rental_duration,
+        sublet_months,
         price_naira,
         bedrooms,
         bathrooms,
@@ -300,6 +312,8 @@ export async function getPublicListingByIdentifier(
         title,
         description,
         property_type,
+        rental_duration,
+        sublet_months,
         price_naira,
         bedrooms,
         bathrooms,

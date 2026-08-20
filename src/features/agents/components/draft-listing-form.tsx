@@ -2,13 +2,20 @@
 
 import { useState } from "react";
 
-import { listingPropertyTypeOptions } from "@/features/listings/options";
+import {
+  listingPropertyTypeOptions,
+  listingRentalDurationOptions,
+} from "@/features/listings/options";
 
 export function DraftListingForm() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [propertyType, setPropertyType] =
     useState<(typeof listingPropertyTypeOptions)[number]["value"]>("self_contain");
+  const [rentalDuration, setRentalDuration] = useState<"yearly" | "monthly" | "sublet">(
+    "yearly",
+  );
+  const [subletMonths, setSubletMonths] = useState("6");
   const [priceNaira, setPriceNaira] = useState("250000");
   const [bedrooms, setBedrooms] = useState("1");
   const [bathrooms, setBathrooms] = useState("1");
@@ -43,7 +50,11 @@ export function DraftListingForm() {
         longitude: longitude ? Number(longitude) : null,
         priceNaira: Number(priceNaira),
         propertyType,
+        rentalDuration,
         state,
+        // Only a sublet carries a month count. Sent as null otherwise rather
+        // than omitted, so the server sees the choice rather than an absence.
+        subletMonths: rentalDuration === "sublet" ? Number(subletMonths) : null,
         title,
       }),
       headers: { "Content-Type": "application/json" },
@@ -90,6 +101,37 @@ export function DraftListingForm() {
           ))}
         </select>
       </label>
+
+      <label className="flex flex-col gap-2 text-sm text-stone-700">
+        <span>Duration</span>
+        <select className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setRentalDuration(e.target.value as never)} value={rentalDuration}>
+          {listingRentalDurationOptions.filter((option) => option.value).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {/*
+        Only rendered for a sublet. The field is meaningless on a yearly or
+        monthly listing, and the database refuses a month count on one, so
+        showing it would invite a 422 the agent could not have predicted.
+      */}
+      {rentalDuration === "sublet" ? (
+        <label className="flex flex-col gap-2 text-sm text-stone-700">
+          <span>Sublet length (months)</span>
+          <input
+            className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+            min={1}
+            onChange={(e) => setSubletMonths(e.target.value)}
+            required
+            step={1}
+            type="number"
+            value={subletMonths}
+          />
+        </label>
+      ) : null}
 
       <label className="flex flex-col gap-2 text-sm text-stone-700">
         <span>Price (NGN)</span>

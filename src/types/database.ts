@@ -19,6 +19,7 @@ export type Database = {
         | "rejected"
         | "suspended";
       app_role: "student" | "agent" | "admin";
+      rental_duration: "yearly" | "monthly" | "sublet";
       job_queue: "default" | "media";
       job_status:
         | "queued"
@@ -462,6 +463,9 @@ export type Database = {
             | "lodge_room";
           public_uuid?: string;
           rejection_reason?: string | null;
+          // Required: the column is NOT NULL with no default, so an insert that
+          // omits it fails rather than silently becoming annual.
+          rental_duration: "yearly" | "monthly" | "sublet";
           slug: string;
           state?: string;
           status?:
@@ -472,6 +476,7 @@ export type Database = {
             | "archived"
             | "flagged"
             | "under_dispute";
+          sublet_months?: number | null;
           submitted_at?: string | null;
           title: string;
           updated_at?: string;
@@ -508,6 +513,7 @@ export type Database = {
             | "lodge_room";
           public_uuid: string;
           rejection_reason: string | null;
+          rental_duration: "yearly" | "monthly" | "sublet";
           slug: string;
           state: string;
           status:
@@ -518,6 +524,7 @@ export type Database = {
             | "archived"
             | "flagged"
             | "under_dispute";
+          sublet_months: number | null;
           submitted_at: string | null;
           title: string;
           updated_at: string;
