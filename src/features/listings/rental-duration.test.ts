@@ -9,6 +9,8 @@ import {
   formatListingTypeLine,
   formatRentalDuration,
   formatRentalPriceHeading,
+  SUBLET_MONTHS_PLAUSIBLE_MAX,
+  subletLengthWarning,
 } from "@/features/listings/rental-duration";
 
 describe("formatRentalDuration", () => {
@@ -68,4 +70,37 @@ describe("formatListingTypeLine", () => {
       expect(formatListingTypeLine("Self Contain", duration)).toBe("Self Contain");
     },
   );
+});
+
+describe("subletLengthWarning", () => {
+  it("says nothing about an ordinary sublet", () => {
+    for (const months of [1, 3, 6, 12]) {
+      expect(subletLengthWarning(months)).toBeNull();
+    }
+  });
+
+  // A sublet longer than a year is unusual but real — an academic year plus a
+  // summer, a posting that runs long. Warning on those would train agents to
+  // dismiss the warning, which is how a warning stops working.
+  it("says nothing at the plausible maximum", () => {
+    expect(subletLengthWarning(SUBLET_MONTHS_PLAUSIBLE_MAX)).toBeNull();
+  });
+
+  it("warns once past it", () => {
+    expect(subletLengthWarning(SUBLET_MONTHS_PLAUSIBLE_MAX + 1)).toContain("check this");
+  });
+
+  it("puts an absurd value in years, where the mistake is obvious", () => {
+    expect(subletLengthWarning(500)).toContain("41 years");
+  });
+
+  // A warning, never a block. The wording has to say so, because an agent who
+  // reads it as a rejection will change a correct value to get past it.
+  it("says the listing can still be published", () => {
+    expect(subletLengthWarning(500)).toContain("still publish");
+  });
+
+  it("says nothing when there is no month count", () => {
+    expect(subletLengthWarning(null)).toBeNull();
+  });
 });
