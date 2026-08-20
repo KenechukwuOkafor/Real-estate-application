@@ -166,7 +166,7 @@ Every published listing MUST include:
 - Property type
 - Area
 - Price
-- Rental frequency
+- Rental duration
 - Description
 - Property images
 - Agent information
@@ -211,14 +211,60 @@ Additional property types may be introduced later.
 
 ---
 
-# Rental Frequency
+# Rental Duration
 
 Supported values:
 
-- Yearly
-- Monthly
+| Value | Meaning | Month count |
+|---|---|---|
+| `yearly` | A recurring annual tenancy | Must be absent |
+| `monthly` | A recurring monthly tenancy | Must be absent |
+| `sublet` | A fixed run of months on someone else's lease | **Required** |
 
-The platform primarily targets yearly rentals during the MVP.
+The platform primarily targets yearly rentals, and yearly remains the common
+case.
+
+Renamed from "Rental Frequency". A sublet is not a frequency — it does not
+recur, it runs for a stated number of months and then it is over — and calling
+its length a frequency invites the conflation the schema now forbids.
+
+## Sublets
+
+- **Agents only.** No seeker may post one. This needs no separate rule:
+  creating any listing requires an agent profile, so it follows from listing
+  creation being agents-only.
+- **A number of months, and nothing else.** No start date, no end date, no
+  availability window. The platform displays what the agent set; whether it is
+  still available is between the seeker and the agent, as with everything else
+  here.
+- **Nothing expires or auto-hides.** A sublet whose period has passed stays in
+  the feed until the agent removes it. There is no expiry job and none is
+  wanted.
+
+## The month count is required if and only if the duration is sublet
+
+Enforced by a CHECK constraint on `listings`, not only by the form. A form rule
+holds until the next caller — PostgREST, a script, a future admin tool — and
+this one is the difference between a sublet and a listing that says nothing
+about how long it runs.
+
+There is deliberately **no default duration** in the database. A default of
+`yearly` would restore the assumption this model exists to remove: an insert
+that forgot the duration would silently become annual, which is how "per year"
+came to be hardcoded in the first place.
+
+## Display
+
+| Duration | Beside the price | Detail heading |
+|---|---|---|
+| `yearly` | "per year" | "Annual price" |
+| `monthly` | "per month" | "Monthly price" |
+| `sublet` | the month count, e.g. "4 months" | "Sublet price" |
+
+A sublet is additionally marked on the type line, because it is a materially
+different arrangement from a tenancy and a seeker should not have to infer that
+from a price suffix. Yearly and monthly are not labelled: they are the ordinary
+case, and marking them would make the sublet marker harder to see.
 
 ---
 
@@ -228,7 +274,7 @@ Every listing should describe:
 
 - Property type
 - Price
-- Rental frequency
+- Rental duration
 - Area
 - Address (controlled visibility)
 - Bedrooms
