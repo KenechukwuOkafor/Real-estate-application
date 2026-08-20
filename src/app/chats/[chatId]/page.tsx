@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ChatThread } from "@/features/chats/components/chat-thread";
 import { getCurrentUserChatThread } from "@/server/services/chat-service";
+import { markChatRead } from "@/server/services/inspection-service";
 import { getCurrentAppUser } from "@/server/services/user-sync-service";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,17 @@ export default async function ChatThreadPage({ params }: ChatThreadPageProps) {
     notFound();
   }
 
+  /**
+   * Opening the thread is what "read" means here.
+   *
+   * After the fetch, so a chat the caller cannot see is never written to, and
+   * awaited so the unread badge on the inspection inbox is already clear by the
+   * time the agent navigates back. markChatRead swallows its own failures — see
+   * the service — because a badge that fails to clear must not take the
+   * conversation down with it.
+   */
+  await markChatRead(chatId);
+
   const listingTitle = result.chat.listings?.title ?? "Listing";
   const listingHref = result.chat.listings?.slug
     ? `/listings/${result.chat.listings.slug}`
@@ -41,7 +53,7 @@ export default async function ChatThreadPage({ params }: ChatThreadPageProps) {
       ? `/listings/${result.chat.listings.id}`
       : null;
   const counterpartyLabel = user.roles.includes("agent")
-    ? result.chat.student?.full_name ?? "student"
+    ? result.counterpartyName ?? "the seeker"
     : "agent";
 
   return (

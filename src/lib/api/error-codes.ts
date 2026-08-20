@@ -109,6 +109,11 @@ export const ERROR_CODES = {
   INSPECTION_NOT_OWNED: { category: "authorization", httpStatus: 403 },
   INSPECTION_SELF_REQUEST: { category: "business_rule", httpStatus: 422 },
   INSPECTION_STATE_TRANSITION_INVALID: { category: "business_rule", httpStatus: 422 },
+  // Distinct from the state-transition code because it is a different thing to
+  // tell someone: not "this cannot be answered from its current state" but
+  // "the window closed". Expiry is evaluated on read, so the stored status is
+  // still 'requested' and only the deadline says otherwise.
+  INSPECTION_EXPIRED: { category: "business_rule", httpStatus: 422 },
 
   // ------------------------------------------------------------- listings
   LISTING_IMAGE_NOT_UPLOADED: { category: "business_rule", httpStatus: 422 },

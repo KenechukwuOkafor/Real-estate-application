@@ -158,7 +158,7 @@ describe("agent listing edit", () => {
     expect(page.status).not.toBe(200);
   });
 
-  describe("a listing that may not be edited", () => {
+  describe("a listing that is already live", () => {
     beforeAll(async () => {
       await svc.from("listings").update({ status: "approved" }).eq("id", listingId);
     });
@@ -168,19 +168,28 @@ describe("agent listing edit", () => {
     });
 
     /**
-     * Told, not stonewalled. An agent following a link from their own list
-     * deserves to know why the listing is locked rather than meeting a 404 —
-     * but the form must not be there, because the write path would refuse it.
+     * This assertion used to read `toContain("cannot be edited")`, and it was
+     * correct until 5c552c5 made a live listing changeable through review. It
+     * then sat failing on main, because these suites are local-only and CI has
+     * no server to run them against — the exact blind spot that helper documents.
+     *
+     * What replaces it is the same question asked of the current design: an
+     * approved listing offers the revision form, not the direct one, and says
+     * so before the agent types anything.
      */
-    it("explains itself instead of offering a form", async () => {
+    it("offers the review path rather than the direct form", async () => {
       const page = await renderAsPersona(
         `/agent/listings/${listingId}/edit`,
         "Agent (verified)",
       );
 
       expect(page.status).toBe(200);
-      expect(page.text).toContain("cannot be edited");
-      expect(page.text).not.toContain("Listing details");
+      expect(page.text).toContain("Changes are reviewed before they go live");
+      expect(page.text).toContain("Send change for review");
+
+      // The direct form's own submit control. Its absence is what proves the
+      // page switched paths rather than merely adding a banner above the old one.
+      expect(page.text).not.toContain("Save changes");
     });
   });
 });

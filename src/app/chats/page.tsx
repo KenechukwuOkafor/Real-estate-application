@@ -70,7 +70,7 @@ export default async function ChatsPage() {
                 ? `/listings/${chat.listings.id}`
                 : null;
             const counterparty = user.roles.includes("agent")
-              ? chat.student?.full_name ?? "student"
+              ? chat.counterpartyName ?? "the seeker"
               : "agent";
 
             return (
