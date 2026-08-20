@@ -20,6 +20,7 @@ export type Database = {
         | "suspended";
       app_role: "student" | "agent" | "admin";
       rental_duration: "yearly" | "monthly" | "sublet";
+      listing_revision_status: "pending_review" | "approved" | "rejected";
       job_queue: "default" | "media";
       job_status:
         | "queued"
@@ -78,6 +79,26 @@ export type Database = {
           target_listing_id: string;
         };
         Returns: Array<{ chat_id: string; inspection_request_id: string }>;
+      };
+      apply_listing_revision: {
+        Args: { reviewer_user_id: string; target_revision_id: string };
+        Returns: Array<{ listing_id: string; revision_id: string }>;
+      };
+      reject_listing_revision: {
+        Args: { reason: string; reviewer_user_id: string; target_revision_id: string };
+        Returns: Array<{ listing_id: string; revision_id: string }>;
+      };
+      submit_listing_revision: {
+        Args: {
+          new_amenities: Json;
+          new_description: string;
+          new_price_naira: number;
+          new_rental_duration: "yearly" | "monthly" | "sublet";
+          new_sublet_months: number | null;
+          new_title: string;
+          target_listing_id: string;
+        };
+        Returns: Array<{ revision_id: string; submitted_at: string }>;
       };
       archive_own_listing: {
         Args: { target_listing_id: string };
@@ -416,6 +437,46 @@ export type Database = {
           width: number | null;
         };
         Update: Partial<Database["public"]["Tables"]["listing_images"]["Insert"]>;
+        Relationships: [];
+      };
+      listing_revisions: {
+        Insert: {
+          amenities?: Json;
+          created_at?: string;
+          description: string;
+          id?: string;
+          listing_id: string;
+          price_naira: number;
+          rejection_reason?: string | null;
+          rental_duration: "yearly" | "monthly" | "sublet";
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: "pending_review" | "approved" | "rejected";
+          sublet_months?: number | null;
+          submitted_at?: string;
+          title: string;
+          updated_at?: string;
+        };
+        Row: {
+          amenities: Json;
+          created_at: string;
+          description: string;
+          id: string;
+          listing_id: string;
+          price_naira: number;
+          rejection_reason: string | null;
+          rental_duration: "yearly" | "monthly" | "sublet";
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          status: "pending_review" | "approved" | "rejected";
+          sublet_months: number | null;
+          submitted_at: string;
+          title: string;
+          updated_at: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["listing_revisions"]["Insert"]
+        >;
         Relationships: [];
       };
       listing_views: {

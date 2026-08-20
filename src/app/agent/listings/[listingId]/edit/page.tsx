@@ -3,12 +3,16 @@ import { notFound } from "next/navigation";
 
 import { ListingForm } from "@/features/agents/components/listing-form";
 import { ListingImageManager } from "@/features/agents/components/listing-image-manager";
+import { ProposeListingChangeForm } from "@/features/agents/components/propose-listing-change-form";
 import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
 import { isListingEditable } from "@/features/listings/editability";
 import { formatListingStatus } from "@/features/listings/format";
 import { isUuid } from "@/lib/api/identifiers";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
-import { getCurrentAgentListingForEdit } from "@/server/services/agent-service";
+import {
+  getCurrentAgentListingForEdit,
+  getCurrentAgentPendingRevision,
+} from "@/server/services/agent-service";
 import { signListingImagePaths } from "@/server/services/listing-media-service";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +40,14 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
   }
 
   const editable = isListingEditable(listing.status);
+
+  // A live listing is not edited in place — it is changed by proposal. See
+  // migration 0023: the listing keeps the values a moderator approved until a
+  // moderator approves the new ones.
+  const isLive = listing.status === "approved";
+  const pendingRevision = isLive
+    ? await getCurrentAgentPendingRevision(listing.id).catch(() => null)
+    : null;
   const images = (listing.listing_images ?? [])
     .filter((image) => !image.deleted_at)
     .sort((left, right) => left.position - right.position);
@@ -158,6 +170,28 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
               </div>
             </section>
           </>
+        ) : isLive ? (
+          <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+            <h2 className="text-xl font-semibold">Change this listing</h2>
+            <p className="mt-1 text-sm text-stone-600">
+              This listing is live. Changes go to a moderator before seekers see
+              them.
+            </p>
+            <div className="mt-6">
+              <ProposeListingChangeForm
+                hasPendingRevision={Boolean(pendingRevision)}
+                listing={{
+                  amenities: (listing.amenities as string[]) ?? [],
+                  description: listing.description,
+                  id: listing.id,
+                  priceNaira: listing.price_naira,
+                  rentalDuration: listing.rental_duration,
+                  subletMonths: listing.sublet_months,
+                  title: listing.title,
+                }}
+              />
+            </div>
+          </section>
         ) : (
           /*
             The page still renders for a listing that cannot be edited, rather
@@ -167,8 +201,8 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
           <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
             <h2 className="text-xl font-semibold">This listing cannot be edited</h2>
             <p className="mt-3 text-sm leading-7 text-stone-700">
-              Only drafts and rejected listings can be changed. This one is{" "}
-              {formatListingStatus(listing.status).toLowerCase()}.
+              Only drafts and rejected listings can be changed directly. This one
+              is {formatListingStatus(listing.status).toLowerCase()}.
             </p>
           </section>
         )}

@@ -372,6 +372,21 @@ function mapDatabaseSentinel(error: unknown): never {
       "The listing changed state before this could be applied.",
     ],
     ["LISTING_ARCHIVED_IS_TERMINAL", "LISTING_STATE_TRANSITION_INVALID", "An archived listing cannot be changed."],
+    [
+      "LISTING_REVISION_ALREADY_PENDING",
+      "LISTING_REVISION_ALREADY_PENDING",
+      "This listing already has a change awaiting review.",
+    ],
+    [
+      "LISTING_REVISION_ALREADY_REVIEWED",
+      "LISTING_REVISION_ALREADY_REVIEWED",
+      "This change has already been reviewed.",
+    ],
+    [
+      "LISTING_REVISION_NOT_FOUND",
+      "LISTING_REVISION_NOT_FOUND",
+      "That change could not be found.",
+    ],
     ["UNAUTHENTICATED", "UNAUTHENTICATED", "Sign in to continue."],
   ];
 
@@ -413,6 +428,164 @@ export async function archiveOwnListing(client: DbClient, listingId: string) {
   }
 
   return data as { archived_at: string; listing_id: string };
+}
+
+/**
+ * Queue a change to an approved listing.
+ *
+ * Through the RPC because neither listings.status nor this table's write path
+ * is granted to an agent — see migration 0023. The listing keeps its approved
+ * values; the proposal waits.
+ */
+export async function submitListingRevision(
+  client: DbClient,
+  input: {
+    amenities: string[];
+    description: string;
+    listingId: string;
+    priceNaira: number;
+    rentalDuration: "yearly" | "monthly" | "sublet";
+    subletMonths: number | null;
+    title: string;
+  },
+) {
+  const { data, error } = await client
+    .rpc("submit_listing_revision", {
+      new_amenities: input.amenities,
+      new_description: input.description,
+      new_price_naira: input.priceNaira,
+      new_rental_duration: input.rentalDuration,
+      new_sublet_months: input.subletMonths,
+      new_title: input.title,
+      target_listing_id: input.listingId,
+    })
+    .single();
+
+  if (error) {
+    mapDatabaseSentinel(error);
+  }
+
+  return data as { revision_id: string; submitted_at: string };
+}
+
+/** The revision awaiting review on this listing, if there is one. */
+export async function getPendingListingRevision(
+  client: DbClient,
+  listingId: string,
+) {
+  const { data, error } = await client
+    .from("listing_revisions")
+    .select("*")
+    .eq("listing_id", listingId)
+    .eq("status", "pending_review")
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Every pending revision, with the listing it proposes to change.
+ *
+ * The listing comes back alongside so a moderator can be shown what changed
+ * rather than only what is proposed. Reviewing a diff is a different task from
+ * reviewing a new listing, and the queue should not make someone re-read a
+ * listing they already approved to find the one line that moved.
+ */
+export async function listPendingListingRevisions(client: DbClient) {
+  const { data, error } = await client
+    .from("listing_revisions")
+    .select(
+      `
+        *,
+        listings!inner (
+          id,
+          title,
+          description,
+          price_naira,
+          amenities,
+          rental_duration,
+          sublet_months,
+          status,
+          slug,
+          public_uuid,
+          agent_profile_id,
+          agent_profiles ( display_name )
+        )
+      `,
+    )
+    .eq("status", "pending_review")
+    .order("submitted_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  // Cast for the same reason listAgentListings does: the generated types carry
+  // no relationship for this embed, so the shape has to be stated. The query
+  // above is the contract.
+  return (data ?? []) as unknown as PendingListingRevisionRow[];
+}
+
+export type PendingListingRevisionRow =
+  Database["public"]["Tables"]["listing_revisions"]["Row"] & {
+    listings: {
+      agent_profile_id: string;
+      agent_profiles: { display_name: string } | null;
+      amenities: unknown;
+      description: string;
+      id: string;
+      price_naira: number;
+      public_uuid: string;
+      rental_duration: "yearly" | "monthly" | "sublet";
+      slug: string;
+      status: string;
+      sublet_months: number | null;
+      title: string;
+    } | null;
+  };
+
+export async function applyListingRevision(
+  client: DbClient,
+  revisionId: string,
+  reviewerUserId: string,
+) {
+  const { data, error } = await client
+    .rpc("apply_listing_revision", {
+      reviewer_user_id: reviewerUserId,
+      target_revision_id: revisionId,
+    })
+    .single();
+
+  if (error) {
+    mapDatabaseSentinel(error);
+  }
+
+  return data as { listing_id: string; revision_id: string };
+}
+
+export async function rejectListingRevision(
+  client: DbClient,
+  revisionId: string,
+  reviewerUserId: string,
+  reason: string,
+) {
+  const { data, error } = await client
+    .rpc("reject_listing_revision", {
+      reason,
+      reviewer_user_id: reviewerUserId,
+      target_revision_id: revisionId,
+    })
+    .single();
+
+  if (error) {
+    mapDatabaseSentinel(error);
+  }
+
+  return data as { listing_id: string; revision_id: string };
 }
 
 export async function listAgentListings(client: DbClient, agentProfileId: string) {

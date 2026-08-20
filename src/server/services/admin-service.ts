@@ -21,6 +21,11 @@ import "server-only";
  */
 
 import { AppError } from "@/lib/api/errors";
+import {
+  applyListingRevision,
+  listPendingListingRevisions,
+  rejectListingRevision,
+} from "@/server/repositories/agents-repository";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { VERIFIED_AGENT_LISTING_QUOTA } from "@/server/policies/listing-entitlement";
 import {
@@ -77,6 +82,74 @@ export async function listAdminModerationQueue() {
     "flagged",
     "under_dispute",
   ]);
+}
+
+/**
+ * Changes waiting on a moderator, with the values they would replace.
+ *
+ * A separate queue from the listing queue, because reviewing a change is a
+ * different task from reviewing a listing: the question is "is this edit
+ * acceptable", not "is this listing acceptable", and the answer lives in the
+ * difference rather than in the whole.
+ */
+export async function listAdminListingRevisionQueue() {
+  await requireAdminContext();
+
+  return listPendingListingRevisions(getSupabaseAdminClient());
+}
+
+export async function approveListingRevisionAsAdmin(revisionId: string) {
+  const context = await requireAdminContext();
+  const adminClient = getSupabaseAdminClient();
+
+  const result = await applyListingRevision(adminClient, revisionId, context.user.id);
+
+  await writeAuditLog({
+    action: "listing.revision_approved",
+    actorUserId: context.user.id,
+    afterData: { listing_id: result.listing_id, revision_id: result.revision_id },
+    entityId: result.listing_id,
+    entityType: "listing",
+  });
+
+  return result;
+}
+
+export async function rejectListingRevisionAsAdmin(
+  revisionId: string,
+  reason: string,
+) {
+  const context = await requireAdminContext();
+
+  if (!reason.trim()) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "A rejection reason is required so the agent knows what to change.",
+      422,
+    );
+  }
+
+  const adminClient = getSupabaseAdminClient();
+  const result = await rejectListingRevision(
+    adminClient,
+    revisionId,
+    context.user.id,
+    reason.trim(),
+  );
+
+  await writeAuditLog({
+    action: "listing.revision_rejected",
+    actorUserId: context.user.id,
+    afterData: {
+      listing_id: result.listing_id,
+      rejection_reason: reason.trim(),
+      revision_id: result.revision_id,
+    },
+    entityId: result.listing_id,
+    entityType: "listing",
+  });
+
+  return result;
 }
 
 export async function listAdminVerificationQueue() {

@@ -136,6 +136,11 @@ export const ERROR_CODES = {
   // INTERNAL_ERROR and told the agent it was our fault for what is a 404.
   LISTING_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
   LISTING_IMAGE_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
+  // Revisions. A pending one is a conflict rather than a validation failure:
+  // nothing the agent sent is wrong, there is simply already a change waiting.
+  LISTING_REVISION_ALREADY_PENDING: { category: "business_rule", httpStatus: 409 },
+  LISTING_REVISION_ALREADY_REVIEWED: { category: "business_rule", httpStatus: 409 },
+  LISTING_REVISION_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
   CHAT_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
   INSPECTION_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
   VERIFICATION_SUBMISSION_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
