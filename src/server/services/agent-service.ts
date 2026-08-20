@@ -37,6 +37,7 @@ import {
   listAgentListings,
   markAgentVerificationPending,
   registerListingImages,
+  removeListingImage,
   updateAgentFreeListingQuota,
   updateDraftListing,
   updateListingCoverImage,
@@ -734,6 +735,80 @@ export async function registerCurrentAgentListingImages(
 
   return {
     count: existingImages.length + createdImages.length,
+  };
+}
+
+/**
+ * Remove one image from a listing the caller owns.
+ *
+ * Pre-validated here and re-validated in the database, following the shape of
+ * the inspection RPC in 0015. The checks in TypeScript exist so an agent gets a
+ * 404 or a 409 that names what happened; the checks inside
+ * public.remove_listing_image are the authority, because they hold for any
+ * caller including PostgREST directly.
+ */
+export async function removeCurrentAgentListingImage(
+  listingId: string,
+  imageId: string,
+) {
+  const context = await getCurrentAgentContext();
+
+  if (!context.agentProfile) {
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listings.",
+    );
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getOwnedListing(client, context.agentProfile.id, listingId);
+
+  if (!listing) {
+    throw new AppError("NOT_FOUND", "Listing not found.");
+  }
+
+  // Same predicate as every other edit. An approved listing losing a photo
+  // without re-review is what the moderation queue exists to prevent, and a
+  // flagged one losing a photo is evidence disappearing.
+  if (!isListingEditable(listing.status)) {
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      "Only draft and rejected listings can be changed.",
+    );
+  }
+
+  const image = (listing.listing_images ?? []).find(
+    (candidate) => candidate.id === imageId && !candidate.deleted_at,
+  );
+
+  // Checked against the images of THIS listing, so an image id belonging to
+  // another listing cannot be removed by pairing it with a listing the caller
+  // does own.
+  if (!image) {
+    throw new AppError("NOT_FOUND", "Image not found on this listing.");
+  }
+
+  const result = await removeListingImage(client, imageId);
+
+  await writeAuditLog({
+    action: "listing.image_removed",
+    actorUserId: context.user.id,
+    afterData: {
+      listing_id: listingId,
+      new_cover_image_id: result.new_cover_image_id,
+      removed_image_id: result.removed_image_id,
+      // Recorded because the storage object is deliberately left behind and
+      // nothing currently reclaims it. When a cleanup job finally drains the
+      // media lane, this is the trail that says which objects it may remove.
+      storage_path: image.storage_path,
+    },
+    entityId: listingId,
+    entityType: "listing",
+  });
+
+  return {
+    newCoverImageId: result.new_cover_image_id,
+    removedImageId: result.removed_image_id,
   };
 }
 

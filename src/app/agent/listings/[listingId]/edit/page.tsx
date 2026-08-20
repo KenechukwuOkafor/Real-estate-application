@@ -2,11 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ListingForm } from "@/features/agents/components/listing-form";
+import { ListingImageManager } from "@/features/agents/components/listing-image-manager";
 import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
 import { isListingEditable } from "@/features/listings/editability";
 import { formatListingStatus } from "@/features/listings/format";
 import { isUuid } from "@/lib/api/identifiers";
+import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { getCurrentAgentListingForEdit } from "@/server/services/agent-service";
+import { signListingImagePaths } from "@/server/services/listing-media-service";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +36,16 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
   }
 
   const editable = isListingEditable(listing.status);
-  const images = (listing.listing_images ?? []).filter((image) => !image.deleted_at);
+  const images = (listing.listing_images ?? [])
+    .filter((image) => !image.deleted_at)
+    .sort((left, right) => left.position - right.position);
+
+  // Signed at render time, never stored. The bucket is private, so a URL is a
+  // short-lived capability rather than an address — see ADR-033.
+  const signedImages = await signListingImagePaths(
+    getSupabaseAdminClient(),
+    images.map((image) => image.storage_path),
+  );
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#efe7da_100%)] px-6 py-10 text-stone-900">
@@ -132,7 +144,16 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
                 listing. A listing needs at least three before it can be
                 submitted.
               </p>
-              <div className="mt-6">
+              <div className="mt-6 flex flex-col gap-6">
+                <ListingImageManager
+                  images={images.map((image) => ({
+                    id: image.id,
+                    isCover: image.id === listing.cover_image_id,
+                    position: image.position,
+                    url: signedImages.get(image.storage_path) ?? null,
+                  }))}
+                  listingId={listing.id}
+                />
                 <ListingImagesForm listingId={listing.id} />
               </div>
             </section>

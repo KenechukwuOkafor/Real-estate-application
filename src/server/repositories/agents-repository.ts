@@ -337,6 +337,28 @@ export async function createDraftListing(
   return data;
 }
 
+/**
+ * Soft-delete one image and promote a replacement cover, atomically.
+ *
+ * Goes through the RPC rather than an UPDATE because listing_images.deleted_at
+ * is deliberately not granted to agents — see migration 0020. The function is
+ * also what makes the removal and the cover promotion one statement; doing them
+ * as two writes could leave listings.cover_image_id pointing at a deleted row,
+ * which surfaces later as a failure on the moderator's approval rather than
+ * here.
+ */
+export async function removeListingImage(client: DbClient, imageId: string) {
+  const { data, error } = await client
+    .rpc("remove_listing_image", { target_image_id: imageId })
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as { new_cover_image_id: string | null; removed_image_id: string };
+}
+
 export async function listAgentListings(client: DbClient, agentProfileId: string) {
   const { data, error } = await client
     .from("listings")
