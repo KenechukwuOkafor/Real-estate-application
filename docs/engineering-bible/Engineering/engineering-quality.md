@@ -384,7 +384,7 @@ that component fails — same error type, same identifiers, same shape.
 
 ## Evidence
 
-Four instances in this codebase, all found after the fact and none found by the
+Five instances in this codebase, all found after the fact and none found by the
 test that should have caught them:
 
 | Fixture | State it represented | What it hid |
@@ -393,6 +393,7 @@ test that should have caught them:
 | Seeded logins | Sessions minted outside the real auth path | The RLS policies were incompatible with the tokens production actually issues |
 | Fabricated storage paths | Object paths nothing had written | Nothing in the system ever read them, so the read path was untested |
 | `new Error("LISTING_STATE_CONFLICT")` | A compare-and-set loss thrown as a bare Error | The repository throws `AppError`, which resolves to 409; the bare Error resolves to 500. The test asserted a failure mode that no longer existed |
+| **The empty database CI replays migrations into** | A database with no rows in it | A migration that backfills existing rows cannot fail, because there are none. See below — this one is not a fixture anyone wrote |
 
 The fourth is the clearest illustration because the divergence is one line: the
 mock and the real repository disagreed about the *type* thrown, and the
@@ -412,6 +413,93 @@ a reason unrelated to the behaviour it claimed to cover.
   right, not as tidying. The test is green either way, which is exactly the
   problem.
 
+## The empty database is a fixture
+
+> A migration is tested against a database. If that database is empty, every
+> statement that operates on existing rows is a no-op, and a broken migration
+> passes.
+
+The four instances above are fixtures somebody wrote. This one is not. It is the
+starting state of the pipeline itself, and it is a fixture in exactly the sense
+that matters: **a stand-in for production that cannot fail the way production
+fails.** That makes it the most dangerous of the five, because there is no
+author to have known better and no file to review.
+
+### The instance
+
+Adding a required `rental_duration` column to `listings` needed every existing
+row backfilled. The obvious form:
+
+```sql
+alter table public.listings add column rental_duration public.rental_duration;
+update public.listings set rental_duration = 'yearly' where rental_duration is null;
+alter table public.listings alter column rental_duration set not null;
+```
+
+This fails on any database that already holds listings:
+
+```
+ERROR:  cannot ALTER TABLE "listings" because it has pending trigger events
+```
+
+The `UPDATE` queues the `set_updated_at` trigger, and `SET NOT NULL` cannot run
+while those events are pending. Supabase applies each migration inside one
+transaction, so the two statements cannot be separated within the file.
+
+**CI passed it.** The pipeline replays migrations from zero into an empty
+database, so the `UPDATE` matched zero rows, queued no trigger events, and the
+`ALTER` succeeded. The migration was green on every run and would have failed on
+the first `db push` against real data — in production, during a deploy, with no
+prior signal.
+
+It was found by applying the migration by hand to a populated local database,
+which is the only place the difference exists.
+
+### The fix, and why it is not merely a workaround
+
+```sql
+alter table public.listings
+  add column rental_duration public.rental_duration not null default 'yearly';
+alter table public.listings alter column rental_duration drop default;
+```
+
+Adding a `NOT NULL` column *with* a default is a catalog-only operation in
+PostgreSQL 11 and later: existing rows are satisfied without a table rewrite and
+without an `UPDATE`, so no trigger events are queued. The default is then
+dropped so no future insert can silently inherit it. The backfill and the
+constraint land in one statement that behaves identically on an empty and a
+populated table — which is the actual property being sought.
+
+### The general rule
+
+**Any migration that operates on existing rows is untested by a replay from
+zero.** The pipeline is structurally blind to this class, not accidentally so:
+replaying from an empty database is the correct way to verify that migrations
+compose, and it is the wrong way to verify that they upgrade.
+
+The two are different questions:
+
+| Question | Answered by |
+|---|---|
+| Do these migrations compose into the intended schema? | Replay from zero (what CI does) |
+| Will this migration survive contact with existing data? | Applying it to a database that has that data |
+
+Statements to treat as unverified until run against rows:
+
+- `UPDATE` / `DELETE` as part of a schema change — the backfill above.
+- `SET NOT NULL` on a column being populated in the same migration.
+- Adding a `CHECK` or a `UNIQUE` constraint that existing rows must already
+  satisfy. On an empty table every constraint is satisfiable.
+- Changing a column type where a cast must succeed for every stored value.
+- Dropping a column or table something still writes to.
+- Anything whose cost scales with row count. A rewrite that is instant on zero
+  rows can hold a lock for minutes on a real table.
+
+Until the pipeline covers it, the obligation is manual and belongs in the
+migration itself: apply it to a populated copy, and record in a comment what the
+form protects against, so the next person does not "simplify" it back into the
+version that only passes on an empty database.
+
 ---
 
 # Common Quality Issues
@@ -427,6 +515,7 @@ Avoid:
 - Hardcoded configuration
 - Hidden business rules
 - Fixtures representing states production never occupies (see Test Fixture Fidelity)
+- Migrations verified only by a replay from zero, when they operate on existing rows (see Test Fixture Fidelity)
 
 ---
 
