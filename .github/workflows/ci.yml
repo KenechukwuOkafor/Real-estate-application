@@ -373,3 +373,177 @@ jobs:
         if: always()
         run: supabase stop --no-backup
 
+  # ---------------------------------------------------------------------------
+  # The upgrade path, which the replay from zero does not test.
+  #
+  # "Replay migrations from zero" answers whether the migrations COMPOSE into
+  # the intended schema. It cannot answer whether they UPGRADE a database that
+  # already holds rows, because there are none: a backfill matches nothing, a
+  # constraint is trivially satisfiable, and a statement whose cost scales with
+  # row count is instant.
+  #
+  # That blind spot is not hypothetical. 0019 was written as add-nullable,
+  # UPDATE every row, SET NOT NULL — which fails on any populated database with
+  #
+  #   ERROR:  cannot ALTER TABLE "listings" because it has pending trigger events
+  #
+  # and passed every run of the replay-from-zero job, because the UPDATE matched
+  # no rows and queued no trigger events. It would have failed on the first push
+  # against real data, during a deploy, with no prior signal.
+  #
+  # This job seeds first and migrates second, which is the order production is
+  # in. See docs/engineering-bible/Engineering/engineering-quality.md, "The empty
+  # database is a fixture".
+  # ---------------------------------------------------------------------------
+  upgrade:
+    name: Replay migrations against a populated database
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        # Full history: the split between "already applied" and "new in this
+        # change" is computed from the merge base, which a shallow clone lacks.
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install the Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
+      # Which migrations are new, and therefore which ones have to survive
+      # contact with existing rows.
+      #
+      # On a branch that is the merge base with main. On main itself it is the
+      # previous commit, so a merge is still checked rather than trivially
+      # passing — though by then the branch has already been through it.
+      - name: Work out which migrations are new
+        id: split
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin main --quiet || true
+
+          if [ "${{ github.ref_name }}" = "main" ] && \
+             [ -n "${BEFORE:-}" ] && \
+             [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && \
+             git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base="$BEFORE"
+          else
+            base="$(git merge-base origin/main HEAD)"
+          fi
+
+          echo "base commit: $base"
+
+          # Added files only. A migration that was MODIFIED after being applied
+          # is a different problem — this job would apply it in the first phase
+          # and prove nothing — and modifying an applied migration is already
+          # against the rules.
+          git diff --name-only --diff-filter=A "$base" HEAD -- supabase/migrations/ \
+            | grep -E '\.sql$' > new-migrations.txt || true
+
+          count=$(wc -l < new-migrations.txt | tr -d ' ')
+          echo "new migrations: $count"
+          cat new-migrations.txt || true
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      # Deliberately not a job-level `if`. A skipped job does not report its
+      # check context the same way a passing one does, and this is a required
+      # check — it has to report on every commit, including the ones with no
+      # migration in them.
+      - name: Nothing to check
+        if: steps.split.outputs.count == '0'
+        run: |
+          echo "::notice title=No new migrations::This change adds no migration, so there is no upgrade path to replay."
+
+      # Move the new migrations out of the way so `supabase start` applies only
+      # what production would already have, and then seeds on top of it.
+      - name: Hide the new migrations
+        if: steps.split.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pending-migrations
+          while read -r file; do
+            [ -n "$file" ] || continue
+            echo "holding back $file"
+            mv "$file" /tmp/pending-migrations/
+          done < new-migrations.txt
+
+      - name: Build the database as it exists before this change, and seed it
+        if: steps.split.outputs.count != '0'
+        run: supabase start
+
+      # The whole point of the job. If the tables are empty here, every
+      # assertion below is vacuous and the job is the very fixture it exists to
+      # replace.
+      - name: Assert the database is actually populated
+        if: steps.split.outputs.count != '0'
+        run: |
+          set -euo pipefail
+
+          psql() {
+            docker exec "$(docker ps -qf name=supabase_db)" \
+              psql -U postgres -d postgres -t -A -c "$1" | tr -d '[:space:]'
+          }
+
+          listings=$(psql "select count(*) from public.listings;")
+          users=$(psql "select count(*) from public.users;")
+          echo "listings: $listings, users: $users"
+
+          test "$listings" -gt 0
+          test "$users" -gt 0
+
+          echo "listings_before=$listings" >> "$GITHUB_ENV"
+
+      # One transaction per file, in filename order, which is how Supabase
+      # applies them. Running them all in one transaction would hide exactly the
+      # failure this job exists to catch, since the pending-trigger-events error
+      # is a within-transaction constraint.
+      - name: Apply the new migrations to the populated database
+        if: steps.split.outputs.count != '0'
+        run: |
+          set -euo pipefail
+
+          container="$(docker ps -qf name=supabase_db)"
+          failed=0
+
+          while read -r file; do
+            [ -n "$file" ] || continue
+            name="$(basename "$file")"
+            echo "::group::applying $name"
+
+            if docker exec -i "$container" \
+                 psql -U postgres -d postgres \
+                 -v ON_ERROR_STOP=1 --single-transaction \
+                 < "/tmp/pending-migrations/$name"; then
+              echo "$name applied"
+            else
+              echo "::error title=Migration failed against a populated database::$name applies cleanly to an empty database but fails once rows exist. This is the upgrade path, and it is the one production takes."
+              failed=1
+            fi
+
+            echo "::endgroup::"
+          done < new-migrations.txt
+
+          test "$failed" -eq 0
+
+      # A migration that upgrades by deleting the rows it could not handle is
+      # not an upgrade.
+      - name: Assert the data survived
+        if: steps.split.outputs.count != '0'
+        run: |
+          set -euo pipefail
+
+          after=$(docker exec "$(docker ps -qf name=supabase_db)" \
+            psql -U postgres -d postgres -t -A \
+            -c "select count(*) from public.listings;" | tr -d '[:space:]')
+
+          echo "listings before: $listings_before, after: $after"
+          test "$after" = "$listings_before"
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup

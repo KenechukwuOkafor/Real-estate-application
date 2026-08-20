@@ -495,10 +495,42 @@ Statements to treat as unverified until run against rows:
 - Anything whose cost scales with row count. A rewrite that is instant on zero
   rows can hold a lock for minutes on a real table.
 
-Until the pipeline covers it, the obligation is manual and belongs in the
-migration itself: apply it to a populated copy, and record in a comment what the
-form protects against, so the next person does not "simplify" it back into the
-version that only passes on an empty database.
+### What now covers it
+
+The pipeline has a second migration job, **"Replay migrations against a
+populated database"**, added after this was found. It builds the schema as it
+exists *before* the change, seeds it, and only then applies the migrations the
+change adds — one transaction per file, which is how Supabase applies them.
+Seeding first and migrating second is the order production is in.
+
+It is a **required check**, not advisory. A guard that can be merged past is a
+suggestion.
+
+It was verified by observation rather than by reasoning, on the same rule that
+governs the RLS denial tests: a guard that has never been seen to catch anything
+has not been tested. A migration with the broken shape was pushed on a scratch
+branch, and the two jobs disagreed on the same commit — the replay from zero
+passed, the populated replay failed with the exact `pending trigger events`
+error. That disagreement is the blind spot, made visible.
+
+Its limits, worth knowing before trusting it:
+
+- It runs against **seed-scale data**. It catches correctness failures on
+  existing rows; it does not catch a lock held too long or a rewrite too slow on
+  a table with a million rows in it.
+- It considers **added** migration files. A migration modified after being
+  applied is a different failure, and one already forbidden.
+- A migration still has to say in a comment what its form protects against, so
+  the next person does not "simplify" it back into the version that only passes
+  on an empty database. The job catches the regression; the comment explains it.
+
+A statement-level linter such as `squawk` is the natural second layer if this
+proves insufficient: it flags dangerous statement *shapes* — a `NOT NULL` added
+without a default, a constraint added without `NOT VALID`, an index built
+without `CONCURRENTLY` — without needing data at all. It was deliberately not
+added alongside this. A linter catches the patterns somebody anticipated, the
+populated replay catches the general case, and one layer that works is worth
+more than two that overlap.
 
 ---
 
