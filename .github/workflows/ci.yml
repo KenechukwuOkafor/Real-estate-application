@@ -1,24 +1,54 @@
 name: CI
 
-# Every branch, not just main.
+# Every branch, not just main. On `push` only — deliberately no
+# `pull_request` trigger.
 #
 # The trigger used to be `push: branches: [main]` plus `pull_request`, which
 # meant a branch with no PR open got no CI at all. That is not a hypothetical
 # gap: the observability branch sat typecheck-clean with six failing tests
 # across several commits, and nothing ran because no PR existed yet. Work is
 # done on branches, so branches are where the signal has to arrive.
+#
+# WHY `pull_request` IS GONE. Keeping both triggers meant every push to a
+# branch with an open PR started two runs. They shared a concurrency group, so
+# the newer cancelled the older — and because both runs publish the SAME job
+# names, the cancelled one left a CANCELLED result sitting on a required status
+# context. Branch protection then blocked the merge although every test had
+# passed, and clearing it needed a manual re-run of the cancelled run. That is
+# branch protection you work around on every push, which is branch protection
+# that eventually gets switched off.
+#
+# Naming the jobs differently per event would have hidden it rather than fixed
+# it: the two runs still race, and whichever GitHub happens to create second
+# cancels the first. It was the push run all three times it was observed, but
+# nothing guarantees that, and the inverted case puts the cancellation back on
+# the required context.
+#
+# One trigger means one run per commit, so each required context resolves to
+# exactly one result. Check runs attach to the head SHA, so a pull request's
+# required checks are satisfied by the push run that already covered that
+# commit — opening a PR on an already-pushed branch needs no new run at all.
+#
+# The trade-off, accepted: `pull_request` tests the prospective merge of head
+# into base, while `push` tests head alone. Branch protection here sets
+# `strict: false`, so branches were never required to be up to date before
+# merging and that merge-result signal was already not enforced. Pull requests
+# from forks would also get no CI, which does not apply to this repository.
 on:
   push:
     branches: ["**"]
-  pull_request:
 
-# Keyed on the branch name rather than the ref, so the push run and the
-# pull_request run for the same branch share a group and the newer cancels the
-# older. Without this, every commit on a branch with an open PR would run the
-# whole pipeline twice — including the Postgres replay.
+# One run per branch. A newer push cancels the still-running older one, so a
+# rapid series of commits does not queue up several full Postgres replays.
+#
+# Except on main. Cancelling there would leave a cancelled result as the last
+# word on a commit that is already merged, and nothing downstream would ever
+# re-run it — so two merges landing close together could leave main with no
+# green run and no failure either. On a branch a cancelled run is always
+# superseded by the newer push; on main it is simply lost.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 jobs:
   verify:
