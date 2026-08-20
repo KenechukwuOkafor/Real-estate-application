@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
 import { SubmitListingReviewButton } from "@/features/agents/components/submit-listing-review-button";
+import { isListingEditable } from "@/features/listings/editability";
 import { formatListingStatus, formatPriceNaira } from "@/features/listings/format";
 import { getCurrentAgentListingsOverview } from "@/server/services/agent-service";
 
@@ -103,6 +104,18 @@ export default async function AgentListingsPage() {
                     <p className="mt-2 text-sm leading-7 text-stone-700 line-clamp-3">
                       {listing.description}
                     </p>
+                    {/*
+                      A one-line trail of the rejection reason. The full text
+                      lives on the edit page next to the fields being fixed;
+                      this is here so an agent scanning the list can see which
+                      listing needs attention and why.
+                    */}
+                    {listing.status === "rejected" && listing.rejection_reason ? (
+                      <p className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-900">
+                        Rejected: {listing.rejection_reason}
+                      </p>
+                    ) : null}
+
                     <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-600">
                       <span>{listing.area}, {listing.city}</span>
                       <span className="font-medium text-stone-900">{formatPriceNaira(listing.price_naira)}</span>
@@ -111,6 +124,21 @@ export default async function AgentListingsPage() {
                   </div>
 
                   <div className="flex min-w-[300px] flex-col gap-4">
+                    {/*
+                      Only offered where the write path will accept it. The link
+                      and the guard read the same predicate, so this cannot
+                      advertise an edit the server refuses.
+                    */}
+                    {isListingEditable(listing.status) ? (
+                      <Link
+                        className="rounded-full border border-stone-900/15 bg-white px-5 py-3 text-center text-sm font-medium text-stone-900 transition-colors hover:bg-stone-50"
+                        href={`/agent/listings/${listing.id}/edit`}
+                      >
+                        {listing.status === "rejected"
+                          ? "Fix and edit"
+                          : "Edit listing"}
+                      </Link>
+                    ) : null}
                     <ListingImagesForm listingId={listing.id} />
                     <SubmitListingReviewButton listingId={listing.id} />
                   </div>
