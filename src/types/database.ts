@@ -100,6 +100,10 @@ export type Database = {
         };
         Returns: Array<{ revision_id: string; submitted_at: string }>;
       };
+      counterparty_display_names: {
+        Args: { user_ids: string[] };
+        Returns: Array<{ full_name: string | null; user_id: string }>;
+      };
       archive_own_listing: {
         Args: { target_listing_id: string };
         Returns: Array<{ archived_at: string; listing_id: string }>;

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { AppError } from "@/lib/api/errors";
+import { findCounterpartyNames } from "@/server/repositories/inspection-repository";
 import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import {
   createChatMessage,
@@ -50,13 +51,33 @@ function assertMessageBody(body: string) {
   }
 }
 
+/**
+ * The chats, each with the counterparty's name resolved.
+ *
+ * The `student:users ( full_name )` embed in the repository returns null for
+ * every row when an agent reads it — public.users is readable only by yourself
+ * or an admin, and a denied embed is not an error, so both chat surfaces have
+ * been rendering the literal word "student" where a name should be. Migration
+ * 0025 discloses the name and nothing else; this attaches it.
+ */
 export async function listCurrentUserChats() {
   const context = await getChatAccessContext();
 
-  return listChatsForUser(context.client, {
+  const chats = await listChatsForUser(context.client, {
     agentProfileId: context.agentProfile?.id ?? null,
     userId: context.appUser.user.id,
   });
+
+  const names = await findCounterpartyNames(
+    context.client,
+    chats.map((chat) => chat.student_user_id),
+  );
+
+  return chats.map((chat) => ({
+    ...chat,
+    counterpartyName:
+      names.get(chat.student_user_id)?.trim() ?? chat.student?.full_name ?? null,
+  }));
 }
 
 export async function getCurrentUserChatThread(chatId: string) {
@@ -72,9 +93,14 @@ export async function getCurrentUserChatThread(chatId: string) {
   }
 
   const messages = await listChatMessages(context.client, chatId);
+  const names = await findCounterpartyNames(context.client, [
+    chat.student_user_id,
+  ]);
 
   return {
     chat,
+    counterpartyName:
+      names.get(chat.student_user_id)?.trim() ?? chat.student?.full_name ?? null,
     messages,
     viewerUserId: context.appUser.user.id,
   };

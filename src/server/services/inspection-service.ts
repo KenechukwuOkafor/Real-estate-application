@@ -1,12 +1,22 @@
 import "server-only";
 
+import {
+  effectiveInspectionStatus,
+  isAwaitingResponse,
+  minutesRemaining,
+  type InspectionStatus,
+} from "@/features/inspections/expiry";
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import {
+  countUnreadMessagesByChat,
   createInspectionRequestWithChat,
   findActiveInspectionRequest,
   getInspectionRequestById,
+  findCounterpartyNames,
   getInspectableListingById,
+  listAgentInspectionRequests,
+  markChatMessagesRead,
   updateInspectionRequestStatus,
 } from "@/server/repositories/inspection-repository";
 import { getAgentProfileByUserId } from "@/server/repositories/agents-repository";
@@ -188,6 +198,22 @@ export async function respondToInspectionRequest(input: {
     );
   }
 
+  /**
+   * Expired, checked before status.
+   *
+   * The stored status stays 'requested' forever — expiry is evaluated on read,
+   * so nothing rewrites the column. Without this an agent could accept days
+   * late and commit a seeker who had long since arranged something else, and
+   * the acceptance would look entirely legitimate to every other check.
+   */
+  if (!isAwaitingResponse(inspectionRequest) && inspectionRequest.status === "requested") {
+    throw new AppError(
+      "INSPECTION_EXPIRED",
+      "This inspection request passed its 48 hour window and can no longer be answered.",
+      422,
+    );
+  }
+
   if (inspectionRequest.status !== "requested") {
     // AppError rather than a bare message: `includes("cannot be")` in the
     // shared resolver would label this with the listing code
@@ -224,4 +250,123 @@ export async function respondToInspectionRequest(input: {
   });
 
   return updated;
+}
+
+export type AgentInspectionInboxItem = {
+  chatId: string | null;
+  effectiveStatus: InspectionStatus;
+  /**
+   * The deadline itself, so the client can recompute rather than trust a
+   * number that was true when the page was built.
+   */
+  expiresAt: string | null;
+  id: string;
+  listingSlug: string | null;
+  listingTitle: string;
+  message: string;
+  minutesRemaining: number | null;
+  requestedAt: string;
+  requesterName: string;
+  unreadMessageCount: number;
+};
+
+/**
+ * The signed-in agent's inspection inbox.
+ *
+ * Everything the surface needs, resolved on the server: the effective status
+ * (not the stored one — see features/inspections/expiry), the countdown in
+ * minutes, and the unread count for accepted requests.
+ *
+ * `now` is captured once and threaded through every row. Calling new Date()
+ * per row would let one request read 'requested' and the next 'expired' from
+ * the same page load, and a list that disagrees with itself is worse than one
+ * that is a few milliseconds stale.
+ */
+export async function listCurrentAgentInspectionRequests(): Promise<
+  AgentInspectionInboxItem[]
+> {
+  const appUser = await getCurrentAppUser();
+
+  if (!appUser) {
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
+  }
+
+  if (!appUser.roles.includes("agent")) {
+    throw new AppError("UNAUTHORIZED", "Agent role is required.");
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
+
+  if (!agentProfile) {
+    throw new AppError("AGENT_PROFILE_NOT_FOUND", "Agent profile not found.");
+  }
+
+  const requests = await listAgentInspectionRequests(client, agentProfile.id);
+  const now = new Date();
+
+  // Only accepted requests have a conversation worth counting. A declined or
+  // expired request's chat, if one exists, is not something we are asking the
+  // agent to attend to.
+  const chatIds = requests
+    .filter(
+      (request) => effectiveInspectionStatus(request, now) === "accepted",
+    )
+    .map((request) => request.chats?.id)
+    .filter((id): id is string => Boolean(id));
+
+  const [unreadCounts, names] = await Promise.all([
+    countUnreadMessagesByChat(client, chatIds, appUser.user.id),
+    findCounterpartyNames(
+      client,
+      requests.map((request) => request.requester_user_id),
+    ),
+  ]);
+
+  return requests.map((request) => ({
+    chatId: request.chats?.id ?? null,
+    effectiveStatus: effectiveInspectionStatus(request, now),
+    expiresAt: request.expires_at,
+    id: request.id,
+    listingSlug: request.listings?.slug ?? null,
+    // A listing the agent has since archived still has a request attached to
+    // it, and "(listing removed)" is a truer answer than an empty row.
+    listingTitle: request.listings?.title ?? "(listing removed)",
+    message: request.message ?? "",
+    minutesRemaining: minutesRemaining(request, now),
+    requestedAt: request.requested_at,
+    // "A seeker" is the genuine last resort — a user with no name recorded.
+    // It used to be what EVERY row rendered, because the name was read through
+    // an embed on a table agents cannot see into. See migration 0025.
+    requesterName:
+      names.get(request.requester_user_id)?.trim() || "A seeker",
+    unreadMessageCount: request.chats?.id
+      ? (unreadCounts.get(request.chats.id) ?? 0)
+      : 0,
+  }));
+}
+
+/**
+ * Mark this chat's incoming messages read, on behalf of the signed-in user.
+ *
+ * Called when a chat is opened. Failing silently is deliberate: not clearing a
+ * badge is a cosmetic problem, and an error boundary over the conversation
+ * itself would turn it into a real one.
+ */
+export async function markChatRead(chatId: string) {
+  const appUser = await getCurrentAppUser();
+
+  if (!appUser) {
+    return;
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+
+  try {
+    await markChatMessagesRead(client, chatId, appUser.user.id);
+  } catch {
+    // Policy from 0024 confines this to messages the caller received in a chat
+    // they are party to, so a refusal here means the caller had no business
+    // marking them anyway.
+  }
 }
