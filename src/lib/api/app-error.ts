@@ -1,3 +1,4 @@
+import type { ErrorDetails } from "@/lib/api/error-details";
 import {
   categoryForCode,
   type ErrorCategory,
@@ -29,6 +30,15 @@ export class AppError extends Error {
     public readonly code: string,
     message: string,
     httpStatus?: number,
+    /**
+     * Structured context for the client, when the code alone is too coarse.
+     *
+     * VALIDATION_ERROR covers roughly twenty distinct field failures and
+     * LISTING_STATE_TRANSITION_INVALID covers four situations, so the code says
+     * what kind of thing went wrong and this says which one. Optional, because
+     * most codes are specific enough on their own.
+     */
+    public readonly details?: ErrorDetails,
   ) {
     super(message);
     this.name = "AppError";

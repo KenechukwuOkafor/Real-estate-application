@@ -15,6 +15,7 @@ import {
   validateVerificationSubmissionInput,
 } from "@/features/agents/validation";
 import { isListingEditable } from "@/features/listings/editability";
+import { stateTransitionDetails } from "@/lib/api/error-details";
 import { AppError } from "@/lib/api/errors";
 import {
   createSupabaseAuthenticatedClient,
@@ -193,7 +194,13 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
     };
   }
 
-  throw new AppError("SUBSCRIPTION_REQUIRED", "LISTING_SUBSCRIPTION_REQUIRED");
+  throw new AppError(
+    "SUBSCRIPTION_REQUIRED",
+    // Was the string "LISTING_SUBSCRIPTION_REQUIRED": a second, code-shaped
+    // message that existed only so the client could match on it. The client
+    // reads the code now, so this can say something to whoever reads a log.
+    "Agent has neither an active subscription nor remaining free listing quota.",
+  );
 }
 
 export async function saveCurrentAgentProfile(input: AgentProfileInput) {
@@ -459,7 +466,9 @@ export async function updateCurrentAgentDraftListing(
   if (!isListingEditable(existing.status)) {
     throw new AppError(
       "LISTING_STATE_TRANSITION_INVALID",
-      "LISTING_STATE_TRANSITION_INVALID",
+      `A listing cannot be edited from status ${existing.status}.`,
+      undefined,
+      stateTransitionDetails("edit", existing.status),
     );
   }
 
@@ -780,7 +789,9 @@ export async function removeCurrentAgentListingImage(
   if (!isListingEditable(listing.status)) {
     throw new AppError(
       "LISTING_STATE_TRANSITION_INVALID",
-      "Only draft and rejected listings can be changed.",
+      `A photo cannot be removed from a listing with status ${listing.status}.`,
+      undefined,
+      stateTransitionDetails("remove_image", listing.status),
     );
   }
 
@@ -851,7 +862,9 @@ export async function archiveCurrentAgentListing(listingId: string) {
   if (listing.status !== "approved") {
     throw new AppError(
       "LISTING_STATE_TRANSITION_INVALID",
-      "Only a live listing can be taken down.",
+      `A listing cannot be taken down from status ${listing.status}.`,
+      undefined,
+      stateTransitionDetails("archive", listing.status),
     );
   }
 
@@ -886,7 +899,10 @@ export async function submitCurrentAgentListingForReview(listingId: string) {
   }
 
   if (context.agentProfile.verification_status !== "verified") {
-    throw new AppError("AGENT_NOT_VERIFIED", "AGENT_NOT_VERIFIED");
+    throw new AppError(
+      "AGENT_NOT_VERIFIED",
+      "Agent verification is not approved, so a listing cannot be submitted.",
+    );
   }
 
   const client = await createSupabaseAuthenticatedClient();
@@ -899,7 +915,9 @@ export async function submitCurrentAgentListingForReview(listingId: string) {
   if (listing.status !== "draft" && listing.status !== "rejected") {
     throw new AppError(
       "LISTING_STATE_TRANSITION_INVALID",
-      "LISTING_STATE_TRANSITION_INVALID",
+      `A listing cannot be submitted from status ${listing.status}.`,
+      undefined,
+      stateTransitionDetails("submit", listing.status),
     );
   }
 

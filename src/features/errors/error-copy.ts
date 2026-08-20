@@ -1,3 +1,8 @@
+import {
+  parseErrorDetails,
+  type ValidationIssue,
+  type ValidationRule,
+} from "@/lib/api/error-details";
 import { captureMessage } from "@/lib/observability/sentry";
 
 /**
@@ -58,6 +63,10 @@ export const ERROR_COPY: Readonly<Record<string, string>> = {
     "You already have a listing for this property. Edit that one instead of creating a second.",
   LISTING_STATE_TRANSITION_INVALID:
     "This listing cannot be changed in the state it is in. Only drafts and rejected listings can be edited.",
+  LISTING_NOT_FOUND:
+    "We could not find that listing. It may have been taken down.",
+  LISTING_IMAGE_NOT_FOUND:
+    "That photo is no longer on this listing. Reload the page to see the current ones.",
   LISTING_STATE_CONFLICT:
     "This listing was updated somewhere else a moment ago. Reload the page and try again.",
   MEDIA_MIME_TYPE_UNSUPPORTED:
@@ -185,5 +194,132 @@ type ApiErrorPayload = {
  * has a `message` in scope to be tempted by.
  */
 export function errorCopyForResponse(payload: ApiErrorPayload): string {
-  return errorCopyFor(payload?.error?.code);
+  // A specific refusal beats a general one. LISTING_STATE_TRANSITION_INVALID
+  // has four meanings and the details say which; fall back to the code's copy
+  // when they are absent, which is what an older caller will send.
+  const specific = stateTransitionCopy(payload as never);
+
+  return specific ?? errorCopyFor(payload?.error?.code);
+}
+
+
+/**
+ * A human name for a form field.
+ *
+ * Kept beside the copy rather than in the form, so a sentence about `priceNaira`
+ * reads as "price" everywhere it appears and not "priceNaira" in one place and
+ * "Price (NGN)" in another.
+ */
+const FIELD_LABELS: Readonly<Record<string, string>> = {
+  amenities: "amenities",
+  area: "area",
+  bathrooms: "number of bathrooms",
+  bedrooms: "number of bedrooms",
+  description: "description",
+  documents: "documents",
+  images: "photos",
+  position: "photo order",
+  priceNaira: "price",
+  propertyType: "property type",
+  rentalDuration: "duration",
+  subletMonths: "sublet length",
+  title: "title",
+};
+
+export function fieldLabel(field: string): string {
+  return FIELD_LABELS[field] ?? field;
+}
+
+/**
+ * One field failure, as a sentence.
+ *
+ * Same two rules as the code copy: say what to do, and never blame. "Add a
+ * title" rather than "Title is invalid", and nothing that implies the agent has
+ * done something foolish.
+ *
+ * The cross-field rules are the interesting ones. `self_contain_shape` and
+ * `not_applicable` are relationships rather than properties of a single value,
+ * so their sentences name both sides and offer both ways out — the agent should
+ * not have to work out that changing the property type is also a fix.
+ */
+export function validationIssueCopy(issue: ValidationIssue): string {
+  const label = fieldLabel(issue.field);
+
+  const byRule: Record<ValidationRule, () => string> = {
+    duplicate: () => `Each ${label} needs to be different.`,
+    // "the" rather than "a" throughout: field labels are a mix of vowel and
+    // consonant starts, and "Add a area" is the kind of small wrongness that
+    // makes an interface feel unfinished.
+    invalid_option: () => `Choose the ${label}.`,
+    max_items: () =>
+      `You can add up to ${issue.meta?.max ?? "a few"} ${label} at a time.`,
+    min_items: () =>
+      `Add at least ${issue.meta?.min ?? "one"} ${label}.`,
+    must_be_positive: () => `The ${label} needs to be greater than zero.`,
+    must_be_whole_number: () => `Enter the ${label} as a whole number.`,
+    must_not_be_negative: () => `The ${label} cannot be less than zero.`,
+    not_applicable: () =>
+      "Only a sublet has a length in months. Switch the duration to sublet, or clear the length.",
+    required: () => `Add the ${label}.`,
+    self_contain_shape: () =>
+      "A self contain has one bedroom and one bathroom. Change the counts, or pick a different property type if this is larger.",
+  };
+
+  return (byRule[issue.rule] ?? (() => `Check the ${label}.`))();
+}
+
+/**
+ * Field failures from a response, keyed by field.
+ *
+ * A map rather than a list, because the form's question is "is there anything
+ * to say about THIS input" and answering it by scanning an array at every field
+ * is how a component ends up rendering the wrong message beside the wrong box.
+ */
+export function fieldErrorsFrom(
+  payload: { error?: { code?: string; details?: unknown } | null } | null,
+): Record<string, string> {
+  const details = parseErrorDetails(payload?.error?.details);
+
+  if (!details || details.kind !== "validation") {
+    return {};
+  }
+
+  const byField: Record<string, string> = {};
+
+  for (const issue of details.issues) {
+    // First one wins. Two failures on one input would otherwise overwrite each
+    // other silently, and the first is the one the validator considered most
+    // fundamental.
+    if (!byField[issue.field]) {
+      byField[issue.field] = validationIssueCopy(issue);
+    }
+  }
+
+  return byField;
+}
+
+const STATE_TRANSITION_COPY: Readonly<Record<string, string>> = {
+  archive: "Only a live listing can be taken down.",
+  edit: "This listing cannot be edited any more. Only drafts and rejected listings can be changed.",
+  remove_image: "Photos can only be changed while a listing is a draft or has been rejected.",
+  submit: "This listing has already been submitted.",
+};
+
+/**
+ * The refusal, said in terms of what the agent tried to do.
+ *
+ * LISTING_STATE_TRANSITION_INVALID covers four situations, so the code alone
+ * could only produce a sentence describing all of them at once. The action and
+ * the status it was refused from are what make it specific.
+ */
+export function stateTransitionCopy(
+  payload: { error?: { code?: string; details?: unknown } | null } | null,
+): string | null {
+  const details = parseErrorDetails(payload?.error?.details);
+
+  if (!details || details.kind !== "state_transition") {
+    return null;
+  }
+
+  return STATE_TRANSITION_COPY[details.action] ?? null;
 }

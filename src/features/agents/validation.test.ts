@@ -12,6 +12,7 @@
 import { describe, expect, it } from "vitest";
 
 import { validateDraftListingInput } from "@/features/agents/validation";
+import type { ValidationIssue } from "@/lib/api/error-details";
 import type { AgentDraftListingInput } from "@/features/agents/types";
 
 function draft(overrides: Partial<AgentDraftListingInput> = {}): AgentDraftListingInput {
@@ -28,6 +29,23 @@ function draft(overrides: Partial<AgentDraftListingInput> = {}): AgentDraftListi
     title: "One bedroom near UNN",
     ...overrides,
   };
+}
+
+/**
+ * The issues an input produces, or an empty list if it is valid.
+ *
+ * Assertions are on the structured issues rather than on the message, because
+ * the message is a developer's note now and pinning prose is what made these
+ * tests fail when the wording improved.
+ */
+function issuesFor(input: AgentDraftListingInput): ValidationIssue[] {
+  try {
+    validateDraftListingInput(input);
+    return [];
+  } catch (error) {
+    const details = (error as { details?: { issues?: ValidationIssue[] } }).details;
+    return details?.issues ?? [];
+  }
 }
 
 describe("validateDraftListingInput — rental duration", () => {
@@ -50,58 +68,48 @@ describe("validateDraftListingInput — rental duration", () => {
   });
 
   it("refuses a sublet with no month count", () => {
-    expect(() =>
-      validateDraftListingInput(draft({ rentalDuration: "sublet" })),
-    ).toThrow(/how many months/i);
+    expect(issuesFor(draft({ rentalDuration: "sublet" }))).toEqual([
+      { field: "subletMonths", rule: "required" },
+    ]);
   });
 
   it("refuses a yearly listing that carries a month count", () => {
-    expect(() =>
-      validateDraftListingInput(draft({ subletMonths: 4 })),
-    ).toThrow(/only a sublet/i);
+    expect(issuesFor(draft({ subletMonths: 4 }))).toEqual([
+      { field: "subletMonths", rule: "not_applicable" },
+    ]);
   });
 
   it("refuses a monthly listing that carries a month count", () => {
-    expect(() =>
-      validateDraftListingInput(
-        draft({ rentalDuration: "monthly", subletMonths: 4 }),
-      ),
-    ).toThrow(/only a sublet/i);
+    expect(
+      issuesFor(draft({ rentalDuration: "monthly", subletMonths: 4 })),
+    ).toEqual([{ field: "subletMonths", rule: "not_applicable" }]);
   });
 
   it("refuses a sublet of zero months", () => {
-    expect(() =>
-      validateDraftListingInput(
-        draft({ rentalDuration: "sublet", subletMonths: 0 }),
-      ),
-    ).toThrow(/greater than zero/i);
+    expect(
+      issuesFor(draft({ rentalDuration: "sublet", subletMonths: 0 })),
+    ).toEqual([{ field: "subletMonths", rule: "must_be_positive" }]);
   });
 
   it("refuses a fractional sublet length", () => {
-    expect(() =>
-      validateDraftListingInput(
-        draft({ rentalDuration: "sublet", subletMonths: 2.5 }),
-      ),
-    ).toThrow(/whole number/i);
+    expect(
+      issuesFor(draft({ rentalDuration: "sublet", subletMonths: 2.5 })),
+    ).toEqual([{ field: "subletMonths", rule: "must_be_whole_number" }]);
   });
 
   // The route deliberately does not default this field, so an omitted duration
   // arrives here as undefined. It must be refused rather than assumed annual —
   // assuming it is the bug this slice exists to remove.
   it("refuses a missing duration rather than assuming annual", () => {
-    expect(() =>
-      validateDraftListingInput(
-        draft({ rentalDuration: undefined as never }),
-      ),
-    ).toThrow(/how long/i);
+    expect(issuesFor(draft({ rentalDuration: undefined as never }))).toEqual([
+      { field: "rentalDuration", rule: "invalid_option" },
+    ]);
   });
 
   it("refuses a duration that is not one of the three", () => {
-    expect(() =>
-      validateDraftListingInput(
-        draft({ rentalDuration: "weekly" as never }),
-      ),
-    ).toThrow(/how long/i);
+    expect(issuesFor(draft({ rentalDuration: "weekly" as never }))).toEqual([
+      { field: "rentalDuration", rule: "invalid_option" },
+    ]);
   });
 
   // A 422, not a 500. The resolver classifies by code, and an uncoded throw
@@ -114,5 +122,42 @@ describe("validateDraftListingInput — rental duration", () => {
       expect((error as { code?: string }).code).toBe("VALIDATION_ERROR");
       expect((error as { httpStatus?: number }).httpStatus).toBe(422);
     }
+  });
+
+  /**
+   * Every failure at once, not the first one.
+   *
+   * Throwing early meant a form with three problems reported one, the agent
+   * fixed it, submitted, and met the second. Five round trips to fill in a form
+   * reads as five separate failures.
+   */
+  it("reports every problem in one response", () => {
+    const issues = issuesFor(
+      draft({
+        area: "  ",
+        priceNaira: 0,
+        rentalDuration: "sublet",
+        subletMonths: null,
+        title: "",
+      }),
+    );
+
+    expect(issues.map((issue) => issue.field).sort()).toEqual([
+      "area",
+      "priceNaira",
+      "subletMonths",
+      "title",
+    ]);
+  });
+
+  /**
+   * A business rule wearing validation's clothes. Nothing is wrong with the
+   * number 2; it is wrong only alongside this property type, and the agent has
+   * two ways to fix it.
+   */
+  it("files the self-contain shape against a field, with a relationship rule", () => {
+    expect(
+      issuesFor(draft({ bathrooms: 2, bedrooms: 2, propertyType: "self_contain" })),
+    ).toEqual([{ field: "bedrooms", rule: "self_contain_shape" }]);
   });
 });

@@ -184,3 +184,201 @@ describe("registry coverage", () => {
     expect(orphans).toEqual([]);
   });
 });
+
+const { fieldErrorsFrom, fieldLabel, stateTransitionCopy, validationIssueCopy } =
+  await import("@/features/errors/error-copy");
+
+/**
+ * The reason this slice exists: VALIDATION_ERROR covered roughly twenty field
+ * failures, so the only honest sentence was "some details do not look right".
+ * These assert that a specific field now gets a specific sentence.
+ */
+describe("validation issue copy", () => {
+  const ALL_RULES = [
+    "required",
+    "must_be_positive",
+    "must_not_be_negative",
+    "must_be_whole_number",
+    "invalid_option",
+    "not_applicable",
+    "min_items",
+    "max_items",
+    "duplicate",
+    "self_contain_shape",
+  ] as const;
+
+  it("has a sentence for every rule in the vocabulary", () => {
+    for (const rule of ALL_RULES) {
+      const copy = validationIssueCopy({ field: "priceNaira", rule });
+
+      expect(copy.length).toBeGreaterThan(10);
+      expect(copy).toMatch(/[.!?]$/);
+    }
+  });
+
+  it("obeys the same two rules as the code copy", () => {
+    for (const rule of ALL_RULES) {
+      const copy = validationIssueCopy({ field: "title", rule }).toLowerCase();
+
+      expect(copy).not.toMatch(/\b(invalid|failed|failure|error|you must|denied)\b/);
+      expect(copy).not.toMatch(/[A-Z]{3,}_[A-Z_]{3,}/);
+    }
+  });
+
+  it("names the field in words, not in code", () => {
+    expect(validationIssueCopy({ field: "priceNaira", rule: "required" })).toContain(
+      "price",
+    );
+    expect(
+      validationIssueCopy({ field: "priceNaira", rule: "required" }),
+    ).not.toContain("priceNaira");
+  });
+
+  it("uses the numbers it was given", () => {
+    expect(
+      validationIssueCopy({ field: "images", meta: { min: 3 }, rule: "min_items" }),
+    ).toContain("3");
+    expect(
+      validationIssueCopy({ field: "images", meta: { max: 10 }, rule: "max_items" }),
+    ).toContain("10");
+  });
+
+  /**
+   * The two cross-field rules. Neither is a property of a single value, so the
+   * sentence has to name both sides and offer both ways out — an agent should
+   * not have to work out that changing the property type is also a fix.
+   */
+  it("explains a cross-field rule as a relationship, with both remedies", () => {
+    const selfContain = validationIssueCopy({
+      field: "bedrooms",
+      rule: "self_contain_shape",
+    });
+
+    expect(selfContain).toContain("one bedroom");
+    expect(selfContain.toLowerCase()).toContain("different property type");
+
+    const months = validationIssueCopy({ field: "subletMonths", rule: "not_applicable" });
+
+    expect(months.toLowerCase()).toContain("sublet");
+    expect(months.toLowerCase()).toContain("clear the length");
+  });
+
+  /**
+   * Caught by running it: `area` rendered as "Add a area." Small, and exactly
+   * the kind of wrongness that makes an interface feel unfinished.
+   */
+  it("never puts 'a' in front of a vowel", () => {
+    const fields = [
+      "area",
+      "amenities",
+      "images",
+      "title",
+      "priceNaira",
+      "subletMonths",
+      "propertyType",
+      "bedrooms",
+    ];
+
+    for (const field of fields) {
+      for (const rule of ALL_RULES) {
+        expect(validationIssueCopy({ field, rule })).not.toMatch(/\ba\s+[aeiou]/i);
+      }
+    }
+  });
+
+  it("falls back to a readable label for an unknown field", () => {
+    expect(fieldLabel("somethingNew")).toBe("somethingNew");
+  });
+});
+
+describe("fieldErrorsFrom", () => {
+  const payload = (details: unknown) => ({ error: { code: "VALIDATION_ERROR", details } });
+
+  it("keys the messages by field so a form can place them", () => {
+    const fields = fieldErrorsFrom(
+      payload({
+        issues: [
+          { field: "title", rule: "required" },
+          { field: "priceNaira", rule: "must_be_positive" },
+        ],
+        kind: "validation",
+      }),
+    );
+
+    expect(Object.keys(fields).sort()).toEqual(["priceNaira", "title"]);
+    expect(fields.title).toContain("title");
+  });
+
+  it("returns nothing for a payload with no details, so the banner still shows", () => {
+    expect(fieldErrorsFrom(payload(null))).toEqual({});
+    expect(fieldErrorsFrom(null)).toEqual({});
+  });
+
+  // Details arrive as JSON and nothing guarantees their shape. A malformed
+  // payload must degrade to "no field errors", not crash the component that is
+  // already rendering an error.
+  it.each([{ kind: "validation" }, { issues: "nope", kind: "validation" }, { kind: "other" }])(
+    "ignores malformed details %p",
+    (details) => {
+      expect(fieldErrorsFrom(payload(details))).toEqual({});
+    },
+  );
+
+  it("keeps the first issue when one field has two", () => {
+    const fields = fieldErrorsFrom(
+      payload({
+        issues: [
+          { field: "subletMonths", rule: "required" },
+          { field: "subletMonths", rule: "must_be_positive" },
+        ],
+        kind: "validation",
+      }),
+    );
+
+    expect(fields.subletMonths).toBe(
+      validationIssueCopy({ field: "subletMonths", rule: "required" }),
+    );
+  });
+});
+
+/**
+ * One code, four situations. Without the details the sentence had to describe
+ * all four at once.
+ */
+describe("stateTransitionCopy", () => {
+  const payload = (action: string, currentStatus = "approved") => ({
+    error: {
+      code: "LISTING_STATE_TRANSITION_INVALID",
+      details: { action, currentStatus, kind: "state_transition" },
+    },
+  });
+
+  it.each([
+    ["edit", "cannot be edited"],
+    ["submit", "already been submitted"],
+    ["archive", "live listing"],
+    ["remove_image", "draft"],
+  ])("says something specific for %s", (action, expected) => {
+    expect(stateTransitionCopy(payload(action))?.toLowerCase()).toContain(expected);
+  });
+
+  it("gives four distinct sentences rather than one generic one", () => {
+    const sentences = ["edit", "submit", "archive", "remove_image"].map((action) =>
+      stateTransitionCopy(payload(action)),
+    );
+
+    expect(new Set(sentences).size).toBe(4);
+  });
+
+  it("is null when the details are absent, so the code's copy is used", () => {
+    expect(stateTransitionCopy({ error: { code: "X", details: null } })).toBeNull();
+  });
+
+  it("prefers the specific sentence over the code's generic one", () => {
+    const generic = errorCopyFor("LISTING_STATE_TRANSITION_INVALID");
+    const specific = errorCopyForResponse(payload("archive") as never);
+
+    expect(specific).not.toBe(generic);
+    expect(specific.toLowerCase()).toContain("live listing");
+  });
+});

@@ -347,13 +347,50 @@ export async function createDraftListing(
  * which surfaces later as a failure on the moderator's approval rather than
  * here.
  */
+/**
+ * Turn a raised database sentinel into the AppError it stands for.
+ *
+ * The functions in 0020 and 0022 raise code-shaped strings — LISTING_NOT_FOUND,
+ * LISTING_STATE_TRANSITION_INVALID — with SQLSTATEs alongside. That is the
+ * function's API, not prose: the sentinel is an identifier and the SQLSTATE is
+ * its class, so matching on it is not the message-text classification this
+ * codebase removed. Matching on a HUMAN sentence would be.
+ *
+ * Without this the sentinel arrives as an unrecognised Postgres error and
+ * resolves to INTERNAL_ERROR, which tells an agent that a race they lost was
+ * our fault and pages someone for a 404.
+ */
+function mapDatabaseSentinel(error: unknown): never {
+  const message = (error as { message?: string })?.message ?? "";
+
+  const sentinels: Array<[string, string, string]> = [
+    ["LISTING_IMAGE_NOT_FOUND", "LISTING_IMAGE_NOT_FOUND", "Image not found on this listing."],
+    ["LISTING_NOT_FOUND", "LISTING_NOT_FOUND", "Listing not found."],
+    [
+      "LISTING_STATE_TRANSITION_INVALID",
+      "LISTING_STATE_TRANSITION_INVALID",
+      "The listing changed state before this could be applied.",
+    ],
+    ["LISTING_ARCHIVED_IS_TERMINAL", "LISTING_STATE_TRANSITION_INVALID", "An archived listing cannot be changed."],
+    ["UNAUTHENTICATED", "UNAUTHENTICATED", "Sign in to continue."],
+  ];
+
+  for (const [sentinel, code, text] of sentinels) {
+    if (message.includes(sentinel)) {
+      throw new AppError(code, text);
+    }
+  }
+
+  throw error;
+}
+
 export async function removeListingImage(client: DbClient, imageId: string) {
   const { data, error } = await client
     .rpc("remove_listing_image", { target_image_id: imageId })
     .single();
 
   if (error) {
-    throw error;
+    mapDatabaseSentinel(error);
   }
 
   return data as { new_cover_image_id: string | null; removed_image_id: string };
@@ -372,7 +409,7 @@ export async function archiveOwnListing(client: DbClient, listingId: string) {
     .single();
 
   if (error) {
-    throw error;
+    mapDatabaseSentinel(error);
   }
 
   return data as { archived_at: string; listing_id: string };
