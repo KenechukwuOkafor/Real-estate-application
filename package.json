@@ -11,6 +11,7 @@
     "lint": "eslint . --max-warnings 0",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
+    "test:rendered": "vitest run --config vitest.rendered.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
