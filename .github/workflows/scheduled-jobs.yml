@@ -1,0 +1,140 @@
+name: Scheduled jobs
+
+# The scheduler ADR-032 always assumed and never had.
+#
+# The queue, the drain, retry with backoff, terminal failure and the
+# oldest-queued-age check are all built and tested, and none of them had ever
+# run on a schedule. Correct-but-unexercised infrastructure is indistinguishable
+# from infrastructure that does not work, so this file exists to make all of it
+# real rather than plausible.
+#
+# GITHUB ACTIONS RATHER THAN VERCEL CRON. Vercel's scheduler needs Pro: Hobby
+# caps crons at once per day, and a sub-daily expression does not degrade to
+# daily — it fails the deployment outright. A once-daily drain with ±59 minutes
+# of jitter is not a job queue. GitHub Actions costs nothing on a public
+# repository and runs at a five-minute minimum, which is a real queue.
+#
+# FIVE MINUTES IS A FLOOR, NOT A GUARANTEE. GitHub documents scheduled
+# workflows as best-effort and says they can be delayed under load, with the
+# start of every hour named as a peak. A late run is normal operation here, not
+# a fault, and nothing in this workflow or in the alerting treats lateness as an
+# error. The queue-age threshold (JOB_QUEUE_MAX_AGE_SECONDS, default 900) is
+# deliberately three times the interval so ordinary jitter cannot breach it.
+#
+# SIXTY DAYS OF REPOSITORY INACTIVITY DISABLES THIS. GitHub disables scheduled
+# workflows on public repositories after 60 days without activity, and it
+# disables them silently — the drain simply stops, which is exactly the failure
+# the queue-age alert exists to catch. That alert only reaches a human once the
+# Sentry rule in the runbook exists.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  # So the schedule can be exercised on demand rather than waited on, and so a
+  # first run can prove the wiring before anyone trusts it.
+  workflow_dispatch:
+
+# One drain at a time. The queue claims with FOR UPDATE SKIP LOCKED, so
+# overlapping drains are safe by construction — this is about not queueing up
+# runs when one is slow, not about correctness. Deliberately NOT
+# cancel-in-progress: killing a drain mid-job would leave the job claimed and
+# waiting for its visibility timeout for no reason.
+concurrency:
+  group: scheduled-jobs
+  cancel-in-progress: false
+
+# This workflow reads the repository and calls two routes. It never writes
+# anything back, so the token it runs with should not be able to. Scoped
+# explicitly rather than inherited, because the default depends on a repository
+# setting that can change without anyone touching this file.
+permissions:
+  contents: read
+
+jobs:
+  drain:
+    name: Drain the job queue and check for absence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # The runner starts empty, and every step below calls a script that lives
+      # in this repository. Without this the workflow would fail on "No such
+      # file or directory" every five minutes.
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      # There is no deployed environment yet. Without a URL this workflow has
+      # nothing to call, and the honest thing is to say so loudly and stop
+      # rather than fail every five minutes forever — 288 failure notifications
+      # a day is how a workflow gets muted, and a muted workflow is the silence
+      # this whole slice exists to prevent.
+      #
+      # This is a WARNING and not a failure, and the runbook records that a
+      # green run here may mean "skipped", not "drained". That distinction has
+      # to live somewhere a human reads.
+      - name: Check that there is somewhere to point
+        id: target
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          missing=""
+          [ -n "${APP_BASE_URL:-}" ] || missing="$missing APP_BASE_URL(variable)"
+          [ -n "${CRON_SECRET:-}" ] || missing="$missing CRON_SECRET(secret)"
+
+          if [ -n "$missing" ]; then
+            echo "::warning title=Scheduled jobs did not run::Missing:$missing. The queue is NOT being drained and the queue-age check is NOT running. This run is green because it did nothing, not because the system is healthy."
+            {
+              echo "## Scheduled jobs skipped"
+              echo
+              echo "Missing configuration:\`$missing\`"
+              echo
+              echo "The job queue is **not** being drained. See"
+              echo "\`docs/operations/observability-runbook.md\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      # Lanes are drained by separate invocations on purpose. A slow media job
+      # must not consume the window a notification send needs — that is ADR-032's
+      # reason for having two lanes at all, and sharing one invocation between
+      # them would give the separation up.
+      - name: Drain the default lane
+        if: steps.target.outputs.ready == 'true'
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          ./.github/scripts/call-machine-route.sh POST "/api/jobs/drain?queue=default"
+
+      - name: Drain the media lane
+        if: steps.target.outputs.ready == 'true'
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          ./.github/scripts/call-machine-route.sh POST "/api/jobs/drain?queue=media"
+
+      # Always runs, even if a drain failed. A drain failure is precisely when
+      # the queue-age check matters most, and skipping it there would withhold
+      # the signal at the moment it becomes true.
+      #
+      # This route answers 200 even on a breach, deliberately: a non-200 would
+      # make a stopped drain and a broken monitoring route indistinguishable.
+      # The workflow therefore does NOT decide anything from the body. The
+      # breach is reported to Sentry by the route itself and reaches a human
+      # through the alert rule, not through this log.
+      - name: Check the oldest queued job age
+        if: always() && steps.target.outputs.ready == 'true'
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          ./.github/scripts/call-machine-route.sh GET "/api/monitoring/absence"
