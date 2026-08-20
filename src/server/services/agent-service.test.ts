@@ -206,7 +206,7 @@ describe("submitCurrentAgentListingForReview", () => {
 
     await expect(
       submitCurrentAgentListingForReview("listing_1"),
-    ).rejects.toThrow("AGENT_NOT_VERIFIED");
+    ).rejects.toMatchObject({ code: "AGENT_NOT_VERIFIED" });
 
     expect(updateListingStatus).not.toHaveBeenCalled();
   });
@@ -236,7 +236,7 @@ describe("submitCurrentAgentListingForReview", () => {
 
     await expect(
       submitCurrentAgentListingForReview("listing_1"),
-    ).rejects.toThrow("LISTING_SUBSCRIPTION_REQUIRED");
+    ).rejects.toMatchObject({ code: "SUBSCRIPTION_REQUIRED" });
 
     expect(updateListingStatus).not.toHaveBeenCalled();
   });
@@ -521,7 +521,7 @@ describe("updateCurrentAgentDraftListing — the duration pair", () => {
 
     await expect(
       updateCurrentAgentDraftListing("listing_1", { subletMonths: 5 }),
-    ).rejects.toThrow(/only a sublet/i);
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
 
     expect(updateDraftListing).not.toHaveBeenCalled();
   });
@@ -536,7 +536,7 @@ describe("updateCurrentAgentDraftListing — the duration pair", () => {
         rentalDuration: "monthly",
         subletMonths: 6,
       }),
-    ).rejects.toThrow(/only a sublet/i);
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
   });
 
   it("never hands the repository a month count the validator did not see", async () => {

@@ -1,4 +1,5 @@
 import { AppError } from "@/lib/api/errors";
+import { validationDetails, type ValidationIssue } from "@/lib/api/error-details";
 import { VERIFICATION_DOCUMENT_TYPES } from "@/features/agents/types";
 import type {
   AgentDraftListingInput,
@@ -28,8 +29,46 @@ const rentalDurations = new Set(["yearly", "monthly", "sublet"]);
  * resolved to 500 for what is plainly a 422. Typing them removes the class of
  * bug instead of adding more patterns to match.
  */
-function validationError(message: string) {
-  return new AppError("VALIDATION_ERROR", message, 422);
+/**
+ * @param issues Which inputs failed and why, for the copy layer to turn into
+ * sentences beside the right fields. The message stays a developer's note.
+ */
+function validationError(message: string, issues: ValidationIssue[] = []) {
+  return new AppError(
+    "VALIDATION_ERROR",
+    message,
+    422,
+    issues.length > 0 ? validationDetails(issues) : undefined,
+  );
+}
+
+/**
+ * Collects failures instead of throwing at the first one.
+ *
+ * Throwing early meant a form with three problems reported one, the agent fixed
+ * it, submitted, and met the second. Five round trips to fill in a form is a
+ * worse experience than no validation message at all, because each one looks
+ * like a fresh failure.
+ */
+class IssueCollector {
+  private readonly issues: ValidationIssue[] = [];
+
+  add(field: string, rule: ValidationIssue["rule"], meta?: ValidationIssue["meta"]) {
+    this.issues.push(meta ? { field, meta, rule } : { field, rule });
+  }
+
+  requireText(field: string, value: string) {
+    if (!value.trim()) {
+      this.add(field, "required");
+    }
+  }
+
+  /** Throws once, with everything, or returns having found nothing. */
+  throwIfAny(summary: string) {
+    if (this.issues.length > 0) {
+      throw validationError(summary, this.issues);
+    }
+  }
 }
 
 function assertNonEmpty(value: string, message: string) {
@@ -67,30 +106,50 @@ export function validateVerificationSubmissionInput(
 }
 
 export function validateDraftListingInput(input: AgentDraftListingInput) {
-  assertNonEmpty(input.title, "Listing title is required.");
-  assertNonEmpty(input.description, "Listing description is required.");
-  assertNonEmpty(input.area, "Area is required.");
+  const issues = new IssueCollector();
+
+  issues.requireText("title", input.title);
+  issues.requireText("description", input.description);
+  issues.requireText("area", input.area);
 
   if (!propertyTypes.has(input.propertyType)) {
-    throw validationError("Invalid property type.");
+    issues.add("propertyType", "invalid_option");
   }
 
   if (input.priceNaira <= 0) {
-    throw validationError("Price must be greater than zero.");
+    issues.add("priceNaira", "must_be_positive");
   }
 
-  if (input.bedrooms < 0 || input.bathrooms < 0) {
-    throw validationError("Bedrooms and bathrooms cannot be negative.");
+  if (input.bedrooms < 0) {
+    issues.add("bedrooms", "must_not_be_negative");
   }
 
+  if (input.bathrooms < 0) {
+    issues.add("bathrooms", "must_not_be_negative");
+  }
+
+  /**
+   * A business rule wearing validation's clothes.
+   *
+   * Nothing is wrong with the bedroom count on its own — 2 is a perfectly good
+   * number. It is wrong only in combination with this property type, so there
+   * is no single field at fault and the agent has two ways to fix it: change
+   * the count, or change the type.
+   *
+   * Filed against `bedrooms` because that is where the correction usually
+   * belongs, with a rule the copy layer renders as the relationship rather than
+   * as a complaint about the number.
+   */
   if (
     input.propertyType === "self_contain" &&
     (input.bedrooms !== 1 || input.bathrooms !== 1)
   ) {
-    throw validationError("Self contain listings must have 1 bedroom and 1 bathroom.");
+    issues.add("bedrooms", "self_contain_shape");
   }
 
-  validateRentalDuration(input);
+  collectRentalDurationIssues(input, issues);
+
+  issues.throwIfAny("The listing details are incomplete.");
 }
 
 /**
@@ -102,21 +161,29 @@ export function validateDraftListingInput(input: AgentDraftListingInput) {
  * agent who forgot to type a month count deserves a 422 telling them so. The
  * database stops the bad row; this stops the bad experience.
  */
-function validateRentalDuration(input: {
-  rentalDuration: string;
-  subletMonths: number | null;
-}) {
+function collectRentalDurationIssues(
+  input: { rentalDuration: string; subletMonths: number | null },
+  issues: IssueCollector,
+) {
   if (!rentalDurations.has(input.rentalDuration)) {
-    throw validationError("Select how long the property is available for.");
+    issues.add("rentalDuration", "invalid_option");
+    // No point judging the month count against a duration we do not recognise.
+    return;
   }
 
   if (input.rentalDuration === "sublet") {
     if (input.subletMonths === null || input.subletMonths === undefined) {
-      throw validationError("A sublet must say how many months it runs for.");
+      issues.add("subletMonths", "required");
+      return;
     }
 
-    if (!Number.isInteger(input.subletMonths) || input.subletMonths <= 0) {
-      throw validationError("Sublet length must be a whole number of months, greater than zero.");
+    if (!Number.isInteger(input.subletMonths)) {
+      issues.add("subletMonths", "must_be_whole_number");
+      return;
+    }
+
+    if (input.subletMonths <= 0) {
+      issues.add("subletMonths", "must_be_positive");
     }
 
     return;
@@ -125,10 +192,11 @@ function validateRentalDuration(input: {
   // Meaningless on a yearly or monthly listing, and refused rather than
   // silently dropped: a caller sending one has misunderstood the model, and
   // discarding it would hide that until the value was expected back.
+  //
+  // The second cross-field rule in this validator. Filed against subletMonths
+  // because removing it is the fix, not changing the duration they chose.
   if (input.subletMonths !== null && input.subletMonths !== undefined) {
-    throw validationError(
-      "Only a sublet carries a number of months. Yearly and monthly listings must not.",
-    );
+    issues.add("subletMonths", "not_applicable");
   }
 }
 

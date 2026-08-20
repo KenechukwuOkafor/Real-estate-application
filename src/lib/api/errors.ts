@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import type { ErrorDetails } from "@/lib/api/error-details";
 import { AppError } from "@/lib/api/app-error";
 import type { ErrorCategory } from "@/lib/api/error-codes";
 import { createApiMeta } from "@/lib/api/response";
@@ -15,6 +16,8 @@ import { reportError } from "@/lib/observability/sentry";
 export { AppError };
 
 type ResolvedError = {
+  /** Structured context when the code alone is too coarse. Null otherwise. */
+  details: ErrorDetails | null;
   code: string;
   httpStatus: number;
   message: string;
@@ -59,6 +62,10 @@ export function resolveRouteError(error: unknown): ResolvedError {
     return {
       category: error.category,
       code: error.code,
+      // Carried through rather than dropped here. The resolver is the only
+      // thing between a throw site and the response, so anything it discards is
+      // gone.
+      details: error.details ?? null,
       httpStatus: error.httpStatus,
       message: error.message,
       unexpected: false,
@@ -68,6 +75,9 @@ export function resolveRouteError(error: unknown): ResolvedError {
   return {
     category: "unexpected",
     code: "INTERNAL_ERROR",
+    // Nothing structured to say about an error we did not recognise, and
+    // guessing would be worse than silence.
+    details: null,
     httpStatus: 500,
     message: OPAQUE_MESSAGE,
     unexpected: true,
@@ -139,7 +149,11 @@ export function routeErrorResponse(error: unknown, requestId: string) {
 
   return NextResponse.json(
     {
-      error: { code: resolved.code, details: null, message: resolved.message },
+      error: {
+        code: resolved.code,
+        details: resolved.details,
+        message: resolved.message,
+      },
       meta: createApiMeta(requestId),
     },
     { status: resolved.httpStatus },

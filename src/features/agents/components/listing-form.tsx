@@ -7,7 +7,10 @@ import {
   listingPropertyTypeOptions,
   listingRentalDurationOptions,
 } from "@/features/listings/options";
-import { errorCopyForResponse } from "@/features/errors/error-copy";
+import {
+  errorCopyForResponse,
+  fieldErrorsFrom,
+} from "@/features/errors/error-copy";
 import { subletLengthWarning } from "@/features/listings/rental-duration";
 
 /**
@@ -44,6 +47,26 @@ type ListingFormProps = {
   /** Absent when creating. Present when editing an existing draft or rejection. */
   listing?: EditableListing;
 };
+
+
+/**
+ * The message for one input, shown beneath it.
+ *
+ * Beneath rather than above, so it does not push the field the reader is
+ * looking at off the line they were reading, and tied to the input by
+ * aria-describedby so it is announced rather than merely seen.
+ */
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <span className="text-sm text-rose-700" id={`${id}-error`}>
+      {message}
+    </span>
+  );
+}
 
 export function ListingForm({ listing }: ListingFormProps) {
   const router = useRouter();
@@ -84,6 +107,15 @@ export function ListingForm({ listing }: ListingFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Per-field problems from the last attempt.
+   *
+   * Previously every failure was one banner reading "some details are missing",
+   * because VALIDATION_ERROR was a single code for twenty different field
+   * failures. The server now says which fields and why, so the message can sit
+   * beside the input it is about.
+   */
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   /**
    * A warning, never a block.
@@ -101,6 +133,9 @@ export function ListingForm({ listing }: ListingFormProps) {
     setIsSubmitting(true);
     setMessage(null);
     setError(null);
+    // Cleared before each attempt, so a fixed field stops being marked the
+    // moment it is fixed rather than staying red until everything passes.
+    setFieldErrors({});
 
     const body = {
       amenities: amenities
@@ -143,16 +178,25 @@ export function ListingForm({ listing }: ListingFormProps) {
     );
 
     const payload = (await response.json().catch(() => null)) as
-      | { error?: { code?: string; message?: string } }
+      | { error?: { code?: string; details?: unknown; message?: string } }
       | null;
 
     if (!response.ok) {
-      // Read off the code. This used to branch on the MESSAGE being exactly
-      // "LISTING_SUBSCRIPTION_REQUIRED" — a second, code-shaped string thrown
-      // alongside the real code SUBSCRIPTION_REQUIRED — and fall through to
-      // rendering whatever message arrived. Neither the branch nor the
-      // fall-through survives contact with a code lookup.
-      setError(errorCopyForResponse(payload));
+      // Read off the code and the details. This used to branch on the MESSAGE
+      // being exactly "LISTING_SUBSCRIPTION_REQUIRED" — a second, code-shaped
+      // string thrown alongside the real code SUBSCRIPTION_REQUIRED — and fall
+      // through to rendering whatever message arrived.
+      const fields = fieldErrorsFrom(payload);
+      setFieldErrors(fields);
+
+      // The banner only says something the fields do not. When every problem is
+      // already marked beside an input, repeating a summary above them adds a
+      // second thing to read and no information.
+      setError(
+        Object.keys(fields).length > 0
+          ? null
+          : errorCopyForResponse(payload),
+      );
       setIsSubmitting(false);
       return;
     }
@@ -172,34 +216,38 @@ export function ListingForm({ listing }: ListingFormProps) {
     <form className="grid gap-5 md:grid-cols-2" onSubmit={onSubmit}>
       <label className="flex flex-col gap-2 text-sm text-stone-700 md:col-span-2">
         <span>Title</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setTitle(e.target.value)} value={title} />
+        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.title ? "title-error" : undefined} aria-invalid={Boolean(fieldErrors.title)} onChange={(e) => setTitle(e.target.value)} value={title} />
+        <FieldError id="title" message={fieldErrors.title} />
       </label>
 
       <label className="flex flex-col gap-2 text-sm text-stone-700 md:col-span-2">
         <span>Description</span>
-        <textarea className="min-h-32 rounded-2xl border border-stone-900/10 bg-white px-4 py-3" onChange={(e) => setDescription(e.target.value)} value={description} />
+        <textarea className="min-h-32 rounded-2xl border border-stone-900/10 bg-white px-4 py-3" aria-describedby={fieldErrors.description ? "description-error" : undefined} aria-invalid={Boolean(fieldErrors.description)} onChange={(e) => setDescription(e.target.value)} value={description} />
+        <FieldError id="description" message={fieldErrors.description} />
       </label>
 
       <label className="flex flex-col gap-2 text-sm text-stone-700">
         <span>Property type</span>
-        <select className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setPropertyType(e.target.value)} value={propertyType}>
+        <select className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.propertyType ? "propertyType-error" : undefined} aria-invalid={Boolean(fieldErrors.propertyType)} onChange={(e) => setPropertyType(e.target.value)} value={propertyType}>
           {listingPropertyTypeOptions.filter((option) => option.value).map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
+        <FieldError id="propertyType" message={fieldErrors.propertyType} />
       </label>
 
       <label className="flex flex-col gap-2 text-sm text-stone-700">
         <span>Duration</span>
-        <select className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setRentalDuration(e.target.value as never)} value={rentalDuration}>
+        <select className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.rentalDuration ? "rentalDuration-error" : undefined} aria-invalid={Boolean(fieldErrors.rentalDuration)} onChange={(e) => setRentalDuration(e.target.value as never)} value={rentalDuration}>
           {listingRentalDurationOptions.filter((option) => option.value).map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
+        <FieldError id="rentalDuration" message={fieldErrors.rentalDuration} />
       </label>
 
       {/*
@@ -227,22 +275,26 @@ export function ListingForm({ listing }: ListingFormProps) {
 
       <label className="flex flex-col gap-2 text-sm text-stone-700">
         <span>Price (NGN)</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setPriceNaira(e.target.value)} type="number" value={priceNaira} />
+        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.priceNaira ? "priceNaira-error" : undefined} aria-invalid={Boolean(fieldErrors.priceNaira)} onChange={(e) => setPriceNaira(e.target.value)} type="number" value={priceNaira} />
+        <FieldError id="priceNaira" message={fieldErrors.priceNaira} />
       </label>
 
       <label className="flex flex-col gap-2 text-sm text-stone-700">
         <span>Bedrooms</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setBedrooms(e.target.value)} type="number" value={bedrooms} />
+        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.bedrooms ? "bedrooms-error" : undefined} aria-invalid={Boolean(fieldErrors.bedrooms)} onChange={(e) => setBedrooms(e.target.value)} type="number" value={bedrooms} />
+        <FieldError id="bedrooms" message={fieldErrors.bedrooms} />
       </label>
 
       <label className="flex flex-col gap-2 text-sm text-stone-700">
         <span>Bathrooms</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setBathrooms(e.target.value)} type="number" value={bathrooms} />
+        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.bathrooms ? "bathrooms-error" : undefined} aria-invalid={Boolean(fieldErrors.bathrooms)} onChange={(e) => setBathrooms(e.target.value)} type="number" value={bathrooms} />
+        <FieldError id="bathrooms" message={fieldErrors.bathrooms} />
       </label>
 
       <label className="flex flex-col gap-2 text-sm text-stone-700">
         <span>Area</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setArea(e.target.value)} value={area} />
+        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.area ? "area-error" : undefined} aria-invalid={Boolean(fieldErrors.area)} onChange={(e) => setArea(e.target.value)} value={area} />
+        <FieldError id="area" message={fieldErrors.area} />
       </label>
 
       <label className="flex flex-col gap-2 text-sm text-stone-700">

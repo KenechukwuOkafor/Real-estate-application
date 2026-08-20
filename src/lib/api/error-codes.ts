@@ -130,6 +130,12 @@ export const ERROR_CODES = {
   // missing" is the first question asked when one of these appears in Sentry,
   // and reading it off the tag beats reading it off a message.
   AGENT_PROFILE_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
+  // Raised by public.archive_own_listing and public.remove_listing_image. They
+  // were sentinels with no registered code, so if either fired — a race between
+  // the service's check and the function's — the raw Postgres error resolved to
+  // INTERNAL_ERROR and told the agent it was our fault for what is a 404.
+  LISTING_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
+  LISTING_IMAGE_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
   CHAT_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
   INSPECTION_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
   VERIFICATION_SUBMISSION_NOT_FOUND: { category: "business_rule", httpStatus: 404 },
