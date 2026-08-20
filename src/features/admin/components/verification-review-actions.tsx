@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 type VerificationReviewActionsProps = {
   submissionId: string;
@@ -31,14 +32,11 @@ export function VerificationReviewActions({
     );
 
     const payload = (await response.json().catch(() => null)) as
-      | { error?: { message?: string } }
+      | { error?: { code?: string; message?: string } }
       | null;
 
     if (!response.ok) {
-      setError(
-        payload?.error?.message ??
-          `Unable to ${action} verification submission.`,
-      );
+      setError(errorCopyForResponse(payload));
       setIsSubmitting(false);
       return;
     }

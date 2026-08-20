@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { VERIFICATION_DOCUMENT_TYPES } from "@/features/agents/types";
 import { createSupabaseBrowserClient } from "@/lib/db/supabase/browser";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 type PendingDocument = {
   documentType: string;
@@ -91,7 +92,7 @@ export function VerificationSubmissionForm() {
       | null;
 
     if (!targetsResponse.ok || !targetsPayload?.data?.uploads) {
-      setError(targetsPayload?.error?.message ?? "Unable to prepare the upload.");
+      setError(errorCopyForResponse(targetsPayload));
       setIsSubmitting(false);
       return;
     }
@@ -146,7 +147,7 @@ export function VerificationSubmissionForm() {
       | null;
 
     if (!response.ok) {
-      setError(payload?.error?.message ?? "Unable to submit verification.");
+      setError(errorCopyForResponse(payload));
       setIsSubmitting(false);
       return;
     }

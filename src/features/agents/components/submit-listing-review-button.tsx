@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 type SubmitListingReviewButtonProps = {
   listingId: string;
@@ -23,15 +24,14 @@ export function SubmitListingReviewButton({
     });
 
     const payload = (await response.json().catch(() => null)) as
-      | { error?: { message?: string } }
+      | { error?: { code?: string; message?: string } }
       | null;
 
     if (!response.ok) {
-      setError(
-        payload?.error?.message === "LISTING_SUBSCRIPTION_REQUIRED"
-          ? "An active subscription or free listing quota is required before this listing can be submitted."
-          : payload?.error?.message ?? "Unable to submit listing.",
-      );
+      // Five separate gates can refuse a submission — profile, verification,
+      // state, photo count and entitlement — and each has its own code, so the
+      // copy names the one that actually fired instead of a generic refusal.
+      setError(errorCopyForResponse(payload));
       setIsSubmitting(false);
       return;
     }

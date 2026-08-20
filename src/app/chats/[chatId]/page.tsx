@@ -19,8 +19,11 @@ export default async function ChatThreadPage({ params }: ChatThreadPageProps) {
   }
 
   const { chatId } = await params;
-  const result = await getCurrentUserChatThread(chatId).catch((error: Error) => {
-    if (error.message === "Chat not found.") {
+  const result = await getCurrentUserChatThread(chatId).catch((error: unknown) => {
+    // Branch on the code, not the sentence. Matching "Chat not found." meant
+    // rewording that message would silently turn a 404 into an unhandled throw,
+    // which is the coupling this slice exists to remove.
+    if ((error as { code?: string })?.code === "CHAT_NOT_FOUND") {
       return null;
     }
 

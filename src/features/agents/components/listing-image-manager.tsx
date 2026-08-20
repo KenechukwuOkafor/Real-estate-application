@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 type ManagedImage = {
   id: string;
@@ -48,7 +49,7 @@ export function ListingImageManager({ images, listingId }: ListingImageManagerPr
         | { error?: { message?: string } }
         | null;
 
-      setError(payload?.error?.message ?? "Unable to remove that photo.");
+      setError(errorCopyForResponse(payload));
       setRemovingId(null);
       return;
     }

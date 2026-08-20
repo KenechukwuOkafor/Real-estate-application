@@ -4,6 +4,7 @@
 import { useState } from "react";
 
 import { createSupabaseBrowserClient } from "@/lib/db/supabase/browser";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 type ListingImagesFormProps = {
   listingId: string;
@@ -57,7 +58,7 @@ export function ListingImagesForm({ listingId }: ListingImagesFormProps) {
       | null;
 
     if (!uploadTargetsResponse.ok || !uploadTargetsPayload?.data?.uploads) {
-      setError(uploadTargetsPayload?.error?.message ?? "Unable to prepare image uploads.");
+      setError(errorCopyForResponse(uploadTargetsPayload));
       setIsSubmitting(false);
       return;
     }
@@ -113,7 +114,7 @@ export function ListingImagesForm({ listingId }: ListingImagesFormProps) {
       | null;
 
     if (!response.ok) {
-      setError(payload?.error?.message ?? "Unable to register listing images.");
+      setError(errorCopyForResponse(payload));
       setIsSubmitting(false);
       return;
     }

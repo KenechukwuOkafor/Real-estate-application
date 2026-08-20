@@ -555,6 +555,7 @@ export async function getCurrentAgentListingsOverview() {
         freeListingQuota: 0,
         isVerified: false,
         source: "none" as const,
+        verificationStatus: "not_submitted" as const,
       },
       listings: [],
     };
@@ -588,6 +589,11 @@ export async function getCurrentAgentListingsOverview() {
         isVerified && (Boolean(activeSubscription) || freeListingQuota > 0),
       freeListingQuota,
       isVerified,
+      // The raw status as well as the boolean. "Not verified" is one state to
+      // the entitlement check and three quite different sentences to an agent:
+      // never started, waiting on us, or rejected. Collapsing them to a boolean
+      // is what made the copy say the same unhelpful thing to all three.
+      verificationStatus: agentProfile?.verification_status ?? "not_submitted",
       source: activeSubscription
         ? ("subscription" as const)
         : freeListingQuota > 0

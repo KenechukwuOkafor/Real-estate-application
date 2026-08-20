@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ArchiveListingButton } from "@/features/agents/components/archive-listing-button";
+import { SubmitReadinessChecklist } from "@/features/agents/components/submit-readiness-checklist";
+import { submitReadiness } from "@/features/agents/submit-readiness";
 import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
 import { SubmitListingReviewButton } from "@/features/agents/components/submit-listing-review-button";
 import { isListingEditable } from "@/features/listings/editability";
@@ -91,6 +93,20 @@ export default async function AgentListingsPage() {
           {listings.map((listing) => {
             const imageCount = (listing.listing_images ?? []).filter((image) => !image.deleted_at).length;
 
+            // Only meaningful where submission is the next step. An approved or
+            // archived listing has nothing outstanding.
+            const readiness =
+              listing.status === "draft" || listing.status === "rejected"
+                ? submitReadiness({
+                    activeImageCount: imageCount,
+                    area: listing.area,
+                    freeListingQuota: entitlement.freeListingQuota,
+                    hasActiveSubscription: Boolean(entitlement.activeSubscription),
+                    priceNaira: listing.price_naira,
+                    verificationStatus: entitlement.verificationStatus,
+                  })
+                : null;
+
             return (
               <article
                 key={listing.id}
@@ -154,6 +170,9 @@ export default async function AgentListingsPage() {
                       </Link>
                     ) : null}
                     <ListingImagesForm listingId={listing.id} />
+                    {readiness ? (
+                      <SubmitReadinessChecklist items={readiness} />
+                    ) : null}
                     <SubmitListingReviewButton listingId={listing.id} />
                     {/*
                       Only on a live listing. It is the only status this can act
