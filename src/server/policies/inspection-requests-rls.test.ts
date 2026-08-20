@@ -74,6 +74,7 @@ suite("RLS: inspection_requests", () => {
         description: "RLS inspection fixture.",
         price_naira: 250000,
         property_type: "self_contain",
+        rental_duration: "yearly",
         slug: `rls-insp-${Date.now()}`,
         // draft, not approved: BR-MEDIA-006 now requires an approved
         // listing to have a cover image, and nothing here depends on

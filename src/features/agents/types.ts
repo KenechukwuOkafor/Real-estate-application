@@ -50,7 +50,16 @@ export type AgentDraftListingInput = {
   longitude?: number | null;
   priceNaira: number;
   propertyType: Database["public"]["Enums"]["property_type"];
+  rentalDuration: Database["public"]["Enums"]["rental_duration"];
   state?: string;
+  /**
+   * Months, and only for a sublet.
+   *
+   * `null` rather than optional, so "not a sublet" is a value the caller states
+   * rather than a field they forgot. The database enforces the same pairing in
+   * a CHECK, because a form-only rule holds only until the next caller.
+   */
+  subletMonths: number | null;
   title: string;
 };
 

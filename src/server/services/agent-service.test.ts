@@ -71,6 +71,11 @@ const draftInput = {
   description: "A tidy self contain close to campus.",
   priceNaira: 250000,
   propertyType: "self_contain" as const,
+  // Stated rather than defaulted. The type requires it because the column does,
+  // and a fixture that omitted it would be testing a listing the database would
+  // refuse to store.
+  rentalDuration: "yearly" as const,
+  subletMonths: null,
   title: "Self contain near UNN",
 };
 

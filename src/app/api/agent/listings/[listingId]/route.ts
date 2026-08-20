@@ -31,7 +31,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         | "3_bedroom"
         | "shop"
         | "lodge_room";
+      rentalDuration?: "yearly" | "monthly" | "sublet";
       state?: string;
+      subletMonths?: number | null;
       title?: string;
     };
 
@@ -48,7 +50,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       longitude: body.longitude,
       priceNaira: body.priceNaira,
       propertyType: body.propertyType,
+      rentalDuration: body.rentalDuration,
       state: body.state,
+      subletMonths: body.subletMonths,
       title: body.title,
     });
 

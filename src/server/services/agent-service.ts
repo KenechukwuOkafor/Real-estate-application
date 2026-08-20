@@ -424,6 +424,8 @@ export async function updateCurrentAgentDraftListing(
     );
   }
 
+  const rentalDuration = input.rentalDuration ?? existing.rental_duration;
+
   const merged: AgentDraftListingInput = {
     amenities: input.amenities ?? (existing.amenities as string[]),
     area: input.area ?? existing.area,
@@ -435,7 +437,15 @@ export async function updateCurrentAgentDraftListing(
     longitude: input.longitude !== undefined ? input.longitude : existing.longitude,
     priceNaira: input.priceNaira ?? existing.price_naira,
     propertyType: input.propertyType ?? existing.property_type,
+    rentalDuration,
     state: input.state ?? existing.state,
+    // Derived from the merged duration rather than carried forward blindly.
+    // An agent switching a sublet to yearly sends no month count, and keeping
+    // the old one would fail the CHECK on a change they made correctly.
+    subletMonths:
+      rentalDuration === "sublet"
+        ? (input.subletMonths ?? existing.sublet_months)
+        : null,
     title: input.title ?? existing.title,
   };
 

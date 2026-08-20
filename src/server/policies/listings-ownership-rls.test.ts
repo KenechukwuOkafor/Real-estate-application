@@ -70,6 +70,7 @@ suite("RLS: listing and profile ownership", () => {
         description: "Agent A private draft.",
         price_naira: 250000,
         property_type: "self_contain",
+        rental_duration: "yearly",
         slug: `rls-own-${Date.now()}`,
         status: "draft",
         title: "Agent A draft",
@@ -182,6 +183,92 @@ suite("RLS: listing and profile ownership", () => {
       await svc.from("listings").update({ title: "Agent A draft" }).eq("id", draftId);
     });
 
+    /**
+     * Duration is content, not governance.
+     *
+     * ADR-010-A1 requires the grant to be decided rather than inherited, so
+     * these two assert the decision in both directions. rental_duration
+     * describes the offer in the same way price_naira and property_type do, and
+     * an agent who mislabels a monthly flat as yearly must be able to correct it
+     * without an administrator. Nothing about a duration grants entitlement,
+     * moves moderation state, or touches verification — there is no escalation
+     * here for the grant to prevent, which is precisely why it is granted while
+     * status is not.
+     */
+    it("the owner can set the duration on their own listing", async () => {
+      await asUser(await mintFreshToken(agentA))
+        .from("listings")
+        .update({ rental_duration: "monthly" })
+        .eq("id", draftId);
+
+      const { data: control } = await svc
+        .from("listings")
+        .select("rental_duration")
+        .eq("id", draftId)
+        .single();
+      expect(control?.rental_duration).toBe("monthly");
+
+      await svc
+        .from("listings")
+        .update({ rental_duration: "yearly" })
+        .eq("id", draftId);
+    });
+
+    it("the owner can turn their own listing into a sublet", async () => {
+      await asUser(await mintFreshToken(agentA))
+        .from("listings")
+        .update({ rental_duration: "sublet", sublet_months: 4 })
+        .eq("id", draftId);
+
+      const { data: control } = await svc
+        .from("listings")
+        .select("rental_duration, sublet_months")
+        .eq("id", draftId)
+        .single();
+      expect(control?.rental_duration).toBe("sublet");
+      expect(control?.sublet_months).toBe(4);
+
+      await svc
+        .from("listings")
+        .update({ rental_duration: "yearly", sublet_months: null })
+        .eq("id", draftId);
+    });
+
+    it("another agent cannot set the duration on a listing they do not own", async () => {
+      await asUser(await mintFreshToken(agentB))
+        .from("listings")
+        .update({ rental_duration: "sublet", sublet_months: 12 })
+        .eq("id", draftId);
+
+      const { data: control } = await svc
+        .from("listings")
+        .select("rental_duration, sublet_months")
+        .eq("id", draftId)
+        .single();
+      expect(control?.rental_duration).toBe("yearly");
+      expect(control?.sublet_months).toBeNull();
+    });
+
+    /**
+     * The CHECK is not bypassable by an owner with a legitimate grant. The row
+     * predicate matches and both columns are granted, so the constraint is the
+     * only thing standing between this update and a sublet with no length.
+     */
+    it("the owner cannot leave their own sublet without a month count", async () => {
+      await asUser(await mintFreshToken(agentA))
+        .from("listings")
+        .update({ rental_duration: "sublet" })
+        .eq("id", draftId);
+
+      const { data: control } = await svc
+        .from("listings")
+        .select("rental_duration, sublet_months")
+        .eq("id", draftId)
+        .single();
+      expect(control?.rental_duration).toBe("yearly");
+      expect(control?.sublet_months).toBeNull();
+    });
+
     it("an agent cannot insert a listing that is already approved", async () => {
       const { error } = await asUser(await mintFreshToken(agentA))
         .from("listings")
@@ -193,6 +280,7 @@ suite("RLS: listing and profile ownership", () => {
           description: "Attempting to publish without moderation.",
           price_naira: 100000,
           property_type: "self_contain",
+          rental_duration: "yearly",
           slug: `rls-sneak-${Date.now()}`,
           status: "approved",
           title: "Sneaky approved listing",
@@ -212,6 +300,7 @@ suite("RLS: listing and profile ownership", () => {
           description: "Filed against someone else's profile.",
           price_naira: 100000,
           property_type: "self_contain",
+          rental_duration: "yearly",
           slug: `rls-forge-${Date.now()}`,
           status: "draft",
           title: "Forged listing",

@@ -10,6 +10,19 @@ export const listingPropertyTypeOptions = [
   { label: "Lodge room", value: "lodge_room" },
 ] as const;
 
+/**
+ * The three durations, in the order an agent is most likely to want them.
+ *
+ * The empty value is the "no filter" entry, matching the property-type list.
+ * The draft form filters it out, since a listing must state a duration.
+ */
+export const listingRentalDurationOptions = [
+  { label: "Any duration", value: "" },
+  { label: "Yearly", value: "yearly" },
+  { label: "Monthly", value: "monthly" },
+  { label: "Sublet", value: "sublet" },
+] as const;
+
 export const listingBedroomOptions = [
   { label: "Any", value: "" },
   { label: "1", value: "1" },
@@ -26,6 +39,13 @@ export const listingSortOptions: Array<{ label: string; value: ListingSort }> = 
 export function getListingPropertyTypeLabel(value: string | undefined) {
   return (
     listingPropertyTypeOptions.find((option) => option.value === value)?.label ??
+    value
+  );
+}
+
+export function getListingRentalDurationLabel(value: string | undefined) {
+  return (
+    listingRentalDurationOptions.find((option) => option.value === value)?.label ??
     value
   );
 }
