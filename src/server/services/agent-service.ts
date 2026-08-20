@@ -37,6 +37,7 @@ import {
   listAgentListings,
   markAgentVerificationPending,
   registerListingImages,
+  archiveOwnListing,
   removeListingImage,
   updateAgentFreeListingQuota,
   updateDraftListing,
@@ -810,6 +811,62 @@ export async function removeCurrentAgentListingImage(
     newCoverImageId: result.new_cover_image_id,
     removedImageId: result.removed_image_id,
   };
+}
+
+/**
+ * Withdraw a live listing.
+ *
+ * The answer to an agent holding an approved listing they can no longer edit.
+ * Pre-validated here so the agent gets a 404 or a 409 that names what happened;
+ * re-validated inside the function, which is the authority because it holds for
+ * any caller.
+ *
+ * NO QUOTA REFUND. The slot was spent at submission and bought moderator
+ * attention that has already been given. Relisting is a new listing and a
+ * second piece of real review work. See migration 0022.
+ */
+export async function archiveCurrentAgentListing(listingId: string) {
+  const context = await getCurrentAgentContext();
+
+  if (!context.agentProfile) {
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listings.",
+    );
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getOwnedListing(client, context.agentProfile.id, listingId);
+
+  if (!listing) {
+    throw new AppError("NOT_FOUND", "Listing not found.");
+  }
+
+  if (listing.status !== "approved") {
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      "Only a live listing can be taken down.",
+    );
+  }
+
+  const result = await archiveOwnListing(client, listingId);
+
+  await writeAuditLog({
+    action: "listing.archived_by_agent",
+    actorUserId: context.user.id,
+    afterData: {
+      archived_at: result.archived_at,
+      // Recorded because this is irreversible and the slot is not returned:
+      // if the decision is ever revisited, this is the evidence of what the
+      // agent gave up and when.
+      previous_status: listing.status,
+      status: "archived",
+    },
+    entityId: listingId,
+    entityType: "listing",
+  });
+
+  return { archivedAt: result.archived_at, listingId: result.listing_id };
 }
 
 export async function submitCurrentAgentListingForReview(listingId: string) {

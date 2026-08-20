@@ -534,6 +534,69 @@ more than two that overlap.
 
 ---
 
+# Correctness Does Not Compose
+
+> Every component was correct. Every pair was broken. None of it was found by
+> reviewing either half.
+
+Test Fixture Fidelity above is about a stand-in that cannot fail the way the
+real thing fails. This is its neighbour: two real things, each correct on its
+own, whose *interaction* is wrong. Reviewing either one finds nothing, because
+there is nothing wrong with either one.
+
+## The rule
+
+**A correctness argument about a component is not a correctness argument about
+the system.** When two mechanisms meet — a constraint and a write pattern, a
+grant and a policy, a migration and existing data — the meeting point is a thing
+that has to be exercised, not a thing that can be reasoned about from the parts.
+
+## Evidence
+
+Four instances in this codebase. In every one, both components were correct in
+isolation, and in every one the defect was found by *running the combination*
+rather than by reading either half:
+
+| The pair | Each half, correct | The interaction, broken |
+|---|---|---|
+| **`.upsert()` + column grants** | The grant was correctly column-scoped. The upsert was ordinary. | `.upsert()` demands UPDATE on `user_id` at plan time even when inserting, so correctly-scoped grants blocked every agent's first action |
+| **Migration + populated table** | The backfill was correct. `SET NOT NULL` was correct. | Together in one transaction they fail with `pending trigger events` — but only when rows exist, and CI replays into an empty database |
+| **Seed data + real code path** | The seed was valid. The entitlement check was correct. | A seeded quota of 20 meant the check was never exercised at its boundary, so a deadlock shipped unseen |
+| **Soft delete + unique constraint** | Soft delete was correct. `unique (listing_id, position)` was correct. | A removed image keeps its position forever, so uploading a replacement into the freed slot fails — the obvious next action after a removal |
+
+## The test that finds these is the boring one
+
+Not one of these was found by a clever edge case. Each was found by the most
+ordinary sequence a user would perform:
+
+- Create your profile. *(upsert + grants)*
+- Deploy the migration to a database that has data in it. *(migration + rows)*
+- Submit a listing when your quota is what a real agent is issued. *(seed + path)*
+- Remove the wrong photo, then add the right one. *(soft delete + constraint)*
+
+That last one is the sharpest. The removal feature was tested thoroughly —
+eleven assertions covering ownership, status, cover promotion, and idempotency —
+and every one passed. The defect was in what an agent does *next*, which no test
+covering removal would ever reach.
+
+**Write the test that continues past the feature you built.** The bug is
+usually one step after the last assertion.
+
+## Applying it
+
+- When you add a constraint, ask what existing write pattern now meets it.
+- When you add a soft delete, audit every unique constraint on that table. A
+  deleted row still occupies its uniqueness slot unless the index says
+  `where deleted_at is null`.
+- When you add a grant, ask which policies now let that column be written, and
+  to which rows. Ownership answers *whose*; status answers *still yours to
+  change*.
+- When you write a migration that touches existing rows, run it against rows.
+- Prefer a test that performs two operations in sequence over two tests that
+  each perform one. The sequence is where these live.
+
+---
+
 # Common Quality Issues
 
 Avoid:
@@ -548,6 +611,8 @@ Avoid:
 - Hidden business rules
 - Fixtures representing states production never occupies (see Test Fixture Fidelity)
 - Migrations verified only by a replay from zero, when they operate on existing rows (see Test Fixture Fidelity)
+- Reasoning about two mechanisms separately instead of exercising them together (see Correctness Does Not Compose)
+- A unique constraint on a soft-deletable table that does not exclude deleted rows
 
 ---
 

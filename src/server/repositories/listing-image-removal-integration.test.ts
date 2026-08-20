@@ -32,7 +32,7 @@ suite("remove_listing_image", () => {
   let owner: CastMember;
   let stranger: CastMember;
   let ownerProfileId = "";
-  let strangerProfileId = "";
+  let createdProfileIds: string[] = [];
   let listingId = "";
 
   beforeAll(async () => {
@@ -41,18 +41,25 @@ suite("remove_listing_image", () => {
     owner = cast.owningAgent;
     stranger = cast.otherAgent;
 
-    ownerProfileId = await seedProfile(owner.userId, "Removal Owner");
-    strangerProfileId = await seedProfile(stranger.userId, "Removal Stranger");
+    const ownerProfile = await ensureProfile(owner.userId, "Removal Owner");
+    const strangerProfile = await ensureProfile(stranger.userId, "Removal Stranger");
+    ownerProfileId = ownerProfile.id;
+    // The stranger's profile is created for its effect, not its id: an agent
+    // with no profile is refused earlier and for a different reason, which
+    // would make "another agent cannot do this" pass for the wrong reason.
+    createdProfileIds = [ownerProfile, strangerProfile]
+      .filter((profile) => profile.created)
+      .map((profile) => profile.id);
   });
 
   afterAll(async () => {
     await destroyFixtureListing();
 
-    for (const id of [ownerProfileId, strangerProfileId]) {
-      if (id) {
-        const { error } = await svc.from("agent_profiles").delete().eq("id", id);
-        if (error) throw error;
-      }
+    // Only what this suite created. A borrowed profile belongs to whoever
+    // made it and must survive this teardown.
+    for (const id of createdProfileIds) {
+      const { error } = await svc.from("agent_profiles").delete().eq("id", id);
+      if (error) throw error;
     }
   });
 
@@ -102,14 +109,40 @@ suite("remove_listing_image", () => {
     if (listing.error) throw listing.error;
   }
 
-  async function seedProfile(userId: string, name: string) {
+  /**
+   * Reuse an existing profile for this cast user rather than colliding with it.
+   *
+   * agent_profiles.user_id is UNIQUE and eight suites seed a profile for the
+   * same two cast members. Inserting unconditionally makes every suite depend on
+   * every earlier suite having cleaned up perfectly: one failure leaves a row
+   * behind, the next suite's beforeAll throws on the unique violation, its
+   * tests report as skipped rather than failed, and its own teardown never
+   * runs. That cascade is what turned one broken teardown into two unrelated
+   * failing suites.
+   *
+   * Only profiles this suite actually created are deleted, so borrowing one
+   * cannot delete it out from under whoever owns it.
+   */
+  async function ensureProfile(userId: string, name: string) {
+    const existing = await svc
+      .from("agent_profiles")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (existing.error) throw existing.error;
+
+    if (existing.data) {
+      return { created: false, id: existing.data.id };
+    }
+
     const { data, error } = await svc
       .from("agent_profiles")
       .insert({ display_name: name, user_id: userId })
       .select("id")
       .single();
     if (error) throw error;
-    return data.id;
+
+    return { created: true, id: data.id };
   }
 
   /**
@@ -150,7 +183,7 @@ suite("remove_listing_image", () => {
           mime_type: "image/webp",
           position,
           size_bytes: 1000 + position,
-          storage_path: `listings/${listingId}/image-${position}.webp`,
+          storage_path: `listings/${listingId}/${crypto.randomUUID()}.webp`,
         })
         .select("id")
         .single();
@@ -218,7 +251,11 @@ suite("remove_listing_image", () => {
 
       const removed = await readImage(second);
       expect(removed).not.toBeNull();
-      expect(removed?.storage_path).toContain("image-1.webp");
+      // The path is what a cleanup job will one day need in order to reclaim
+      // the object, so it has to survive the removal intact.
+      expect(removed?.storage_path).toMatch(
+        /^listings\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.webp$/,
+      );
     });
 
     it("promotes the lowest-position survivor when the cover is removed", async () => {
@@ -289,7 +326,7 @@ suite("remove_listing_image", () => {
       mime_type: "image/webp",
       position: 0,
       size_bytes: 500,
-      storage_path: `listings/${listingId}/replacement.webp`,
+      storage_path: `listings/${listingId}/${crypto.randomUUID()}.webp`,
     });
 
     expect(error).toBeNull();
