@@ -12,6 +12,7 @@ import {
   validateAgentProfileInput,
   validateAgentListingImagesInput,
   validateDraftListingInput,
+  validateListingRevisionInput,
   validateVerificationSubmissionInput,
 } from "@/features/agents/validation";
 import { isListingEditable } from "@/features/listings/editability";
@@ -39,7 +40,9 @@ import {
   markAgentVerificationPending,
   registerListingImages,
   archiveOwnListing,
+  getPendingListingRevision,
   removeListingImage,
+  submitListingRevision,
   updateAgentFreeListingQuota,
   updateDraftListing,
   updateListingCoverImage,
@@ -842,6 +845,110 @@ export async function removeCurrentAgentListingImage(
  * attention that has already been given. Relisting is a new listing and a
  * second piece of real review work. See migration 0022.
  */
+/**
+ * The editable set, post-approval.
+ *
+ * Terms and description, never identity. See migration 0023 for the reasoning:
+ * property type, room counts, area and slug are what a seeker searched and
+ * shared on, and changing them makes the result that led them here
+ * retrospectively false — which re-review cannot fix, because the seeker is not
+ * the one reviewing.
+ */
+export type ListingRevisionInput = {
+  amenities: string[];
+  description: string;
+  priceNaira: number;
+  rentalDuration: "yearly" | "monthly" | "sublet";
+  subletMonths: number | null;
+  title: string;
+};
+
+/**
+ * Propose a change to a live listing.
+ *
+ * The listing stays live and stays in search with the values a moderator
+ * already approved. This queues the change; nothing a seeker sees moves until a
+ * moderator applies it.
+ *
+ * DOES NOT CONSUME A SLOT. Entitlement gates new inventory entering the queue,
+ * and a revision is not new inventory — it is a listing already paid for being
+ * corrected. Charging again would make an agent leave a wrong price live, and
+ * that cost lands on seekers. The queue is bounded instead by one pending
+ * revision per listing.
+ */
+export async function submitCurrentAgentListingRevision(
+  listingId: string,
+  input: ListingRevisionInput,
+) {
+  const context = await getCurrentAgentContext();
+
+  if (!context.agentProfile) {
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listings.",
+    );
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getOwnedListing(client, context.agentProfile.id, listingId);
+
+  if (!listing) {
+    throw new AppError("NOT_FOUND", "Listing not found.");
+  }
+
+  if (listing.status !== "approved") {
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      `A live listing is required to propose a change; this one is ${listing.status}.`,
+      undefined,
+      stateTransitionDetails("edit", listing.status),
+    );
+  }
+
+  // The same rules the draft path applies, so a revision cannot hold a shape
+  // the listing would refuse — the failure belongs to the agent proposing it,
+  // not to the moderator approving it.
+  validateListingRevisionInput(input);
+
+  const result = await submitListingRevision(client, {
+    amenities: input.amenities,
+    description: input.description,
+    listingId,
+    priceNaira: input.priceNaira,
+    rentalDuration: input.rentalDuration,
+    subletMonths: input.subletMonths,
+    title: input.title,
+  });
+
+  await writeAuditLog({
+    action: "listing.revision_submitted",
+    actorUserId: context.user.id,
+    afterData: {
+      listing_id: listingId,
+      price_naira: input.priceNaira,
+      revision_id: result.revision_id,
+      title: input.title,
+    },
+    entityId: listingId,
+    entityType: "listing",
+  });
+
+  return { revisionId: result.revision_id, submittedAt: result.submitted_at };
+}
+
+/** The change awaiting review on a listing the caller owns, if any. */
+export async function getCurrentAgentPendingRevision(listingId: string) {
+  const context = await getCurrentAgentContext();
+
+  if (!context.agentProfile) {
+    return null;
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+
+  return getPendingListingRevision(client, listingId);
+}
+
 export async function archiveCurrentAgentListing(listingId: string) {
   const context = await getCurrentAgentContext();
 

@@ -7,7 +7,12 @@ import {
 } from "@/features/admin/components/listing-moderation-actions";
 import { formatListingStatus, formatPriceNaira } from "@/features/listings/format";
 import { formatRentalDuration } from "@/features/listings/rental-duration";
-import { listAdminModerationQueue } from "@/server/services/admin-service";
+import { ListingRevisionActions } from "@/features/admin/components/listing-revision-actions";
+import { listingRevisionDiff } from "@/features/admin/listing-revision-diff";
+import {
+  listAdminListingRevisionQueue,
+  listAdminModerationQueue,
+} from "@/server/services/admin-service";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { signListingImagePaths } from "@/server/services/listing-media-service";
 
@@ -42,6 +47,11 @@ export default async function AdminListingsPage() {
   // exactly the ones the public storage policy withholds. Signed with the
   // service-role client because that is what admin-service already uses for
   // the queue itself; the admin storage policy would permit it either way.
+  // A separate queue, deliberately. Reviewing a change is a different task from
+  // reviewing a listing, and mixing them would make a moderator re-read
+  // listings they already approved to find the line that moved.
+  const pendingRevisions = await listAdminListingRevisionQueue().catch(() => []);
+
   const signedImages = await signListingImagePaths(
     getSupabaseAdminClient(),
     listings.flatMap((listing) =>
@@ -78,6 +88,84 @@ export default async function AdminListingsPage() {
           <div className="rounded-[1.75rem] border border-dashed border-stone-900/15 bg-white/75 p-8 text-stone-600">
             No listings currently require moderation.
           </div>
+        ) : null}
+
+        {pendingRevisions.length > 0 ? (
+          <section className="rounded-[1.75rem] border border-amber-300 bg-amber-50/60 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-900">
+              Changes awaiting review
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold">
+              {pendingRevisions.length} proposed change
+              {pendingRevisions.length === 1 ? "" : "s"}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-amber-900">
+              These listings are live and showing their current details. Only
+              what changed is listed below.
+            </p>
+
+            <div className="mt-5 grid gap-4">
+              {pendingRevisions.map((revision) => {
+                const current = revision.listings;
+                const changes = listingRevisionDiff(
+                  {
+                    amenities: (current?.amenities as string[]) ?? [],
+                    description: current?.description ?? "",
+                    priceNaira: current?.price_naira ?? 0,
+                    rentalDuration: current?.rental_duration ?? "yearly",
+                    subletMonths: current?.sublet_months ?? null,
+                    title: current?.title ?? "",
+                  },
+                  {
+                    amenities: (revision.amenities as string[]) ?? [],
+                    description: revision.description,
+                    priceNaira: revision.price_naira,
+                    rentalDuration: revision.rental_duration,
+                    subletMonths: revision.sublet_months,
+                    title: revision.title,
+                  },
+                );
+
+                return (
+                  <article
+                    key={revision.id}
+                    className="rounded-2xl border border-stone-900/10 bg-white p-5"
+                  >
+                    <p className="text-sm text-stone-600">
+                      {current?.agent_profiles?.display_name ?? "Unknown agent"}
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold">{current?.title}</h3>
+
+                    {changes.length === 0 ? (
+                      <p className="mt-3 text-sm text-stone-600">
+                        Nothing differs from the live listing.
+                      </p>
+                    ) : (
+                      <dl className="mt-4 grid gap-3">
+                        {changes.map((change) => (
+                          <div key={change.label} className="text-sm">
+                            <dt className="font-medium text-stone-900">
+                              {change.label}
+                            </dt>
+                            <dd className="mt-1 flex flex-col gap-1 sm:flex-row sm:gap-3">
+                              <span className="text-stone-500 line-through">
+                                {change.before}
+                              </span>
+                              <span className="text-emerald-800">{change.after}</span>
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+
+                    <div className="mt-5">
+                      <ListingRevisionActions revisionId={revision.id} />
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
 
         {moderationSections.map((section) => {

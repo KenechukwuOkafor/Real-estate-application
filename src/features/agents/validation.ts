@@ -200,6 +200,37 @@ function collectRentalDurationIssues(
   }
 }
 
+/**
+ * A proposed change to a live listing.
+ *
+ * The same rules as a draft, minus the fields a revision may not touch. Written
+ * as its own function rather than reusing the draft validator with a partial
+ * input, because "which fields may change after approval" is a product decision
+ * and it should be readable as a list rather than inferred from what happens to
+ * be optional.
+ */
+export function validateListingRevisionInput(input: {
+  amenities: string[];
+  description: string;
+  priceNaira: number;
+  rentalDuration: string;
+  subletMonths: number | null;
+  title: string;
+}) {
+  const issues = new IssueCollector();
+
+  issues.requireText("title", input.title);
+  issues.requireText("description", input.description);
+
+  if (input.priceNaira <= 0) {
+    issues.add("priceNaira", "must_be_positive");
+  }
+
+  collectRentalDurationIssues(input, issues);
+
+  issues.throwIfAny("The proposed change is incomplete.");
+}
+
 export function validateAgentListingImagesInput(input: AgentListingImageInput) {
   if (input.images.length === 0) {
     throw validationError("At least one image is required.");

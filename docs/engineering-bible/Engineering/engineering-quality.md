@@ -534,6 +534,58 @@ more than two that overlap.
 
 ---
 
+# A Test Can Encode the Defect It Exists to Catch
+
+> The suite that protects against a coupling can be built on it.
+
+## The instance
+
+Error copy was keyed on message text: fourteen components rendered
+`payload.error.message` verbatim, so the API's internal vocabulary was the
+user's copy. Removing that coupling meant messages stopped being a contract.
+
+The tests then failed — and the reason is the point. They asserted things like:
+
+```ts
+expect(() => validate(input)).toThrow(/how many months/i);
+expect(archive()).rejects.toThrow("AGENT_NOT_VERIFIED");
+```
+
+**Those assertions were the coupling.** A suite written to protect the
+behaviour had encoded the exact defect the behaviour needed removing. Every one
+of them had to change, and each was a small argument for leaving the prose
+alone — which is how a defect defends itself.
+
+It is the same shape as a fixture that misrepresents reality: green, confident,
+and wrong about the thing it claims to check. A fixture lies about the world; an
+assertion on prose lies about what the contract *is*.
+
+## The rule
+
+**Assert on the contract, not on its presentation.** A code, a status, a
+structured field, an identifier — anything the system promises. Human-readable
+strings are not promises: they are meant to change as the writing improves, and
+a test that freezes one converts an improvement into a failure.
+
+## Where it hides
+
+- `toThrow("SOME_MESSAGE")` and `toThrow(/some prose/)` — assert on `code`.
+- Comparing a message to decide control flow, in tests or in components.
+- Snapshot tests over user-facing text, which pin every word by default.
+- Asserting an exact sentence of copy. Assert its *shape* instead: that it
+  contains no internal vocabulary, that it names an action, that three states
+  produce three different sentences. Those survive rewording; the sentence does
+  not.
+
+## The tell
+
+If improving a message breaks a test, the test was asserting the wrong thing —
+**even when the test is green today**. The question to ask of an assertion is
+not "does this pass" but "what would have to change for this to fail, and is
+that change a defect or an improvement?"
+
+---
+
 # Correctness Does Not Compose
 
 > Every component was correct. Every pair was broken. None of it was found by
@@ -612,6 +664,7 @@ Avoid:
 - Fixtures representing states production never occupies (see Test Fixture Fidelity)
 - Migrations verified only by a replay from zero, when they operate on existing rows (see Test Fixture Fidelity)
 - Reasoning about two mechanisms separately instead of exercising them together (see Correctness Does Not Compose)
+- Asserting on human-readable strings instead of on the contract (see A Test Can Encode the Defect It Exists to Catch)
 - A unique constraint on a soft-deletable table that does not exclude deleted rows
 
 ---

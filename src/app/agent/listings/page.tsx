@@ -159,6 +159,19 @@ export default async function AgentListingsPage() {
                       and the guard read the same predicate, so this cannot
                       advertise an edit the server refuses.
                     */}
+                    {/*
+                      A live listing gets the same link, to a different action:
+                      changes are proposed rather than applied. Offering it here
+                      is what makes edit-with-re-review discoverable at all.
+                    */}
+                    {listing.status === "approved" ? (
+                      <Link
+                        className="rounded-full border border-stone-900/15 bg-white px-5 py-3 text-center text-sm font-medium text-stone-900 transition-colors hover:bg-stone-50"
+                        href={`/agent/listings/${listing.id}/edit`}
+                      >
+                        Change details
+                      </Link>
+                    ) : null}
                     {isListingEditable(listing.status) ? (
                       <Link
                         className="rounded-full border border-stone-900/15 bg-white px-5 py-3 text-center text-sm font-medium text-stone-900 transition-colors hover:bg-stone-50"

@@ -67,6 +67,12 @@ export const ERROR_COPY: Readonly<Record<string, string>> = {
     "We could not find that listing. It may have been taken down.",
   LISTING_IMAGE_NOT_FOUND:
     "That photo is no longer on this listing. Reload the page to see the current ones.",
+  LISTING_REVISION_ALREADY_PENDING:
+    "You already have a change waiting for review on this listing. It needs to be reviewed before you can make another.",
+  LISTING_REVISION_ALREADY_REVIEWED:
+    "This change has already been reviewed. Reload the page to see where it landed.",
+  LISTING_REVISION_NOT_FOUND:
+    "We could not find that change. It may have already been reviewed.",
   LISTING_STATE_CONFLICT:
     "This listing was updated somewhere else a moment ago. Reload the page and try again.",
   MEDIA_MIME_TYPE_UNSUPPORTED:
