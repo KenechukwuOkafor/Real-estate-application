@@ -310,6 +310,137 @@ suite("RLS: listing and profile ownership", () => {
     });
   });
 
+  /**
+   * An approved or flagged listing is not a workspace object.
+   *
+   * Established by attempt before this was closed: EVERY column granted to
+   * `authenticated` was mutable on an approved listing and on a flagged one —
+   * price, title, slug, cover, all sixteen, with none refused. The service
+   * layer said no; the database said yes, and the database is the boundary
+   * because the anon key ships in the browser and the agent's token sits beside
+   * it.
+   *
+   * These assert on stored values after the attempt, never on error objects: a
+   * policy denial and a silently ignored write look identical to the caller,
+   * and only the stored row tells them apart.
+   */
+  describe("post-approval mutation", () => {
+    async function withStatus(status: "approved" | "flagged" | "under_dispute") {
+      // The cover invariant applies to approved listings, so give it one.
+      await svc.from("listings").update({ cover_image_id: imageId }).eq("id", draftId);
+      await svc.from("listings").update({ status }).eq("id", draftId);
+    }
+
+    async function restore() {
+      await svc.from("listings").update({ status: "draft" }).eq("id", draftId);
+      await svc.from("listings").update({ cover_image_id: null }).eq("id", draftId);
+      await svc
+        .from("listings")
+        .update({ price_naira: 250000, title: "Agent A draft" })
+        .eq("id", draftId);
+    }
+
+    it("an agent cannot change the price of their own APPROVED listing", async () => {
+      await withStatus("approved");
+
+      await asUser(await mintFreshToken(agentA))
+        .from("listings")
+        .update({ price_naira: 999999 })
+        .eq("id", draftId);
+
+      const { data } = await svc
+        .from("listings")
+        .select("price_naira")
+        .eq("id", draftId)
+        .single();
+      expect(data?.price_naira).toBe(250000);
+
+      await restore();
+    });
+
+    // The bait-and-switch this product exists to prevent, in one assertion.
+    it("an agent cannot rewrite the title of their own APPROVED listing", async () => {
+      await withStatus("approved");
+
+      await asUser(await mintFreshToken(agentA))
+        .from("listings")
+        .update({ title: "Something a moderator never saw" })
+        .eq("id", draftId);
+
+      const { data } = await svc
+        .from("listings")
+        .select("title")
+        .eq("id", draftId)
+        .single();
+      expect(data?.title).toBe("Agent A draft");
+
+      await restore();
+    });
+
+    /**
+     * Flagging exists to freeze something under investigation. An agent
+     * rewriting the description or reordering the photographs while a moderator
+     * looks at them is the evidence changing underneath the review.
+     */
+    it("an agent cannot edit their own FLAGGED listing", async () => {
+      await withStatus("flagged");
+
+      await asUser(await mintFreshToken(agentA))
+        .from("listings")
+        .update({ description: "Evidence rewritten." })
+        .eq("id", draftId);
+
+      const { data } = await svc
+        .from("listings")
+        .select("description")
+        .eq("id", draftId)
+        .single();
+      expect(data?.description).toBe("Agent A private draft.");
+
+      await restore();
+    });
+
+    it("an agent cannot reorder the images of an APPROVED listing", async () => {
+      await withStatus("approved");
+
+      await asUser(await mintFreshToken(agentA))
+        .from("listing_images")
+        .update({ position: 7 })
+        .eq("id", imageId);
+
+      const { data } = await svc
+        .from("listing_images")
+        .select("position")
+        .eq("id", imageId)
+        .single();
+      expect(data?.position).toBe(0);
+
+      await restore();
+    });
+
+    /**
+     * The control, and it is the half that proves this is a fix rather than a
+     * lockout. If a draft were refused too, an agent would have no workspace.
+     */
+    it("the same edit still succeeds on a draft", async () => {
+      await restore();
+
+      await asUser(await mintFreshToken(agentA))
+        .from("listings")
+        .update({ price_naira: 275000 })
+        .eq("id", draftId);
+
+      const { data } = await svc
+        .from("listings")
+        .select("price_naira")
+        .eq("id", draftId)
+        .single();
+      expect(data?.price_naira).toBe(275000);
+
+      await restore();
+    });
+  });
+
   describe("listing_images", () => {
     it("another agent cannot read images of a draft they do not own", async () => {
       const { data } = await asUser(await mintFreshToken(agentB))

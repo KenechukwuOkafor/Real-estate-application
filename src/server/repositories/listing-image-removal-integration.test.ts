@@ -267,6 +267,44 @@ suite("remove_listing_image", () => {
     });
   });
 
+  /**
+   * Remove the cover, then upload a replacement. The sequence that the
+   * one-cover-per-listing index from 0021 made dangerous.
+   *
+   * Promotion moves the cover to the surviving image at position 1. Image
+   * registration used to insert a position-0 image with is_cover already true,
+   * which then collided with the promoted cover and failed the whole upload
+   * with a duplicate key error — a regression introduced by the index, not by
+   * the removal. Insertion no longer sets the flag at all; the cover is set in
+   * one place that maintains the pointer and the flag together.
+   */
+  it("allows a replacement upload after the cover was removed", async () => {
+    const [cover] = await seedListingWithImages("draft");
+
+    await removeAs(owner, cover);
+
+    const { error } = await svc.from("listing_images").insert({
+      is_cover: false,
+      listing_id: listingId,
+      mime_type: "image/webp",
+      position: 0,
+      size_bytes: 500,
+      storage_path: `listings/${listingId}/replacement.webp`,
+    });
+
+    expect(error).toBeNull();
+
+    const { data } = await svc
+      .from("listing_images")
+      .select("id")
+      .eq("listing_id", listingId)
+      .eq("is_cover", true)
+      .is("deleted_at", null);
+
+    // Exactly one, still. Not zero, and not two.
+    expect(data).toHaveLength(1);
+  });
+
   it("works the same on a rejected listing, which is when it is most needed", async () => {
     const [cover, second] = await seedListingWithImages("rejected");
 
