@@ -40,9 +40,15 @@ on:
 
 # One run per branch. A newer push cancels the still-running older one, so a
 # rapid series of commits does not queue up several full Postgres replays.
+#
+# Except on main. Cancelling there would leave a cancelled result as the last
+# word on a commit that is already merged, and nothing downstream would ever
+# re-run it — so two merges landing close together could leave main with no
+# green run and no failure either. On a branch a cancelled run is always
+# superseded by the newer push; on main it is simply lost.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 jobs:
   verify:
