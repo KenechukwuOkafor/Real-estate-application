@@ -79,6 +79,10 @@ export type Database = {
         };
         Returns: Array<{ chat_id: string; inspection_request_id: string }>;
       };
+      archive_own_listing: {
+        Args: { target_listing_id: string };
+        Returns: Array<{ archived_at: string; listing_id: string }>;
+      };
       remove_listing_image: {
         Args: { target_image_id: string };
         Returns: Array<{

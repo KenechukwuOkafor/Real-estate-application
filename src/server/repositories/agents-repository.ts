@@ -359,6 +359,25 @@ export async function removeListingImage(client: DbClient, imageId: string) {
   return data as { new_cover_image_id: string | null; removed_image_id: string };
 }
 
+/**
+ * Agent-initiated withdrawal, via the RPC.
+ *
+ * listings.status is not granted to agents — the privilege that writes
+ * 'archived' is the privilege that writes 'approved' — so this goes through
+ * public.archive_own_listing rather than an UPDATE. See migration 0022.
+ */
+export async function archiveOwnListing(client: DbClient, listingId: string) {
+  const { data, error } = await client
+    .rpc("archive_own_listing", { target_listing_id: listingId })
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as { archived_at: string; listing_id: string };
+}
+
 export async function listAgentListings(client: DbClient, agentProfileId: string) {
   const { data, error } = await client
     .from("listings")

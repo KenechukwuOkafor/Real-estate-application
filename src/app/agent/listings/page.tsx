@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ArchiveListingButton } from "@/features/agents/components/archive-listing-button";
 import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
 import { SubmitListingReviewButton } from "@/features/agents/components/submit-listing-review-button";
 import { isListingEditable } from "@/features/listings/editability";
@@ -110,6 +111,19 @@ export default async function AgentListingsPage() {
                       this is here so an agent scanning the list can see which
                       listing needs attention and why.
                     */}
+                    {/*
+                      An archived listing is over. Saying so on the row stops an
+                      agent waiting for it to come back, and stops them looking
+                      for the action that would bring it back.
+                    */}
+                    {listing.status === "archived" ? (
+                      <p className="mt-3 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-6 text-stone-700">
+                        Taken down. This listing is no longer visible to seekers
+                        and cannot be restored — list the property again to bring
+                        it back.
+                      </p>
+                    ) : null}
+
                     {listing.status === "rejected" && listing.rejection_reason ? (
                       <p className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-900">
                         Rejected: {listing.rejection_reason}
@@ -141,6 +155,17 @@ export default async function AgentListingsPage() {
                     ) : null}
                     <ListingImagesForm listingId={listing.id} />
                     <SubmitListingReviewButton listingId={listing.id} />
+                    {/*
+                      Only on a live listing. It is the only status this can act
+                      on, and offering it anywhere else would advertise a
+                      transition the function refuses.
+                    */}
+                    {listing.status === "approved" ? (
+                      <ArchiveListingButton
+                        listingId={listing.id}
+                        listingTitle={listing.title}
+                      />
+                    ) : null}
                   </div>
                 </div>
               </article>
