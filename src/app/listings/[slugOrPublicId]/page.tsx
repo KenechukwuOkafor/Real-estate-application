@@ -34,7 +34,14 @@ export async function generateMetadata({
   }
 
   return {
-    description: `${listing.area}, ${listing.city}. ${formatPriceNaira(listing.priceNaira)} on Ruvo.`,
+    // The duration belongs here as much as on the page. This string is the
+    // link preview a seeker sees before they open anything, and a bare price on
+    // a six-month sublet reads as a year's rent — the same misreading the
+    // hardcoded label produced, in the one place a listing is seen out of
+    // context.
+    description: `${listing.area}, ${listing.city}. ${formatPriceNaira(
+      listing.priceNaira,
+    )} ${formatRentalDuration(listing.rentalDuration, listing.subletMonths)} on Ruvo.`,
     openGraph: {
       images: listing.images[0]?.url ? [listing.images[0].url] : [],
       title: listing.title,
