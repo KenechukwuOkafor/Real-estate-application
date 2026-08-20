@@ -6,6 +6,7 @@ import {
   listingPropertyTypeOptions,
   listingRentalDurationOptions,
 } from "@/features/listings/options";
+import { subletLengthWarning } from "@/features/listings/rental-duration";
 
 export function DraftListingForm() {
   const [title, setTitle] = useState("");
@@ -26,6 +27,16 @@ export function DraftListingForm() {
   const [longitude, setLongitude] = useState("");
   const [amenities, setAmenities] = useState("water, prepaid_meter");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  /**
+   * A warning, never a block.
+   *
+   * There is no database cap on sublet length, deliberately — where a sublet
+   * becomes a tenancy is a product judgement with no evidence behind it. But an
+   * absurd value is almost always a slipped digit, and the agent typing it is
+   * the only person who knows what they meant. Submission stays enabled.
+   */
+  const subletWarning =
+    rentalDuration === "sublet" ? subletLengthWarning(Number(subletMonths)) : null;
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,6 +141,9 @@ export function DraftListingForm() {
             type="number"
             value={subletMonths}
           />
+          {subletWarning ? (
+            <span className="text-sm text-amber-800">{subletWarning}</span>
+          ) : null}
         </label>
       ) : null}
 

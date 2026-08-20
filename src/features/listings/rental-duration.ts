@@ -82,3 +82,41 @@ export function formatListingTypeLine(
 ) {
   return duration === "sublet" ? `${propertyTypeLabel} · Sublet` : propertyTypeLabel;
 }
+
+/**
+ * Where a sublet length stops being plausible.
+ *
+ * There is deliberately no database cap: where a sublet stops being a sublet
+ * and becomes a tenancy is a product judgement with no evidence behind it, and
+ * a CHECK would be a constraint nobody decided. But 500 months is storable and
+ * also obviously a typo, and the agent typing it is the only person in the
+ * system who knows what they meant.
+ *
+ * Two years rather than one. A sublet running longer than a year is unusual but
+ * real — an academic year plus a summer, a posting that runs long — and warning
+ * on those would train agents to dismiss the warning, which is how a warning
+ * stops working. Beyond two years the likely explanations are a slipped digit or
+ * the price typed into the wrong field.
+ */
+export const SUBLET_MONTHS_PLAUSIBLE_MAX = 24;
+
+/**
+ * A warning, never a block.
+ *
+ * Returns null when there is nothing to say. The caller renders the string; it
+ * must not prevent submission, because the platform's job is to display what the
+ * agent set and an unusual sublet is still the agent's to declare.
+ */
+export function subletLengthWarning(months: number | null): string | null {
+  if (months === null || !Number.isFinite(months)) {
+    return null;
+  }
+
+  if (months <= SUBLET_MONTHS_PLAUSIBLE_MAX) {
+    return null;
+  }
+
+  const years = Math.floor(months / 12);
+
+  return `${months} months is about ${years} years. Sublets are usually a few months — check this is what you meant. You can still publish it.`;
+}
