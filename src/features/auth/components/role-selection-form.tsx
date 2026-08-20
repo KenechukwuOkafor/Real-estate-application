@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 const roleOptions = [
   {
@@ -59,7 +60,7 @@ export function RoleSelectionForm() {
         | { error?: { message?: string } }
         | null;
 
-      setError(payload?.error?.message ?? "Unable to save your account roles.");
+      setError(errorCopyForResponse(payload));
       setIsSubmitting(false);
       return;
     }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { useEffectiveAuth } from "@/lib/auth/use-effective-auth";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 type RequestInspectionFormProps = {
   listingId: string;
@@ -57,7 +58,7 @@ export function RequestInspectionForm({
       | null;
 
     if (!response.ok) {
-      setError(payload?.error?.message ?? "Unable to request inspection.");
+      setError(errorCopyForResponse(payload));
       setIsSubmitting(false);
       return;
     }

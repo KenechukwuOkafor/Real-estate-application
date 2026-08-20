@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 export type ModerationListingStatus =
   | "approved"
@@ -44,14 +45,14 @@ export function ListingModerationActions({
     });
 
     const payload = (await response.json().catch(() => null)) as
-      | { error?: { message?: string } }
+      | { error?: { code?: string; message?: string } }
       | null;
 
     if (!response.ok) {
-      setError(
-        payload?.error?.message ??
-          `Unable to ${action === "dispute" ? "move listing under dispute" : action} listing.`,
-      );
+      // Moderators read copy too. An unmapped code here reports itself, which
+      // is how we learn that a moderation path can fail in a way nobody wrote a
+      // sentence for.
+      setError(errorCopyForResponse(payload));
       setIsSubmitting(false);
       return;
     }

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 type ArchiveListingButtonProps = {
   listingId: string;
@@ -44,7 +45,7 @@ export function ArchiveListingButton({
         | { error?: { message?: string } }
         | null;
 
-      setError(payload?.error?.message ?? "Unable to take this listing down.");
+      setError(errorCopyForResponse(payload));
       setIsArchiving(false);
       return;
     }

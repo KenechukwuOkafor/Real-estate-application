@@ -7,6 +7,7 @@ import {
   listingPropertyTypeOptions,
   listingRentalDurationOptions,
 } from "@/features/listings/options";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 import { subletLengthWarning } from "@/features/listings/rental-duration";
 
 /**
@@ -142,16 +143,16 @@ export function ListingForm({ listing }: ListingFormProps) {
     );
 
     const payload = (await response.json().catch(() => null)) as
-      | { error?: { message?: string } }
+      | { error?: { code?: string; message?: string } }
       | null;
 
     if (!response.ok) {
-      setError(
-        payload?.error?.message === "LISTING_SUBSCRIPTION_REQUIRED"
-          ? "An active subscription or free listing quota is required before you can create a new draft."
-          : (payload?.error?.message ??
-            (isEditing ? "Unable to save changes." : "Unable to create draft listing.")),
-      );
+      // Read off the code. This used to branch on the MESSAGE being exactly
+      // "LISTING_SUBSCRIPTION_REQUIRED" — a second, code-shaped string thrown
+      // alongside the real code SUBSCRIPTION_REQUIRED — and fall through to
+      // rendering whatever message arrived. Neither the branch nor the
+      // fall-through survives contact with a code lookup.
+      setError(errorCopyForResponse(payload));
       setIsSubmitting(false);
       return;
     }

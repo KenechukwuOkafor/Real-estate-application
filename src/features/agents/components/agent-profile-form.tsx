@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 type AgentProfileFormProps = {
   initialBio?: string | null;
@@ -34,7 +35,7 @@ export function AgentProfileForm({
       | null;
 
     if (!response.ok) {
-      setError(payload?.error?.message ?? "Unable to save agent profile.");
+      setError(errorCopyForResponse(payload));
       setIsSaving(false);
       return;
     }

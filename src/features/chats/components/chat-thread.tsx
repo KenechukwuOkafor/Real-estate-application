@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { errorCopyForResponse } from "@/features/errors/error-copy";
 
 type ChatMessage = {
   body: string;
@@ -82,7 +83,7 @@ export function ChatThread({
       | null;
 
     if (!response.ok || !payload?.data?.id || !payload.data.createdAt) {
-      setError(payload?.error?.message ?? "Unable to send message.");
+      setError(errorCopyForResponse(payload));
       setIsSending(false);
       return;
     }
@@ -130,7 +131,7 @@ export function ChatThread({
       | null;
 
     if (!response.ok) {
-      setError(payload?.error?.message ?? "Unable to respond to inspection request.");
+      setError(errorCopyForResponse(payload));
       setIsResponding(false);
       return;
     }
