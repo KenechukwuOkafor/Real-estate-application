@@ -79,6 +79,13 @@ export type Database = {
         };
         Returns: Array<{ chat_id: string; inspection_request_id: string }>;
       };
+      remove_listing_image: {
+        Args: { target_image_id: string };
+        Returns: Array<{
+          new_cover_image_id: string | null;
+          removed_image_id: string;
+        }>;
+      };
       uuidv7: {
         Args: Record<PropertyKey, never>;
         Returns: string;

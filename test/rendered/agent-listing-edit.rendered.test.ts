@@ -118,6 +118,23 @@ describe("agent listing edit", () => {
   });
 
   /**
+   * Removal is reachable, and the cover is labelled.
+   *
+   * The label matters because removing the cover has a consequence the agent
+   * should be able to anticipate: another photo is promoted in its place,
+   * server-side, in the same statement.
+   */
+  it("shows a remove control for each photo", async () => {
+    const page = await renderAsPersona(
+      `/agent/listings/${listingId}/edit`,
+      "Agent (verified)",
+    );
+
+    expect(page.text).toContain("Remove");
+    expect(page.text).toContain("Cover");
+  });
+
+  /**
    * Ownership. The lookup filters on agent_profile_id, so another agent's
    * listing is not found rather than forbidden — "not yours" and "does not
    * exist" give the same answer, which is what stops an id from leaking whether

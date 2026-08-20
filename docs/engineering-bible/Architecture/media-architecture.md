@@ -232,31 +232,47 @@ Recommended resolution
 
 ## Videos
 
-Minimum
+Amended by **ADR-016-A1**. The figures below are split into what the client
+PRODUCES and what the server ACCEPTS, because conflating the two is what made
+video unusable on the network our agents are actually on.
 
-0
+### Capture budget — what the app produces
 
-Maximum
+| | Value |
+|---|---|
+| Maximum | 1 walkthrough (MVP) |
+| Duration | **60 seconds** |
+| Resolution | **720p (1280×720), 30fps** — downscale anything larger |
+| Bitrate | **≈2 Mbps video, 96 kbps AAC audio** |
+| Nominal output | **≈16 MB** |
+| Client hard ceiling | **25 MB** — re-encode at 540p rather than upload above it |
 
-1 (MVP)
+Both capture paths — recording in-app and choosing from the gallery — are
+compressed on the device before upload. **Client-side compression is a
+requirement, not an optimisation.** Recording in-app is the encouraged path and
+should be the obvious one in the interface; the gallery is the fallback for an
+agent who already shot the walkthrough.
 
-Maximum duration
+### Acceptance ceiling — what the server refuses beyond
 
-90 seconds
+| | Value |
+|---|---|
+| Maximum size | **150 MB** |
+| Accepted formats | MP4, MOV, WEBM |
 
-Maximum size
+**This is a safety rail, never a target.** The application must not be capable
+of producing a file near it. At a conservative 1.5 Mbps mobile uplink, 150 MB is
+about thirteen minutes of sustained upload, which on mobile data does not
+complete — and a non-resumable upload that fails at 80% starts again from zero.
 
-150 MB
+### Upload transport
 
-Recommended resolution
+Uploads are **chunked and resumable**. On this network, at any file size, a
+non-resumable upload is a coin flip. The capture budget reduces how often a
+resume is needed; it does not remove the need for one.
 
-1080p
-
-Target bitrate
-
-≈5–8 Mbps
-
-Videos longer than the limit are rejected.
+Videos longer than the capture limit are trimmed or rejected before upload,
+rather than being sent and rejected by the server.
 
 ---
 
