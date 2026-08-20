@@ -16,6 +16,7 @@ const getOwnedListing = vi.fn();
 const markAgentVerificationPending = vi.fn();
 const updateAgentFreeListingQuota = vi.fn();
 const updateListingStatus = vi.fn();
+const updateDraftListing = vi.fn();
 
 vi.mock("@/lib/db/supabase", () => ({
   createSupabaseAuthenticatedClient: vi.fn(async () => ({})),
@@ -33,7 +34,7 @@ vi.mock("@/server/repositories/agents-repository", () => ({
   markAgentVerificationPending,
   registerListingImages,
   updateAgentFreeListingQuota,
-  updateDraftListing: vi.fn(),
+  updateDraftListing,
   updateListingCoverImage,
   updateListingStatus,
   upsertAgentProfile: vi.fn(),
@@ -61,6 +62,7 @@ const {
   registerCurrentAgentListingImages,
   submitCurrentAgentListingForReview,
   submitCurrentAgentVerification,
+  updateCurrentAgentDraftListing,
 } = await import("@/server/services/agent-service");
 
 const draftInput = {
@@ -429,5 +431,126 @@ describe("submitCurrentAgentVerification", () => {
     await expect(
       submitCurrentAgentVerification(submission),
     ).rejects.toMatchObject({ code: "VERIFICATION_NOT_SUBMITTABLE" });
+  });
+});
+
+
+/**
+ * The duration pair on the EDIT path.
+ *
+ * Slice 1 established that rental_duration and sublet_months must be written
+ * together: the CHECK refuses a month count on anything that is not a sublet, so
+ * a partial update touching one and not the other fails the whole statement.
+ * The create path derives the pair. These assert the edit path does too, and
+ * that it does not hand the repository a raw partial the validator never saw.
+ */
+describe("updateCurrentAgentDraftListing — the duration pair", () => {
+  function existingListing(overrides: Record<string, unknown> = {}) {
+    return {
+      amenities: [],
+      area: "Odenigbo",
+      bathrooms: 1,
+      bedrooms: 1,
+      city: "Nsukka",
+      description: "An existing draft.",
+      id: "listing_1",
+      latitude: null,
+      longitude: null,
+      price_naira: 250000,
+      property_type: "1_bedroom",
+      rental_duration: "yearly",
+      state: "Enugu",
+      status: "draft",
+      sublet_months: null,
+      title: "Existing draft",
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    getCurrentAppUser.mockResolvedValue({ roles: ["agent"], user: { id: "user_1" } });
+    getAgentProfileByUserId.mockResolvedValue(agentProfile());
+    updateDraftListing.mockResolvedValue(existingListing());
+  });
+
+  it("clears the month count in the same write when a sublet becomes yearly", async () => {
+    getOwnedListing.mockResolvedValue(
+      existingListing({ rental_duration: "sublet", sublet_months: 6 }),
+    );
+
+    await updateCurrentAgentDraftListing("listing_1", { rentalDuration: "yearly" });
+
+    // The pair, together. Sending the duration alone would leave sublet_months
+    // at 6 and violate the constraint.
+    expect(updateDraftListing).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "listing_1",
+      expect.objectContaining({ rentalDuration: "yearly", subletMonths: null }),
+    );
+  });
+
+  it("carries the existing month count when a sublet is edited without touching it", async () => {
+    getOwnedListing.mockResolvedValue(
+      existingListing({ rental_duration: "sublet", sublet_months: 4 }),
+    );
+
+    await updateCurrentAgentDraftListing("listing_1", { title: "Renamed" });
+
+    expect(updateDraftListing).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "listing_1",
+      expect.objectContaining({ rentalDuration: "sublet", subletMonths: 4 }),
+    );
+  });
+
+  /**
+   * The defect these were written to catch.
+   *
+   * The validator ran against a merged object in which the month count had
+   * already been nulled, so it never saw the value the caller sent — and the
+   * repository was then handed the raw partial, which still carried it. A
+   * caller could send a month count for a yearly listing, pass validation, and
+   * have the write violate the CHECK and surface as a 500.
+   *
+   * The create path rejects this with a 422. The edit path must agree.
+   */
+  it("refuses a month count on a listing that is not a sublet", async () => {
+    getOwnedListing.mockResolvedValue(existingListing());
+
+    await expect(
+      updateCurrentAgentDraftListing("listing_1", { subletMonths: 5 }),
+    ).rejects.toThrow(/only a sublet/i);
+
+    expect(updateDraftListing).not.toHaveBeenCalled();
+  });
+
+  it("refuses a month count when the edit switches away from sublet", async () => {
+    getOwnedListing.mockResolvedValue(
+      existingListing({ rental_duration: "sublet", sublet_months: 6 }),
+    );
+
+    await expect(
+      updateCurrentAgentDraftListing("listing_1", {
+        rentalDuration: "monthly",
+        subletMonths: 6,
+      }),
+    ).rejects.toThrow(/only a sublet/i);
+  });
+
+  it("never hands the repository a month count the validator did not see", async () => {
+    getOwnedListing.mockResolvedValue(
+      existingListing({ rental_duration: "sublet", sublet_months: 6 }),
+    );
+
+    await updateCurrentAgentDraftListing("listing_1", {
+      rentalDuration: "sublet",
+      subletMonths: 9,
+    });
+
+    const [, , , written] = updateDraftListing.mock.calls.at(-1)!;
+    expect(written.subletMonths).toBe(9);
+    expect(written.rentalDuration).toBe("sublet");
   });
 });
