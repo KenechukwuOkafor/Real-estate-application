@@ -484,4 +484,98 @@ where id in (
   '3c719a67-c526-44d2-b9f5-83042d03f003'
 );
 
+-- ---------------------------------------------------------------------------
+-- An accepted inspection with a real conversation behind it.
+--
+-- The seed had ZERO chats and zero messages, so the messaging RLS had never
+-- been exercised against an actual participant. That is the same masking the
+-- comments above describe for free_listing_quota and for verification: the
+-- gate exists, and nothing local ever reached it. It hid a concrete question
+-- for a whole audit — whether messages.read_at could be forged on INSERT was
+-- unanswerable, because is_chat_participant() refused every probe for want of
+-- a participant rather than for want of a grant.
+--
+-- The student and agent1, on agent1's self-contain. Accepted rather than
+-- pending, because an accepted request is the only state that has a chat.
+-- ---------------------------------------------------------------------------
+insert into public.inspection_requests (
+  id,
+  listing_id,
+  agent_profile_id,
+  requester_user_id,
+  message,
+  status,
+  requested_at,
+  expires_at,
+  responded_at
+)
+values
+  (
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fb001',
+    '3c719a67-c526-44d2-b9f5-83042d03f001',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464000',
+    'Please can I see this on Saturday morning?',
+    'accepted',
+    now() - interval '3 days',
+    now() - interval '1 day',
+    now() - interval '2 days'
+  )
+on conflict (id) do update
+set
+  status = excluded.status,
+  responded_at = excluded.responded_at;
+
+insert into public.chats (
+  id,
+  type,
+  listing_id,
+  inspection_request_id,
+  student_user_id,
+  agent_profile_id,
+  last_message_at
+)
+values
+  (
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fc001',
+    'inspection',
+    '3c719a67-c526-44d2-b9f5-83042d03f001',
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fb001',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464000',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    now() - interval '2 days'
+  )
+on conflict (id) do update
+set last_message_at = excluded.last_message_at;
+
+-- One message each way, and the agent's is deliberately UNREAD: an unread
+-- count that is always zero tests nothing.
+insert into public.messages (
+  id,
+  chat_id,
+  sender_user_id,
+  body,
+  read_at,
+  created_at
+)
+values
+  (
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fd001',
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fc001',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464000',
+    'Thank you. Saturday morning works for me.',
+    now() - interval '2 days',
+    now() - interval '2 days'
+  ),
+  (
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fd002',
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fc001',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464001',
+    'Great — I will meet you at the gate at 10am.',
+    null,
+    now() - interval '2 days'
+  )
+on conflict (id) do update
+set body = excluded.body, read_at = excluded.read_at;
+
 commit;

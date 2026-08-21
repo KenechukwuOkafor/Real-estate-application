@@ -7,7 +7,6 @@ import { createApiMeta } from "@/lib/api/response";
 import { log } from "@/lib/observability/logger";
 import { captureMessage } from "@/lib/observability/sentry";
 import { trackListingView } from "@/server/services/public-listings-service";
-import { getCurrentAppUser } from "@/server/services/user-sync-service";
 
 type RouteContext = {
   params: Promise<{
@@ -24,7 +23,10 @@ export async function POST(request: Request, context: RouteContext) {
       referrer?: string | null;
       sessionId?: string | null;
     };
-    const appUser = await getCurrentAppUser().catch(() => null);
+    // No viewer lookup here any more. Attribution is decided by which client
+    // the service opens — the caller's Clerk token, or none — because a
+    // viewer_user_id resolved in the route was still a value the database
+    // accepted on trust. See 0028.
     const ipAddress =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       request.headers.get("x-real-ip");
@@ -37,7 +39,6 @@ export async function POST(request: Request, context: RouteContext) {
       sessionId: body.sessionId ?? null,
       slugOrPublicId,
       userAgent: request.headers.get("user-agent"),
-      viewerUserId: appUser?.user.id ?? null,
     });
 
     /**

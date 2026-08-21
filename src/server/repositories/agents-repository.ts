@@ -847,7 +847,6 @@ export async function registerListingImages(
    * maintains the flag and the pointer together. Insertion does not get a vote.
    */
   const rows = input.images.map((image) => ({
-    is_cover: false,
     listing_id: input.listingId,
     mime_type: image.mimeType,
     position: image.position,
