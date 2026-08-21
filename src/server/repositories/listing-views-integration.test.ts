@@ -80,7 +80,6 @@ suite("listing view identifier resolution", () => {
       referrer: null,
       sessionId: `view-resolution-${Date.now()}`,
       userAgent: "vitest",
-      viewerUserId: null,
     });
 
     // Asserted against the database, not against a response body. This route
