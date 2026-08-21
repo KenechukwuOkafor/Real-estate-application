@@ -11,10 +11,20 @@ const inter = Inter({
   display: "swap",
 });
 
+/**
+ * The default description for every route that does not set its own, which is
+ * what link previews and search results show when a listing is forwarded.
+ *
+ * Every clause here must describe behaviour that exists. This block kept three
+ * claims the homepage copy had already corrected: administrators review
+ * listings, not agents; nothing is scheduled, because inspection_requests has
+ * no scheduled-time column at all; and an agent is reviewed rather than
+ * identity-verified.
+ */
 export const metadata: Metadata = {
-  title: "Ruvo — Verified Rentals in Nsukka",
+  title: "Ruvo — Verified rentals in Nsukka",
   description:
-    "Browse verified rental listings in Nsukka with clear pricing, agent-reviewed properties, and in-app inspection scheduling.",
+    "Browse rentals in Nsukka. Every listing is reviewed before publishing, priced upfront, and open for an inspection request in-app.",
 };
 
 export default function RootLayout({

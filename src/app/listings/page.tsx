@@ -15,7 +15,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Listings | Ruvo",
-  description: "Browse verified property listings in Nsukka on Ruvo.",
+  // "verified property listings" conflated the two things the product keeps
+  // separate: an agent is verified, a listing is reviewed and approved. The
+  // page body below already says it the accurate way.
+  description:
+    "Browse rental listings in Nsukka. Every listing is reviewed and approved before going live.",
 };
 
 type ListingsPageProps = {
