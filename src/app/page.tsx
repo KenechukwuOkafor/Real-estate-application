@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { ListingFeed } from "@/features/listings/components/listing-feed";
 import { ListingSearchBar } from "@/features/listings/components/listing-search-bar";
+import { PlatformTrustLine } from "@/features/listings/components/platform-trust-line";
 import { PropertyTypeTiles } from "@/features/listings/components/property-type-tiles";
 import { parseListingListFilters } from "@/features/listings/parsers";
 import {
@@ -76,6 +77,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
         <PropertyTypeTiles />
 
+        <PlatformTrustLine />
+
         <ListingFeed
           fallbackListings={fallback?.items ?? []}
           hasActiveFilters={activeFilterCount > 0}
@@ -85,15 +88,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           query={query}
         />
 
+        {/*
+          Two panels below, not three. "Agents are reviewed before they can
+          list" moved up into PlatformTrustLine, which now renders for everyone
+          — repeating it here would state the same claim twice on one screen.
+        */}
         {!isSignedIn ? (
-          <section className="mt-4 grid gap-4 border-t border-stone-900/10 pt-8 md:grid-cols-3">
-            <div>
-              <h2 className="text-base font-semibold">Agents are reviewed before they can list</h2>
-              <p className="mt-2 text-sm leading-6 text-stone-600">
-                An administrator reviews every agent before their listings can go
-                live, so one bad actor cannot flood the feed.
-              </p>
-            </div>
+          <section className="mt-4 grid gap-4 border-t border-stone-900/10 pt-8 md:grid-cols-2">
             <div>
               <h2 className="text-base font-semibold">Price upfront, always</h2>
               <p className="mt-2 text-sm leading-6 text-stone-600">

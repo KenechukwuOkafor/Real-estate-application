@@ -110,20 +110,39 @@ describe("ListingCard", () => {
     });
   });
 
-  it("shows the verified badge when the agent is verified", () => {
-    const html = renderToStaticMarkup(<ListingCard listing={base} />);
+  describe("the trust slot", () => {
+    /**
+     * The card carries no verification badge. It used to, and it rendered on
+     * every card in the public feed, because verification gates both
+     * submission and visibility — so it distinguished nothing between two
+     * listings while occupying the card's one trust affordance. The claim
+     * moved to PlatformTrustLine, which states it about the platform.
+     */
+    it("shows no verification badge when the agent is verified", () => {
+      const html = renderToStaticMarkup(<ListingCard listing={base} />);
 
-    expect(html).toContain("Verified");
-  });
+      expect(html).not.toContain("Verified");
+    });
 
-  it("renders no badge at all when the agent is unverified", () => {
-    const html = renderToStaticMarkup(
-      <ListingCard listing={{ ...base, agent: { ...base.agent, isVerified: false } }} />,
-    );
+    it("shows no verification badge when the agent is unverified either", () => {
+      const html = renderToStaticMarkup(
+        <ListingCard listing={{ ...base, agent: { ...base.agent, isVerified: false } }} />,
+      );
 
-    expect(html).not.toContain("Verified");
-    expect(html).not.toContain("Unverified");
-    expect(html).not.toContain(">Agent<");
+      expect(html).not.toContain("Verified");
+      expect(html).not.toContain("Unverified");
+      expect(html).not.toContain(">Agent<");
+    });
+
+    it("leaves the slot empty rather than backfilling it with tenure", () => {
+      // verified_at is available and varies, and putting it here would spend
+      // the slot on a signal about time rather than conduct. Reserved for
+      // something that reflects how an agent has behaved.
+      const html = renderToStaticMarkup(<ListingCard listing={base} />);
+
+      expect(html.toLowerCase()).not.toContain("verified since");
+      expect(html.toLowerCase()).not.toContain("member since");
+    });
   });
 
   it("shows the property type and area", () => {
