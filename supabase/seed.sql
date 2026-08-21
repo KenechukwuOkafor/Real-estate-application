@@ -93,7 +93,9 @@ insert into public.agent_profiles (
   display_name,
   bio,
   verification_status,
+  verification_submitted_at,
   verified_at,
+  verified_by,
   founding_agent,
   free_listing_quota
 )
@@ -118,7 +120,9 @@ values
     'Prime Homes Nsukka',
     'Verified agent focused on student rentals.',
     'verified',
-    now(),
+    now() - interval '8 days',
+    now() - interval '7 days',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464003',
     false,
     3
   ),
@@ -129,6 +133,8 @@ values
     null,
     'not_submitted',
     null,
+    null,
+    null,
     false,
     0
   )
@@ -137,9 +143,105 @@ set
   display_name = excluded.display_name,
   bio = excluded.bio,
   verification_status = excluded.verification_status,
+  verification_submitted_at = excluded.verification_submitted_at,
   verified_at = excluded.verified_at,
+  verified_by = excluded.verified_by,
   founding_agent = excluded.founding_agent,
   free_listing_quota = excluded.free_listing_quota;
+
+-- ---------------------------------------------------------------------------
+-- The verification that made agent1 verified.
+--
+-- agent1 previously sat at verification_status 'verified' with no submission
+-- and no documents behind it. That is not a state the product can produce: an
+-- agent reaches 'verified' only by submitting documents an admin then
+-- approves. Seeding the end state without the evidence meant local testing
+-- never exercised the verification gate at all, which is the same masking the
+-- comment above describes catching for free_listing_quota.
+--
+-- It also made a claim untestable. The public copy says agents are reviewed,
+-- and validateVerificationSubmissionInput now requires a government ID in the
+-- set; a seeded 'verified' agent holding no documents could not demonstrate
+-- either. This document set is one the validator accepts, and
+-- seed-verification-fixture.test.ts asserts exactly that against this file, so
+-- weakening the seed fails the suite rather than passing silently.
+--
+-- reviewed_at is set, so listVerificationQueue (which filters reviewed_at is
+-- null and profile status pending_review) will not surface this submission to
+-- an admin as work to do. agent2 stays at 'not_submitted' — a brand-new signup
+-- with nothing behind it is the other state that has to stay reachable.
+--
+-- The storage objects these paths name are uploaded by
+-- scripts/seed-listing-media.mjs, for the same reason listing images are: SQL
+-- can create rows but not objects, and a private bucket turns a path with
+-- nothing behind it into a signed URL that 404s.
+-- ---------------------------------------------------------------------------
+insert into public.agent_verification_submissions (
+  id,
+  agent_profile_id,
+  full_legal_name,
+  notes,
+  submitted_at,
+  reviewed_at
+)
+values
+  (
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fa001',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    'Chinedu Prime Okeke',
+    'Seeded submission. Approved by the seeded admin.',
+    now() - interval '8 days',
+    now() - interval '7 days'
+  )
+on conflict (id) do update
+set
+  full_legal_name = excluded.full_legal_name,
+  notes = excluded.notes,
+  submitted_at = excluded.submitted_at,
+  reviewed_at = excluded.reviewed_at;
+
+insert into public.verification_documents (
+  id,
+  agent_verification_submission_id,
+  agent_profile_id,
+  document_type,
+  storage_path,
+  mime_type,
+  size_bytes,
+  original_filename
+)
+values
+  -- The identity document, required by validateVerificationSubmissionInput.
+  -- Without it this agent could not have been verified through the product.
+  (
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3f4001',
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fa001',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    'government_id',
+    'verification/fbbda28e-2358-49c2-ab0a-e472d7db6001/01920a1b-2c3d-7e4f-8a9b-0c1d2e3f4001.webp',
+    'image/webp',
+    26,
+    'national-id.webp'
+  ),
+  -- An addition rather than a substitute: it says something about the
+  -- business, and on its own it would no longer be accepted.
+  (
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3f4002',
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fa001',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    'cac_certificate',
+    'verification/fbbda28e-2358-49c2-ab0a-e472d7db6001/01920a1b-2c3d-7e4f-8a9b-0c1d2e3f4002.webp',
+    'image/webp',
+    26,
+    'cac-certificate.webp'
+  )
+on conflict (id) do update
+set
+  document_type = excluded.document_type,
+  storage_path = excluded.storage_path,
+  mime_type = excluded.mime_type,
+  size_bytes = excluded.size_bytes,
+  original_filename = excluded.original_filename;
 
 insert into public.listings (
   id,

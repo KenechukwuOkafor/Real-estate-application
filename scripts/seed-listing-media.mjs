@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 /**
- * Uploads placeholder objects for the seeded listing images.
+ * Uploads placeholder objects for the seeded listing images and verification
+ * documents.
  *
- * seed.sql can create listing_images rows but not storage objects — the bytes
- * live in the storage service, not Postgres, so a SQL-only seed produces
- * metadata pointing at nothing. That was tolerable while the bucket was public
- * and the rows carried Unsplash URLs; with a private bucket and signed reads,
- * a path with no object behind it yields a signed URL that 404s.
+ * seed.sql can create rows but not storage objects — the bytes live in the
+ * storage service, not Postgres, so a SQL-only seed produces metadata pointing
+ * at nothing. That was tolerable while the bucket was public and the rows
+ * carried Unsplash URLs; with a private bucket and signed reads, a path with
+ * no object behind it yields a signed URL that 404s.
+ *
+ * Verification documents joined this for the same reason. The seeded verified
+ * agent now has a real submission with a government ID behind it rather than a
+ * bare 'verified' status, and an admin opening that submission has to get
+ * bytes back from the signed URL rather than a 404.
  *
  * Idempotent: skips any object that already exists.
  *
@@ -17,7 +23,14 @@ import { join } from "node:path";
 
 import { createClient } from "@supabase/supabase-js";
 
-const BUCKET = "property-images";
+/**
+ * Each seeded table paired with the bucket its storage_path values live in.
+ * Adding a third is a row here, not another copy of the upload loop.
+ */
+const SOURCES = [
+  { bucket: "property-images", table: "listing_images" },
+  { bucket: "verification-documents", table: "verification_documents" },
+];
 
 function loadEnvLocal() {
   const path = join(process.cwd(), ".env.local");
@@ -60,46 +73,50 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: rows, error } = await supabase
-    .from("listing_images")
-    .select("storage_path")
-    .order("storage_path");
+  for (const { bucket, table } of SOURCES) {
+    const { data: rows, error } = await supabase
+      .from(table)
+      .select("storage_path")
+      .order("storage_path");
 
-  if (error) {
-    console.error(`\nCould not read listing_images: ${error.message}\n`);
-    process.exit(1);
-  }
+    if (error) {
+      console.error(`\nCould not read ${table}: ${error.message}\n`);
+      process.exit(1);
+    }
 
-  if (!rows || rows.length === 0) {
-    console.log("No listing_images rows. Run `supabase db reset` first.");
-    return;
-  }
-
-  let uploaded = 0;
-  let skipped = 0;
-
-  for (const row of rows) {
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(row.storage_path, WEBP_1X1, {
-        contentType: "image/webp",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      if (/exists/i.test(uploadError.message)) {
-        skipped += 1;
-        continue;
-      }
-      console.error(`  ! ${row.storage_path}: ${uploadError.message}`);
-      process.exitCode = 1;
+    if (!rows || rows.length === 0) {
+      console.log(`No ${table} rows. Run \`supabase db reset\` first.`);
       continue;
     }
 
-    uploaded += 1;
+    let uploaded = 0;
+    let skipped = 0;
+
+    for (const row of rows) {
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(row.storage_path, WEBP_1X1, {
+          contentType: "image/webp",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        if (/exists/i.test(uploadError.message)) {
+          skipped += 1;
+          continue;
+        }
+        console.error(`  ! ${row.storage_path}: ${uploadError.message}`);
+        process.exitCode = 1;
+        continue;
+      }
+
+      uploaded += 1;
+    }
+
+    console.log(`${bucket}: ${uploaded} uploaded, ${skipped} already present.`);
   }
 
-  console.log(`\n${BUCKET}: ${uploaded} uploaded, ${skipped} already present.\n`);
+  console.log("");
 }
 
 main().catch((error) => {
