@@ -9,6 +9,12 @@ import { useListingFeed } from "@/features/listings/hooks/use-listing-feed";
 import type { ListingListItem } from "@/features/listings/types";
 
 type ListingFeedProps = {
+  /**
+   * Recent listings to offer when the filters matched nothing. Empty unless
+   * the server already knows the filtered result came back empty, so the
+   * extra query only runs for the seeker who has actually hit a dead end.
+   */
+  fallbackListings?: ListingListItem[];
   hasActiveFilters: boolean;
   initialCursor: string | null;
   initialHasMore: boolean;
@@ -17,6 +23,7 @@ type ListingFeedProps = {
 };
 
 export function ListingFeed({
+  fallbackListings = [],
   hasActiveFilters,
   initialCursor,
   initialHasMore,
@@ -58,32 +65,53 @@ export function ListingFeed({
 
   if (items.length === 0) {
     return (
-      <div className="rounded-[1.5rem] border border-dashed border-stone-900/15 bg-white/70 p-8 text-center">
-        {hasActiveFilters ? (
-          <>
-            <p className="text-base font-medium text-stone-900">
-              No listings match these filters.
-            </p>
-            <p className="mt-2 text-sm text-stone-600">
-              Try widening your budget or choosing another area.
-            </p>
-            <Link
-              className="mt-5 inline-block rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white"
-              href={pathname}
-            >
-              Clear filters
-            </Link>
-          </>
-        ) : (
-          <>
-            <p className="text-base font-medium text-stone-900">
-              No listings available yet.
-            </p>
-            <p className="mt-2 text-sm text-stone-600">
-              New listings appear here once agents publish them.
-            </p>
-          </>
-        )}
+      <div className="flex flex-col gap-6">
+        <div className="rounded-[1.5rem] border border-dashed border-stone-900/15 bg-white/70 p-8 text-center">
+          {hasActiveFilters ? (
+            <>
+              <p className="text-base font-medium text-stone-900">
+                No listings match these filters.
+              </p>
+              <p className="mt-2 text-sm text-stone-600">
+                Try widening your budget or choosing another area.
+              </p>
+              <Link
+                className="mt-5 inline-block rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white"
+                href={pathname}
+              >
+                Clear filters
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-base font-medium text-stone-900">
+                No listings available yet.
+              </p>
+              <p className="mt-2 text-sm text-stone-600">
+                New listings appear here once agents publish them.
+              </p>
+            </>
+          )}
+        </div>
+
+        {/*
+          Never a dead end. A reset the seeker has to choose is still a blank
+          screen until they choose it, so the way out is shown alongside real
+          listings rather than described.
+
+          "Recently added" and not "nearby": area is free text with no notion
+          of adjacency, so proximity would be invented. Recency is a fact.
+        */}
+        {fallbackListings.length > 0 ? (
+          <section>
+            <h2 className="text-sm font-medium text-stone-700">
+              Recently added in Nsukka
+            </h2>
+            <div className="mt-4">
+              <ListingGrid listings={fallbackListings} />
+            </div>
+          </section>
+        ) : null}
       </div>
     );
   }
