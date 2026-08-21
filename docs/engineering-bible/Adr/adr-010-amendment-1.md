@@ -252,6 +252,15 @@ wrong.
   readable by any unauthenticated caller. Review the grant separately from the policy,
   and derive the column list from what a surface renders rather than from what the query
   currently selects.
+- Auditing SELECT and stopping there. `agent_profiles` had a carefully column-scoped
+  UPDATE — 0013 withheld `verification_status`, `verified_at`, `free_listing_quota` and
+  the rest as self-grants — sitting beside a table-wide INSERT that granted every one of
+  them back. The row policy's `WITH CHECK` asserted `user_id = current_app_user_id()`,
+  which verifies who a row belongs to and nothing about what it claims, so a signed-in
+  user could `INSERT` themselves an already-verified profile with unlimited quota. When
+  a column is withheld from UPDATE because holding it would be an escalation, check that
+  INSERT withholds it too: the two paths reach the same column and only one of them was
+  reviewed.
 - Expecting `select("*")` to narrow itself to the granted columns. PostgREST expands it to
   every column in the table, so against a column-scoped grant it fails `42501` outright.
   That is the desired direction — fail closed — but it means a star select is not a way to

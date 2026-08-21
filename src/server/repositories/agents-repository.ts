@@ -14,6 +14,32 @@ type DbClient = SupabaseClient<Database>;
 
 type ListingImageRow = Database["public"]["Tables"]["listing_images"]["Row"];
 type AgentProfileRow = Database["public"]["Tables"]["agent_profiles"]["Row"];
+
+/**
+ * The columns `authenticated` holds SELECT on after 0027.
+ *
+ * `select("*")` is not an option against a column-scoped grant: PostgREST
+ * expands it to every column in the table, so it demands SELECT on all fifteen
+ * and fails 42501 outright rather than narrowing to what the caller may read.
+ *
+ * Adding a column here without granting it in a migration fails the query
+ * loudly, which is the intended shape — this list and the migration's grant
+ * are meant to be read together.
+ */
+const AGENT_PROFILE_COLUMNS =
+  "bio, deleted_at, display_name, free_listing_quota, id, user_id, verification_status";
+
+/** What a caller gets back: the granted columns, not the whole row. */
+export type AgentProfileSelection = Pick<
+  AgentProfileRow,
+  | "bio"
+  | "deleted_at"
+  | "display_name"
+  | "free_listing_quota"
+  | "id"
+  | "user_id"
+  | "verification_status"
+>;
 type ListingRow = Database["public"]["Tables"]["listings"]["Row"];
 type AgentVerificationSubmissionRow =
   Database["public"]["Tables"]["agent_verification_submissions"]["Row"];
@@ -41,7 +67,7 @@ type VerificationQueueRow = AgentVerificationSubmissionRow & {
 export async function getAgentProfileByUserId(client: DbClient, userId: string) {
   const { data, error } = await client
     .from("agent_profiles")
-    .select("*")
+    .select(AGENT_PROFILE_COLUMNS)
     .eq("user_id", userId)
     .is("deleted_at", null)
     .maybeSingle();
@@ -135,12 +161,12 @@ export async function upsertAgentProfile(
         .from("agent_profiles")
         .update(fields)
         .eq("id", existing.id)
-        .select("*")
+        .select(AGENT_PROFILE_COLUMNS)
         .single()
     : await client
         .from("agent_profiles")
         .insert({ ...fields, user_id: userId })
-        .select("*")
+        .select(AGENT_PROFILE_COLUMNS)
         .single();
 
   if (error) {
@@ -148,6 +174,26 @@ export async function upsertAgentProfile(
   }
 
   return data;
+}
+
+/**
+ * The calling agent's own rejection reason, or null.
+ *
+ * Through public.own_agent_rejection_reason() rather than a column, because
+ * `authenticated` reads agent_profiles under two policies: their own row, and
+ * every verified profile. A grant cannot tell those apart, so granting the
+ * column to serve the first would have disclosed it under the second — every
+ * verified agent's moderation note, to any signed-in user. See 0027, and 0025
+ * for the same shape on users.full_name.
+ */
+export async function getOwnAgentRejectionReason(client: DbClient) {
+  const { data, error } = await client.rpc("own_agent_rejection_reason");
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
 }
 
 export async function createVerificationSubmission(
@@ -183,7 +229,7 @@ export async function markAgentVerificationPending(
       verification_submitted_at: new Date().toISOString(),
     })
     .eq("id", agentProfileId)
-    .select("*")
+    .select(AGENT_PROFILE_COLUMNS)
     .single();
 
   if (error) {
@@ -193,6 +239,15 @@ export async function markAgentVerificationPending(
   return data;
 }
 
+/**
+ * SERVICE ROLE ONLY, which is why this one still selects every column.
+ *
+ * Called from admin-service with the admin client, and its result feeds the
+ * audit log — which records verified_at, verified_by and rejection_reason,
+ * none of which `authenticated` may read after 0027. Narrowing it to the
+ * granted list would have made the audit trail quietly incomplete rather than
+ * failing, so the wide select stays here and the role is the reason.
+ */
 export async function updateAgentVerificationStatus(
   client: DbClient,
   agentProfileId: string,
@@ -237,7 +292,7 @@ export async function grantFreeListingQuotaIfUnset(
     })
     .eq("id", agentProfileId)
     .eq("free_listing_quota", 0)
-    .select("*")
+    .select(AGENT_PROFILE_COLUMNS)
     .maybeSingle();
 
   if (error) {
@@ -270,7 +325,7 @@ export async function updateAgentFreeListingQuota(
     })
     .eq("id", agentProfileId)
     .eq("free_listing_quota", expectedFreeListingQuota)
-    .select("*")
+    .select(AGENT_PROFILE_COLUMNS)
     .maybeSingle();
 
   if (error) {

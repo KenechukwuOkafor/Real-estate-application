@@ -10,6 +10,10 @@ const insertVerificationDocuments = vi.fn();
 const registerListingImages = vi.fn();
 const updateListingCoverImage = vi.fn();
 const getAgentProfileByUserId = vi.fn();
+// getAgentOnboardingContext calls this whenever the profile is 'rejected', so
+// the resubmission test reaches it. Defaults to null: the reason is rendered
+// on /agent/verification, not consulted by any decision here.
+const getOwnAgentRejectionReason = vi.fn().mockResolvedValue(null);
 const getCurrentAppUser = vi.fn();
 const getCurrentListingEntitlementSubscription = vi.fn();
 const getOwnedListing = vi.fn();
@@ -28,6 +32,7 @@ vi.mock("@/server/repositories/agents-repository", () => ({
   createVerificationSubmission,
   insertVerificationDocuments,
   getAgentProfileByUserId,
+  getOwnAgentRejectionReason,
   getAgentProfileWithSubscriptionsByUserId: vi.fn(),
   getOwnedListing,
   listAgentListings: vi.fn(),
