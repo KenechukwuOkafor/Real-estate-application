@@ -9,9 +9,13 @@ import {
   countActiveFilters,
   toSearchParams,
 } from "@/features/listings/search-params";
+import { EMPTY_STATE_FALLBACK_LIMIT } from "@/features/listings/constants";
 import { deriveAreaSuggestions } from "@/features/listings/suggestions";
 import { getAuthContext } from "@/lib/auth/clerk";
-import { listPublicListings } from "@/server/services/public-listings-service";
+import {
+  listPublicListings,
+  listRecentPublicListings,
+} from "@/server/services/public-listings-service";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +40,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const isSignedIn = Boolean(authState.userId);
   const activeFilterCount = countActiveFilters(resolved);
   const query = buildListingSearchQuery(filters);
+
+  // Only for a seeker who has actually filtered themselves into a dead end.
+  // Every other request pays nothing for this.
+  const fallback =
+    result.items.length === 0 && activeFilterCount > 0
+      ? await listRecentPublicListings(EMPTY_STATE_FALLBACK_LIMIT)
+      : null;
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#f0eadf_100%)] text-stone-900">
@@ -66,6 +77,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <PropertyTypeTiles />
 
         <ListingFeed
+          fallbackListings={fallback?.items ?? []}
           hasActiveFilters={activeFilterCount > 0}
           initialCursor={result.nextCursor}
           initialHasMore={result.hasMore}

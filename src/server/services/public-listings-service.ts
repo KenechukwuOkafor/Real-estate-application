@@ -54,6 +54,19 @@ export async function listPublicListings(filters: ListingListFilters) {
   };
 }
 
+/**
+ * The newest listings, ignoring every filter — what the empty state offers a
+ * seeker whose filters matched nothing.
+ *
+ * Deliberately recent rather than nearby. `area` is a free-text column with no
+ * notion of adjacency, so "listings near this one" would be invented rather
+ * than computed; recency is something the data actually knows. Revisit when
+ * areas become first-class entities.
+ */
+export async function listRecentPublicListings(limit: number) {
+  return listPublicListings({ limit, sort: "newest" });
+}
+
 export async function getPublicListing(slugOrPublicId: string) {
   const identifier = parseListingIdentifier(slugOrPublicId);
 
