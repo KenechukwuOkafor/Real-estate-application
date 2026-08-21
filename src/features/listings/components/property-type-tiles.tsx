@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { toggleFilterValue } from "@/features/listings/filter-toggle";
 import { HOME_PROPERTY_TYPES } from "@/features/listings/suggestions";
 
 export function PropertyTypeTiles() {
@@ -15,10 +16,12 @@ export function PropertyTypeTiles() {
   function selectType(value: string) {
     const params = new URLSearchParams(searchParams.toString());
 
-    if (selectedType === value) {
+    const nextType = toggleFilterValue(selectedType, value);
+
+    if (nextType === undefined) {
       params.delete("propertyType");
     } else {
-      params.set("propertyType", value);
+      params.set("propertyType", nextType);
     }
 
     params.delete("cursor");

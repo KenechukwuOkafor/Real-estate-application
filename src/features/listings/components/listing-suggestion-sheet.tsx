@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
+import { toggleFilterValue } from "@/features/listings/filter-toggle";
 import {
   HOME_PROPERTY_TYPES,
   PRICE_BANDS,
@@ -93,7 +94,11 @@ export function ListingSuggestionSheet({
                     isSelected ? SELECTED_CLASSES : UNSELECTED_CLASSES
                   }`}
                   key={type.value}
-                  onClick={() => apply({ propertyType: type.value })}
+                  onClick={() =>
+                    apply({
+                      propertyType: toggleFilterValue(selectedType, type.value),
+                    })
+                  }
                   type="button"
                 >
                   {type.label}
