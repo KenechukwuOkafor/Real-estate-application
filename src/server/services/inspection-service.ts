@@ -18,6 +18,7 @@ import {
   findCounterpartyNames,
   getInspectableListingById,
   listAgentInspectionRequests,
+  listSeekerInspectionRequests,
   listOpenInspectionRequestDeadlines,
   markChatMessagesRead,
   updateInspectionRequestStatus,
@@ -347,6 +348,102 @@ export async function listCurrentAgentInspectionRequests(): Promise<
       ? (unreadCounts.get(request.chats.id) ?? 0)
       : 0,
   }));
+}
+
+export type SeekerInspectionItem = {
+  /** The agent's public display name — who the seeker actually asked. */
+  agentName: string;
+  chatId: string | null;
+  effectiveStatus: InspectionStatus;
+  expiresAt: string | null;
+  id: string;
+  /**
+   * A query string for listings like this one, used when a request went
+   * unanswered. Built from the listing's own area and property type, so the
+   * offer is concrete rather than "browse more".
+   */
+  similarListingsQuery: string;
+  listingSlug: string | null;
+  listingTitle: string;
+  message: string;
+  minutesRemaining: number | null;
+  requestedAt: string;
+  unreadMessageCount: number;
+};
+
+/**
+ * The signed-in seeker's own inspection requests.
+ *
+ * Deliberately not called an inbox. An agent's question is "what needs my
+ * response", which is why theirs groups by what is awaiting them. A seeker has
+ * nothing to respond to; their question is "did they reply, and is it still
+ * live" — so every status has to read differently, and expiry most of all,
+ * because today an agent who simply never answers produces no signal at all.
+ *
+ * No role check. Anyone signed in can send an inspection request — including
+ * an agent, on somebody else's listing — so gating this on a `student` role
+ * would hide an agent's own requests from them.
+ */
+export async function listCurrentSeekerInspectionRequests(): Promise<
+  SeekerInspectionItem[]
+> {
+  const appUser = await getCurrentAppUser();
+
+  if (!appUser) {
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const requests = await listSeekerInspectionRequests(client, appUser.user.id);
+  const now = new Date();
+
+  // Same reasoning as the agent inbox: only an accepted request has a
+  // conversation worth counting unread messages in.
+  const chatIds = requests
+    .filter(
+      (request) => effectiveInspectionStatus(request, now) === "accepted",
+    )
+    .map((request) => request.chats?.id)
+    .filter((id): id is string => Boolean(id));
+
+  const unreadCounts = await countUnreadMessagesByChat(
+    client,
+    chatIds,
+    appUser.user.id,
+  );
+
+  return requests.map((request) => {
+    const listing = request.listings;
+    const similar = new URLSearchParams();
+
+    if (listing?.area) {
+      similar.set("area", listing.area);
+    }
+
+    if (listing?.property_type) {
+      similar.set("propertyType", listing.property_type);
+    }
+
+    return {
+      // Every listing in the feed belongs to a verified agent, so a missing
+      // name here means the listing itself is gone rather than the agent being
+      // unnamed.
+      agentName: listing?.agent_profiles?.display_name ?? "The agent",
+      chatId: request.chats?.id ?? null,
+      effectiveStatus: effectiveInspectionStatus(request, now),
+      expiresAt: request.expires_at,
+      id: request.id,
+      listingSlug: listing?.slug ?? null,
+      listingTitle: listing?.title ?? "(listing removed)",
+      message: request.message ?? "",
+      minutesRemaining: minutesRemaining(request, now),
+      requestedAt: request.requested_at,
+      similarListingsQuery: similar.toString(),
+      unreadMessageCount: request.chats?.id
+        ? (unreadCounts.get(request.chats.id) ?? 0)
+        : 0,
+    };
+  });
 }
 
 /**
