@@ -116,9 +116,23 @@ function applyPublicListingFilters(
     nextQuery = nextQuery.lte("price_naira", filters.maxPrice);
   }
 
-  if (filters.verifiedOnly) {
-    nextQuery = nextQuery.eq("agent_profiles.verification_status", "verified");
-  }
+  /**
+   * There is deliberately no "verified agents only" predicate here.
+   *
+   * It would never exclude a row. The select below inner-joins agent_profiles,
+   * and public_can_read_verified_agent_profiles restricts anon and
+   * authenticated reads of that table to verification_status = 'verified'. An
+   * unverified agent's listing is dropped by the join before any filter runs —
+   * verified by probe: the listing row alone is readable as anon, and the same
+   * row joined to agent_profiles returns nothing.
+   *
+   * Verification is a gate, not a ranking signal, and it is enforced twice
+   * over: getListingEntitlement also sets canSubmitListing to
+   * `isVerified && hasQuota`, so an unverified agent cannot submit a listing
+   * in the first place. Every row this function can return belongs to a
+   * verified agent, which is also why there is no verified-first ORDER BY —
+   * there is no second tier to sort below the first.
+   */
 
   return nextQuery;
 }
