@@ -20,7 +20,6 @@ export type ListingListFilters = {
   rentalDuration?: RentalDuration;
   sort: ListingSort;
   state?: string;
-  verifiedOnly?: boolean;
 };
 
 export type ListingCursor = {

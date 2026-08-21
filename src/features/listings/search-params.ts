@@ -28,7 +28,6 @@ const ACTIVE_FILTER_KEYS = [
   "propertyType",
   "rentalDuration",
   "state",
-  "verifiedOnly",
 ] as const;
 
 /**
@@ -92,10 +91,6 @@ export function buildListingSearchQuery(
 
   if (finalFilters.state) {
     searchParams.set("state", finalFilters.state);
-  }
-
-  if (typeof finalFilters.verifiedOnly === "boolean") {
-    searchParams.set("verifiedOnly", String(finalFilters.verifiedOnly));
   }
 
   return searchParams.toString();

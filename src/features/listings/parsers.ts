@@ -30,22 +30,6 @@ function parseInteger(value: string | null) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-function parseBoolean(value: string | null) {
-  if (!value) {
-    return undefined;
-  }
-
-  if (value === "true") {
-    return true;
-  }
-
-  if (value === "false") {
-    return false;
-  }
-
-  return undefined;
-}
-
 export function parseListingListFilters(
   searchParams: URLSearchParams,
 ): ListingListFilters {
@@ -76,7 +60,6 @@ export function parseListingListFilters(
         : undefined,
     sort: sort && sorts.has(sort as ListingSort) ? (sort as ListingSort) : "newest",
     state: searchParams.get("state")?.trim() || undefined,
-    verifiedOnly: parseBoolean(searchParams.get("verifiedOnly")),
   };
 }
 

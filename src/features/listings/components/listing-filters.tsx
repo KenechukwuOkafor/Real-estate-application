@@ -160,16 +160,6 @@ export function ListingFilters({ filters }: ListingFiltersProps) {
             />
           </label>
 
-          <label className="flex items-center gap-3 rounded-2xl border border-stone-900/10 bg-stone-50 px-4 py-3 text-sm font-medium text-stone-700">
-            <input
-              defaultChecked={filters.verifiedOnly === true}
-              name="verifiedOnly"
-              type="checkbox"
-              value="true"
-            />
-            Verified agents only
-          </label>
-
           <button
             className="h-12 rounded-2xl bg-stone-900 px-5 text-sm font-medium text-white transition-colors hover:bg-stone-800"
             type="submit"

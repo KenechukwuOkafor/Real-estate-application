@@ -25,10 +25,20 @@ describe("countActiveFilters", () => {
     expect(
       countActiveFilters(
         new URLSearchParams(
-          "area=Hill+Top&propertyType=self_contain&minPrice=100000&verifiedOnly=true",
+          "area=Hill+Top&propertyType=self_contain&minPrice=100000&bedrooms=2",
         ),
       ),
     ).toBe(4);
+  });
+
+  it("ignores verifiedOnly, which a bookmarked or shared URL may still carry", () => {
+    // The control it came from is gone, but the parameter outlives it in any
+    // link already sent. Counting it would put a badge on the search bar for a
+    // filter that no longer exists and never excluded a row.
+    expect(countActiveFilters(new URLSearchParams("verifiedOnly=true"))).toBe(0);
+    expect(
+      countActiveFilters(new URLSearchParams("area=Hill+Top&verifiedOnly=true")),
+    ).toBe(1);
   });
 
   it("counts a city-only or state-only filter", () => {

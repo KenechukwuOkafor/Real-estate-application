@@ -102,16 +102,6 @@ function buildFilterChips(filters: ListingListFilters): FilterChip[] {
     });
   }
 
-  if (filters.verifiedOnly) {
-    chips.push({
-      href: `/listings?${buildListingSearchQuery(filters, {
-        cursor: undefined,
-        verifiedOnly: undefined,
-      })}`,
-      label: "Verified only",
-    });
-  }
-
   if (filters.sort !== "newest") {
     chips.push({
       href: `/listings?${buildListingSearchQuery(filters, {
