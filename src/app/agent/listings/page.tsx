@@ -6,6 +6,7 @@ import { SubmitReadinessChecklist } from "@/features/agents/components/submit-re
 import { submitReadiness } from "@/features/agents/submit-readiness";
 import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
 import { SubmitListingReviewButton } from "@/features/agents/components/submit-listing-review-button";
+import { groupAgentListings } from "@/features/agents/listing-groups";
 import { isListingEditable } from "@/features/listings/editability";
 import { formatListingStatus, formatPriceNaira } from "@/features/listings/format";
 import { getCurrentAgentListingsOverview } from "@/server/services/agent-service";
@@ -21,27 +22,27 @@ export default async function AgentListingsPage() {
 
   const { entitlement, listings } = overview;
 
+  const groups = groupAgentListings(listings);
+
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#efe7da_100%)] px-6 py-10 text-stone-900">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <section className="rounded-[2rem] border border-stone-900/10 bg-white/85 p-8 shadow-[0_20px_80px_rgba(48,38,24,0.08)]">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
-                Agent listings
-              </p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight">
-                Manage drafts and submissions.
-              </h1>
-            </div>
-            <Link
-              className="rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white"
-              href="/agent/listings/new"
-            >
-              New draft
-            </Link>
+    <main className="px-5 py-8 text-stone-900 md:px-8 md:py-10">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+        <header className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
+              Your listings
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
+              Grouped by what needs doing.
+            </h1>
           </div>
-        </section>
+          <Link
+            className="rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white"
+            href="/agent/listings/new"
+          >
+            New draft
+          </Link>
+        </header>
 
         <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/80 p-6">
           <div className="flex flex-wrap items-center gap-3">
@@ -83,14 +84,33 @@ export default async function AgentListingsPage() {
           </p>
         </section>
 
-        <section className="grid gap-5">
-          {listings.length === 0 ? (
-            <div className="rounded-[1.75rem] border border-dashed border-stone-900/15 bg-white/75 p-8 text-stone-600">
-              No listings yet. Create your first draft to begin.
-            </div>
+        {listings.length === 0 ? (
+          <div className="rounded-[1.75rem] border border-dashed border-stone-900/15 bg-white/75 p-8 text-stone-600">
+            No listings yet. Create your first draft to begin.
+          </div>
+        ) : null}
+
+        {groups.map((group) => (
+        <section className="grid gap-4" key={group.key}>
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">
+              {group.title}
+              {group.listings.length > 0 ? (
+                <span className="ml-2 text-base font-medium text-stone-500">
+                  {group.listings.length}
+                </span>
+              ) : null}
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-stone-600">{group.subtitle}</p>
+          </div>
+
+          {group.listings.length === 0 ? (
+            <p className="rounded-[1.5rem] border border-dashed border-stone-900/15 bg-white/60 p-5 text-sm text-stone-600">
+              {group.emptyDetail}
+            </p>
           ) : null}
 
-          {listings.map((listing) => {
+          {group.listings.map((listing) => {
             const imageCount = (listing.listing_images ?? []).filter((image) => !image.deleted_at).length;
 
             // Only meaningful where submission is the next step. An approved or
@@ -204,6 +224,7 @@ export default async function AgentListingsPage() {
             );
           })}
         </section>
+        ))}
       </div>
     </main>
   );
