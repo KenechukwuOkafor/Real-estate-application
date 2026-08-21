@@ -250,8 +250,9 @@ wrong.
   underneath a policy that correctly exposed only verified, undeleted profiles — which
   made a moderator's `rejection_reason` and an agent's remaining `free_listing_quota`
   readable by any unauthenticated caller. Review the grant separately from the policy,
-  and derive the column list from what a surface renders rather than from what the query
-  currently selects.
+  and derive the column list from what the code queries rather than from what the query
+  currently selects — see the two entries below for why "what it renders" is the wrong
+  place to stop.
 - Auditing SELECT and stopping there. `agent_profiles` had a carefully column-scoped
   UPDATE — 0013 withheld `verification_status`, `verified_at`, `free_listing_quota` and
   the rest as self-grants — sitting beside a table-wide INSERT that granted every one of
@@ -261,6 +262,21 @@ wrong.
   a column is withheld from UPDATE because holding it would be an escalation, check that
   INSERT withholds it too: the two paths reach the same column and only one of them was
   reviewed.
+- Deriving a column grant from what a surface *renders*. It is the right instinct and it
+  is not sufficient: Postgres refuses a `WHERE` on a column the caller cannot `SELECT`, so
+  a column can be required by the grant and never reach a screen. `agent_profiles.deleted_at`
+  is rendered nowhere and two queries filter `.is("deleted_at", null)` — withholding it
+  would have failed both. Derive the grant from what is **queried** — selected, filtered,
+  ordered and joined on — and probe the result rather than reasoning about it.
+- Letting a mutation in a test run at an undeclared position. The guard protecting
+  `agent_profiles.rejection_reason` seeds a probe value in `beforeAll` so its denials are
+  withholding something rather than returning nothing, and the restore was first written
+  as a test. Vitest runs tests in file order, so the restore ran *before* the denials and
+  emptied the very values they existed to prove were withheld — every assertion would
+  have passed against a null column, which is this document's own "asserting a denial by
+  observing an empty result" mistake, committed inside the guard against it. Setup and
+  teardown belong in `beforeAll`/`afterAll`, where their position is part of the contract;
+  a mutation written as a test has no declared position at all.
 - Expecting `select("*")` to narrow itself to the granted columns. PostgREST expands it to
   every column in the table, so against a column-scoped grant it fails `42501` outright.
   That is the desired direction — fail closed — but it means a star select is not a way to
@@ -270,5 +286,7 @@ wrong.
 ## Definition of Done
 
 Default privileges are revoked, grants are column-scoped, escalation-relevant columns are
-ungranted, and every denial test pairs with a control proving the data exists and is being
-withheld.
+ungranted **on every write path that can set them, INSERT as well as UPDATE**, and every
+denial test pairs with a control proving the data exists and is being withheld — with the
+mutation that creates that data in `beforeAll` and its restore in `afterAll`, never as a
+test.
