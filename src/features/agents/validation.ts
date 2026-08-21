@@ -103,6 +103,30 @@ export function validateVerificationSubmissionInput(
     // exist under this agent's prefix before trusting it.
     assertNonEmpty(document.storagePath, "Document upload is required.");
   }
+
+  /**
+   * An identity document, specifically — not just any allowed document.
+   *
+   * "At least one document" let an agent reach `verified` on a utility bill or
+   * an agency licence alone, neither of which establishes who the person is.
+   * That is what made "identity-verified agents" an overstatement in the
+   * seeker-facing copy, and softening the copy would have kept the weaker
+   * check. This makes the stronger claim true instead.
+   *
+   * A CAC certificate and an agency licence are still worth collecting — they
+   * say something about the business — so they stay allowed, as additions
+   * rather than substitutes.
+   */
+  const hasGovernmentId = input.documents.some(
+    (document) => document.documentType === "government_id",
+  );
+
+  if (!hasGovernmentId) {
+    throw validationError(
+      "A verification submission must include a government ID.",
+      [{ field: "governmentId", rule: "required" }],
+    );
+  }
 }
 
 export function validateDraftListingInput(input: AgentDraftListingInput) {

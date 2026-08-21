@@ -202,6 +202,11 @@ export function VerificationSubmissionForm() {
         </label>
 
         <p className="text-xs text-stone-500">
+          A government ID is required. Add a CAC certificate, utility bill or
+          agency licence as well if you have them.
+        </p>
+
+        <p className="text-xs text-stone-500">
           JPG, PNG, WEBP or PDF, up to 10 MB each. Documents are stored
           privately and are visible only to you and Ruvo&apos;s review team.
         </p>

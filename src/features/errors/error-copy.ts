@@ -225,6 +225,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   bedrooms: "number of bedrooms",
   description: "description",
   documents: "documents",
+  governmentId: "government ID",
   images: "photos",
   position: "photo order",
   priceNaira: "price",
