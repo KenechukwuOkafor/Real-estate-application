@@ -296,6 +296,39 @@ values
     now(),
     now()
   ),
+  -- The one listing that is NOT approved.
+  --
+  -- Every seeded listing was approved, so the admin moderation queue rendered
+  -- empty and had never been exercised locally — the same masking the comments
+  -- above describe for quota, verification and chats. It hid a live 500: the
+  -- queue renders listing images, and it crashed on every one of them.
+  --
+  -- pending_review specifically, because that is the state an admin acts on.
+  -- No approved_at, because it has not been approved.
+  (
+    '3c719a67-c526-44d2-b9f5-83042d03f004',
+    '20887cbf-53fc-4c45-adb2-c5d4d33cf004',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    'pending_review',
+    'One Bedroom Near Behind Hostel',
+    'one-bedroom-behind-hostel',
+    'Newly painted one bedroom with fitted kitchen, water storage tank, and a gated compound a short walk from campus.',
+    '1_bedroom',
+    'yearly',
+    null,
+    420000,
+    1,
+    1,
+    'Behind Hostel',
+    'Nsukka',
+    'Enugu',
+    'Nigeria',
+    6.858400,
+    7.395100,
+    '["water","gated","fitted_kitchen"]'::jsonb,
+    null,
+    now() - interval '6 hours'
+  ),
   (
     '3c719a67-c526-44d2-b9f5-83042d03f002',
     '20887cbf-53fc-4c45-adb2-c5d4d33cf002',
@@ -410,6 +443,15 @@ values
     false
   ),
   (
+    '40fbc9b0-d821-42d7-bf6e-887a49b3a010',
+    '3c719a67-c526-44d2-b9f5-83042d03f004',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f004/01992a10-0010-7000-8000-0000000000b0.webp',
+    0,
+    'image/webp',
+    176000,
+    true
+  ),
+  (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a004',
     '3c719a67-c526-44d2-b9f5-83042d03f002',
     'listings/3c719a67-c526-44d2-b9f5-83042d03f002/01992a10-0004-7000-8000-0000000000a4.webp',
@@ -476,12 +518,14 @@ set cover_image_id = case id
   when '3c719a67-c526-44d2-b9f5-83042d03f001' then '40fbc9b0-d821-42d7-bf6e-887a49b3a001'::uuid
   when '3c719a67-c526-44d2-b9f5-83042d03f002' then '40fbc9b0-d821-42d7-bf6e-887a49b3a004'::uuid
   when '3c719a67-c526-44d2-b9f5-83042d03f003' then '40fbc9b0-d821-42d7-bf6e-887a49b3a007'::uuid
+  when '3c719a67-c526-44d2-b9f5-83042d03f004' then '40fbc9b0-d821-42d7-bf6e-887a49b3a010'::uuid
   else cover_image_id
 end
 where id in (
   '3c719a67-c526-44d2-b9f5-83042d03f001',
   '3c719a67-c526-44d2-b9f5-83042d03f002',
-  '3c719a67-c526-44d2-b9f5-83042d03f003'
+  '3c719a67-c526-44d2-b9f5-83042d03f003',
+  '3c719a67-c526-44d2-b9f5-83042d03f004'
 );
 
 -- ---------------------------------------------------------------------------
