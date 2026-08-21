@@ -49,6 +49,19 @@
  * That is a ~90 second build on every run for a class of bug that has not yet
  * escaped. If a rendering defect ever reaches main, that is the evidence for
  * adding one — not before.
+ *
+ * THE LEDGER. That bet has cost something once already: an assertion here went
+ * stale when 5c552c5 made live listings changeable through review, and it sat
+ * failing on main across a merge because CI cannot run it. A stale test rather
+ * than a broken page — no user saw anything — but it is instance one.
+ *
+ * One instance is the tradeoff. A second is evidence: add the CI job. Record it
+ * in the ledger under "The Rendered Suites Are Local-Only" in
+ * docs/engineering-bible/Engineering/engineering-quality.md, because the count
+ * is the argument.
+ *
+ * Until then the mitigation is procedural: RUN `npm run test:rendered` BEFORE
+ * OPENING A PR THAT TOUCHES A RENDERED SURFACE.
  */
 import { DEV_AUTH_USERS } from "@/lib/auth/dev-auth";
 

@@ -6,16 +6,19 @@ import {
   minutesRemaining,
   type InspectionStatus,
 } from "@/features/inspections/expiry";
+import type { PortalNavCounts as PortalCounts } from "@/features/agents/components/portal-nav";
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import {
   countUnreadMessagesByChat,
+  countUnreadMessagesForUser,
   createInspectionRequestWithChat,
   findActiveInspectionRequest,
   getInspectionRequestById,
   findCounterpartyNames,
   getInspectableListingById,
   listAgentInspectionRequests,
+  listOpenInspectionRequestDeadlines,
   markChatMessagesRead,
   updateInspectionRequestStatus,
 } from "@/server/repositories/inspection-repository";
@@ -368,5 +371,50 @@ export async function markChatRead(chatId: string) {
     // Policy from 0024 confines this to messages the caller received in a chat
     // they are party to, so a refusal here means the caller had no business
     // marking them anyway.
+  }
+}
+
+/**
+ * The two numbers the portal navigation puts on badges.
+ *
+ * Deliberately forgiving: this runs in a layout, on every portal page, and a
+ * badge is the least important thing on any of them. A failure here returning
+ * zeros costs an agent a red dot; a failure here throwing takes down the page
+ * they were trying to reach.
+ */
+export async function getAgentPortalCounts(): Promise<PortalCounts> {
+  const empty = { incomingRequests: 0, unreadMessages: 0 };
+
+  try {
+    const appUser = await getCurrentAppUser();
+
+    if (!appUser) {
+      return empty;
+    }
+
+    const client = await createSupabaseAuthenticatedClient();
+    const agentProfile = appUser.roles.includes("agent")
+      ? await getAgentProfileByUserId(client, appUser.user.id)
+      : null;
+
+    const [deadlines, unreadMessages] = await Promise.all([
+      agentProfile
+        ? listOpenInspectionRequestDeadlines(client, agentProfile.id)
+        : Promise.resolve([]),
+      countUnreadMessagesForUser(client, appUser.user.id),
+    ]);
+
+    const now = new Date();
+
+    return {
+      // The stored status says 'requested' forever, so counting rows would
+      // count requests that ran out of time weeks ago. A badge that cannot be
+      // cleared by doing the work is a badge people learn to ignore.
+      incomingRequests: deadlines.filter((row) => isAwaitingResponse(row, now))
+        .length,
+      unreadMessages,
+    };
+  } catch {
+    return empty;
   }
 }

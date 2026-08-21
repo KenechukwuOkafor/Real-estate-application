@@ -29,26 +29,65 @@ function secret() {
   return key;
 }
 
+/**
+ * A deadline, because a call without one spends the whole test budget.
+ *
+ * A token mint that hung took a test to its 30s timeout and reported
+ * `Test timed out in 30000ms` — which names the test rather than the network,
+ * so it reads as a defect in whatever that test covers. It cost a run to trace
+ * back to Clerk. Ten seconds is far longer than a healthy mint (~200ms) and far
+ * shorter than the budget, so a hang now fails as a hang.
+ */
+const CLERK_TIMEOUT_MS = 10_000;
+
 export async function clerkRequest<T>(
   path: string,
   init?: { body?: unknown; method?: string },
 ): Promise<T> {
-  const response = await fetch(`${CLERK_API}${path}`, {
-    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-    headers: {
-      Authorization: `Bearer ${secret()}`,
-      "Content-Type": "application/json",
-    },
-    method: init?.method ?? "GET",
-  });
+  const method = init?.method ?? "GET";
 
-  const text = await response.text();
+  /**
+   * One retry, and ONLY for a request that never got an answer.
+   *
+   * Deliberately not a retry on HTTP status. A 429 is Clerk telling us we are
+   * asking too often, and retrying spends another call to survive having spent
+   * too many — the shared cast in test/helpers/cast.ts is the fix for that, and
+   * this must not quietly undo it. What is retried here is a connection that
+   * timed out or failed outright, where no call was successfully made.
+   */
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let response: Response;
 
-  if (!response.ok) {
-    throw new Error(`Clerk ${init?.method ?? "GET"} ${path} -> ${response.status}: ${text}`);
+    try {
+      response = await fetch(`${CLERK_API}${path}`, {
+        body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+        headers: {
+          Authorization: `Bearer ${secret()}`,
+          "Content-Type": "application/json",
+        },
+        method,
+        signal: AbortSignal.timeout(CLERK_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (attempt === 0) {
+        continue;
+      }
+
+      throw new Error(
+        `Clerk ${method} ${path} did not answer within ${CLERK_TIMEOUT_MS}ms, twice: ${String(error)}`,
+      );
+    }
+
+    const text = await response.text();
+
+    if (!response.ok) {
+      throw new Error(`Clerk ${method} ${path} -> ${response.status}: ${text}`);
+    }
+
+    return (text ? JSON.parse(text) : null) as T;
   }
 
-  return (text ? JSON.parse(text) : null) as T;
+  throw new Error(`Clerk ${method} ${path}: unreachable`);
 }
 
 /**

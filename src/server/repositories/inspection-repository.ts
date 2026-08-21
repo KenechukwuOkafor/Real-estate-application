@@ -229,6 +229,63 @@ export async function findCounterpartyNames(
   return names;
 }
 
+/**
+ * How many requests are still waiting on this agent.
+ *
+ * Fetches the open candidates and applies the deadline in TypeScript, for the
+ * same reason findActiveInspectionRequest does: the rule about what counts as
+ * still-open lives in one module, and a `.gt("expires_at", now)` here would be a
+ * second copy of it written in PostgREST filter syntax.
+ *
+ * Only two columns, because this runs in the layout on every portal page and
+ * nothing here needs the rest of the row.
+ */
+export async function listOpenInspectionRequestDeadlines(
+  client: DbClient,
+  agentProfileId: string,
+) {
+  const { data, error } = await client
+    .from("inspection_requests")
+    .select("expires_at, status")
+    .eq("agent_profile_id", agentProfileId)
+    .eq("status", "requested")
+    .is("deleted_at", null);
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Unread messages addressed to this user, across every conversation.
+ *
+ * No chat filter: RLS confines `messages` to conversations the caller is party
+ * to, so the scope is already exactly right and adding an `.in("chat_id", ...)`
+ * would mean fetching the chat list first to say something the database is
+ * saying anyway.
+ *
+ * head + exact asks Postgres to count and return no rows at all.
+ */
+export async function countUnreadMessagesForUser(
+  client: DbClient,
+  viewerUserId: string,
+) {
+  const { count, error } = await client
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .neq("sender_user_id", viewerUserId)
+    .is("read_at", null)
+    .is("deleted_at", null);
+
+  if (error) {
+    throw error;
+  }
+
+  return count ?? 0;
+}
+
 export async function createInspectionRequest(
   client: DbClient,
   input: {

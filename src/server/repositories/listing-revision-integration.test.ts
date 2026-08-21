@@ -20,6 +20,7 @@ import {
   asUser,
   rlsIntegrationEnabled,
 } from "../../../test/helpers/rls-clients";
+import { listingImagePath } from "../../../test/helpers/storage-paths";
 
 const suite = rlsIntegrationEnabled() ? describe : describe.skip;
 
@@ -136,7 +137,7 @@ suite("listing revisions", () => {
         mime_type: "image/webp",
         position: 0,
         size_bytes: 1000,
-        storage_path: `listings/${listingId}/${crypto.randomUUID()}.webp`,
+        storage_path: listingImagePath(listingId),
       })
       .select("id")
       .single();

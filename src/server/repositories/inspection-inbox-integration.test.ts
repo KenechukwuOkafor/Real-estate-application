@@ -29,6 +29,7 @@ import {
   asUser,
   rlsIntegrationEnabled,
 } from "../../../test/helpers/rls-clients";
+import { listingImagePath } from "../../../test/helpers/storage-paths";
 import { findActiveInspectionRequest } from "@/server/repositories/inspection-repository";
 
 const suite = rlsIntegrationEnabled() ? describe : describe.skip;
@@ -361,7 +362,7 @@ suite("inspection inbox", () => {
         mime_type: "image/webp",
         position: 0,
         size_bytes: 1024,
-        storage_path: `listings/${data.id}/${crypto.randomUUID()}.webp`,
+        storage_path: listingImagePath(data.id),
       })
       .select("id")
       .single();

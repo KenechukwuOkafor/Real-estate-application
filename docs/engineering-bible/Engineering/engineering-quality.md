@@ -586,6 +586,90 @@ that change a defect or an improvement?"
 
 ---
 
+# Absence of Assertion Is Absence of Test
+
+> A suite is green because it never asked the question.
+
+Test Fixture Fidelity is about a test asserting the wrong thing. *A Test Can
+Encode the Defect It Exists to Catch* is about a test asserting the thing that
+needs removing. This is the neighbour of both, and it is distinct from them: a
+test that asserts **nothing at all** about the fact it appears to cover.
+
+There is nothing to review here. No wrong fixture, no wrong assertion, no
+suspicious line. The suite passes, it is well written, and the gap is a sentence
+that is not on the page.
+
+## The instance
+
+The agent inspection inbox shipped with seven rendered tests. They asserted the
+page rendered, the listing title appeared, the seeker's message appeared, the
+countdown read `N hours left`, an expired request stayed visible and labelled,
+the count excluded expired ones, and a seeker was refused. All seven passed.
+
+None of them asserted **the name of the person who asked** — which is one of the
+two facts the surface exists to show.
+
+The name was read through a PostgREST embed on `public.users`, and that table is
+readable only by yourself or an admin. So the embed returned `null` for every
+row and the page fell back to `"A seeker"` on every request. Adding one line
+failed immediately:
+
+```ts
+expect(page.text).toContain(seekerName);
+expect(page.text).not.toContain("A seeker");
+```
+
+The same embed lives in `chat-repository`, which had been rendering the literal
+word `"student"` in the chat header and the chat list for months. Nobody had
+asserted on a counterparty name there either.
+
+## The tell: a denied embed is silent
+
+This is what makes the class hard to see. Under RLS, a denied *row* read is not
+an error — it is HTTP 200 with `null` or `[]`. An embed on a table the caller
+cannot see into does not throw, does not warn, and does not log. The code path
+looks exactly like a successful one that happened to find nothing:
+
+```ts
+requesterName: request.users?.full_name?.trim() || "A seeker",
+```
+
+That line is indistinguishable, at a glance and in review, from correct code
+handling a genuinely nameless user. The `??` and the `||` that make code robust
+are the same operators that make this invisible. **A fallback converts a
+permission failure into a plausible value.**
+
+Anywhere a fallback stands behind a permission-checked read, the fallback is
+load-bearing evidence and must be asserted against — not just the happy path,
+but that the fallback is *not* what rendered.
+
+## The general rule
+
+**Enumerate what a surface claims to show, then check that a test names each
+item.** Not "is this feature tested" — the inbox was thoroughly tested — but "is
+this *fact* asserted". Count the assertions against the list, and the ones with
+no line beside them are untested regardless of how green the file is.
+
+The failure mode is not laziness. It is that assertions get written for the
+things that were hard to build. The countdown was interesting, so it was
+asserted. The name was a field on a row, so it was assumed.
+
+## Applying it
+
+- For every value a page displays, point at the assertion that would fail if it
+  vanished. If you cannot, it is not tested.
+- Never let a fallback go unasserted. Pair every `toContain(realValue)` with
+  `not.toContain(fallbackValue)`, or the fallback will pass for the real thing.
+- Treat any cross-table read under RLS as suspect until asserted: embeds,
+  joins, and nested selects fail *quietly* and return a shape the code accepts.
+- When one surface turns out to have this gap, grep for the same read elsewhere
+  before fixing only the one you found. The inbox and the chat header shared an
+  embed and therefore shared a defect.
+- Write the assertion that would catch the feature being deleted, not the
+  assertion that confirms it was written.
+
+---
+
 # Correctness Does Not Compose
 
 > Every component was correct. Every pair was broken. None of it was found by
@@ -649,6 +733,62 @@ usually one step after the last assertion.
 
 ---
 
+# The Rendered Suites Are Local-Only: The Standing Bet
+
+> A deliberate tradeoff, with a written trigger for revisiting it. Recorded so
+> the argument is not re-derived from scratch each time it costs something.
+
+## The bet
+
+The rendered-page suites (`npm run test:rendered`) need a running application.
+CI has no server for them, so they are **excluded from the CI run entirely**
+rather than skipped inside it — the pipeline asserts zero skipped tests, and a
+suite that skips in CI reports success for work it never did.
+
+The alternative is a CI job that builds and starts the app. That is roughly **90
+seconds added to every run**, paid on every commit forever, against a class of
+bug that had not yet escaped when the decision was made.
+
+The bet was: *not worth it yet, and the evidence for changing our minds is a
+rendering defect actually reaching `main`.*
+
+## The ledger
+
+**Instance 1 — a stale assertion, undetected across a merge.**
+
+`5c552c5` ("edit a live listing, reviewed before a seeker sees it") made an
+approved listing changeable through review. A rendered test still asserted the
+old behaviour:
+
+```ts
+expect(page.text).toContain("cannot be edited");
+```
+
+It failed from the moment that commit merged and stayed failing on `main`
+through the next slice. CI was green throughout, because CI cannot run it. It
+was found only when the next slice happened to run the local suite.
+
+Note what this instance *is* and is not. It is a **stale test**, not a broken
+page — the application behaved correctly the whole time; the assertion had gone
+out of date. The cost was a confusing red run and the time to establish it was
+pre-existing rather than freshly caused, which is exactly the diagnosis tax a
+long-red test imposes. No user saw anything.
+
+## The trigger
+
+**One instance is the documented tradeoff. A second is evidence.**
+
+If a rendered assertion is again found stale or failing on `main` — or, more
+seriously, if a genuine rendering defect reaches `main` — that is the signal to
+add the CI job and stop paying in diagnosis time. Add the instance to the ledger
+above either way; the count is the argument.
+
+Until then the mitigation is procedural, and it is cheap: **run
+`npm run test:rendered` before opening a PR that touches a rendered surface.**
+A slice that changes what a page says has to look at the page.
+
+---
+
 # Common Quality Issues
 
 Avoid:
@@ -665,6 +805,7 @@ Avoid:
 - Migrations verified only by a replay from zero, when they operate on existing rows (see Test Fixture Fidelity)
 - Reasoning about two mechanisms separately instead of exercising them together (see Correctness Does Not Compose)
 - Asserting on human-readable strings instead of on the contract (see A Test Can Encode the Defect It Exists to Catch)
+- Displaying a value no test names, especially behind a fallback — a denied RLS read returns null rather than erroring (see Absence of Assertion Is Absence of Test)
 - A unique constraint on a soft-deletable table that does not exclude deleted rows
 
 ---

@@ -60,7 +60,7 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
   );
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#efe7da_100%)] px-6 py-10 text-stone-900">
+    <main className="px-5 py-8 md:px-8 md:py-10 text-stone-900">
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
         <section className="rounded-[2rem] border border-stone-900/10 bg-white/85 p-8 shadow-[0_20px_80px_rgba(48,38,24,0.08)]">
           <div className="flex flex-wrap items-start justify-between gap-4">

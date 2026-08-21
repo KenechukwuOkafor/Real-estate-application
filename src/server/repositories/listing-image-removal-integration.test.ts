@@ -24,6 +24,7 @@ import {
   asUser,
   rlsIntegrationEnabled,
 } from "../../../test/helpers/rls-clients";
+import { listingImagePath } from "../../../test/helpers/storage-paths";
 
 const suite = rlsIntegrationEnabled() ? describe : describe.skip;
 
@@ -183,7 +184,7 @@ suite("remove_listing_image", () => {
           mime_type: "image/webp",
           position,
           size_bytes: 1000 + position,
-          storage_path: `listings/${listingId}/${crypto.randomUUID()}.webp`,
+          storage_path: listingImagePath(listingId),
         })
         .select("id")
         .single();
@@ -326,7 +327,7 @@ suite("remove_listing_image", () => {
       mime_type: "image/webp",
       position: 0,
       size_bytes: 500,
-      storage_path: `listings/${listingId}/${crypto.randomUUID()}.webp`,
+      storage_path: listingImagePath(listingId),
     });
 
     expect(error).toBeNull();

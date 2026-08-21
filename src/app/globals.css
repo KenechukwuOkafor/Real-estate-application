@@ -34,3 +34,14 @@ body {
     text-decoration: none;
   }
 }
+
+/*
+  The portal supplies its own navigation, so the marketing header stands down.
+
+  Keyed on the shell's presence rather than on a list of routes: the shell is
+  rendered by the agent layout and by /chats for agents, and a route list here
+  would be a second copy of that decision, kept in step by hand.
+*/
+body:has([data-portal-shell]) > header {
+  display: none;
+}
