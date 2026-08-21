@@ -14,6 +14,15 @@ import type { Database } from "@/types/database";
 
 type DbClient = SupabaseClient<Database>;
 
+/**
+ * The three columns anon holds SELECT on after 0026, and the three the public
+ * surfaces render: display_name and verification_status on the card and the
+ * detail page, id for the embed's join.
+ *
+ * Adding a column here without granting it in a migration fails the query
+ * outright with 42501 rather than returning a null — which is the intended
+ * shape. The select list and the grant are meant to be read together.
+ */
 type AgentProfileSummaryRow = Pick<
   Database["public"]["Tables"]["agent_profiles"]["Row"],
   "display_name" | "id" | "verification_status"
@@ -248,19 +257,7 @@ export async function getPublicListings(
         agent_profiles!inner (
           id,
           display_name,
-          verification_status,
-          bio,
-          created_at,
-          deleted_at,
-          founding_agent,
-          free_listing_quota,
-          rejection_reason,
-          suspension_reason,
-          updated_at,
-          user_id,
-          verification_submitted_at,
-          verified_at,
-          verified_by
+          verification_status
         ),
         listing_images!listing_images_listing_id_fkey (
           id,
@@ -344,19 +341,7 @@ export async function getPublicListingByIdentifier(
         agent_profiles!inner (
           id,
           display_name,
-          verification_status,
-          bio,
-          created_at,
-          deleted_at,
-          founding_agent,
-          free_listing_quota,
-          rejection_reason,
-          suspension_reason,
-          updated_at,
-          user_id,
-          verification_submitted_at,
-          verified_at,
-          verified_by
+          verification_status
         ),
         listing_images!listing_images_listing_id_fkey (
           id,

@@ -243,6 +243,20 @@ wrong.
 - Widening a grant to make a 42501 go away. On these tables the withheld privilege is
   usually the self-grant the scoping existed to prevent; the repair belongs in the query.
 - Asserting a denial by observing an empty result without proving the row exists.
+- Trusting a table because its row predicate is good. A correct ownership or visibility
+  predicate answers the row question so convincingly that nobody goes on to read the
+  column list, so a table with careful row-level policy is where an over-wide grant
+  survives longest. `agent_profiles` held a table-wide `grant select ... to anon`
+  underneath a policy that correctly exposed only verified, undeleted profiles — which
+  made a moderator's `rejection_reason` and an agent's remaining `free_listing_quota`
+  readable by any unauthenticated caller. Review the grant separately from the policy,
+  and derive the column list from what a surface renders rather than from what the query
+  currently selects.
+- Expecting `select("*")` to narrow itself to the granted columns. PostgREST expands it to
+  every column in the table, so against a column-scoped grant it fails `42501` outright.
+  That is the desired direction — fail closed — but it means a star select is not a way to
+  discover what you may read, and any caller relying on one breaks the moment a grant is
+  narrowed.
 
 ## Definition of Done
 
