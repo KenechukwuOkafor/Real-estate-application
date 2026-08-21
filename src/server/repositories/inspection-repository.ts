@@ -131,6 +131,74 @@ export async function listAgentInspectionRequests(
   return (data ?? []) as unknown as AgentInspectionRequestRow[];
 }
 
+export type SeekerInspectionRequestRow = InspectionRequestRow & {
+  /** Same two-foreign-key ambiguity as the agent row above. */
+  chats: { id: string; last_message_at: string | null } | null;
+  /**
+   * Wider than the agent's embed, because the seeker's questions are
+   * different. The agent already knows which property this is; the seeker
+   * needs to know who they asked (`agent_profiles.display_name`) and, when a
+   * request goes unanswered, what else is like the flat they wanted — which is
+   * what `area` and `property_type` are here for.
+   */
+  listings:
+    | {
+        area: string;
+        id: string;
+        property_type: string;
+        public_uuid: string;
+        slug: string;
+        title: string;
+        agent_profiles: { display_name: string } | null;
+      }
+    | null;
+};
+
+/**
+ * Every inspection request this seeker has sent, newest first.
+ *
+ * The mirror of listAgentInspectionRequests, and it includes expired and
+ * answered ones for the same reason: a seeker's real answer to "did that agent
+ * ever reply" lives in the requests that went nowhere. Today they learn an
+ * agent accepted by noticing a new conversation, and learn one expired by
+ * never hearing anything at all.
+ *
+ * parties_read_own_inspection_requests already covers this direction —
+ * `requester_user_id = current_app_user_id()` — so no policy work was needed,
+ * only a query nobody had written.
+ */
+export async function listSeekerInspectionRequests(
+  client: DbClient,
+  requesterUserId: string,
+) {
+  const { data, error } = await client
+    .from("inspection_requests")
+    .select(
+      `
+        *,
+        listings (
+          id,
+          title,
+          slug,
+          public_uuid,
+          area,
+          property_type,
+          agent_profiles ( display_name )
+        ),
+        chats!inspection_requests_chat_id_fkey ( id, last_message_at )
+      `,
+    )
+    .eq("requester_user_id", requesterUserId)
+    .is("deleted_at", null)
+    .order("requested_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as unknown as SeekerInspectionRequestRow[];
+}
+
 /**
  * Unread counts per chat, for the chats given.
  *
