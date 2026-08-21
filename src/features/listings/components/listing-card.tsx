@@ -62,14 +62,30 @@ export function ListingCard({ listing }: ListingCardProps) {
           )}
         </p>
 
+        {/*
+          The card's trust slot is deliberately empty.
+
+          It held a "Verified" badge, which rendered on every card: the public
+          feed only ever contains listings from verified agents, because
+          verification gates both submission (canSubmitListing is
+          `isVerified && hasQuota`) and visibility (the agent_profiles embed is
+          inner, and only verified profiles are publicly readable). A signal
+          that always fires carries no information, and a badge is read as a
+          differentiator whether or not it is one.
+
+          The claim now lives in PlatformTrustLine, where it is a true
+          statement about Ruvo rather than a claim about this listing.
+
+          Left empty rather than backfilled. Putting a weak signal here — agent
+          tenure from verified_at, say — spends the slot just as surely as a
+          constant one did. It is reserved for something that varies with an
+          agent's conduct, such as whether they have completed an inspection
+          before. That needs a SECURITY DEFINER aggregate in the shape of 0025:
+          inspection_requests has no anon grants at all, so a signed-out seeker
+          can currently read nothing about it.
+        */}
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm text-stone-700">{listing.area}</span>
-
-          {listing.agent.isVerified ? (
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-900">
-              Verified
-            </span>
-          ) : null}
         </div>
       </div>
 

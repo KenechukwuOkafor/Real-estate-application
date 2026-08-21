@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ActiveListingFilters } from "@/features/listings/components/active-listing-filters";
 import { ListingFeed } from "@/features/listings/components/listing-feed";
 import { ListingFilters } from "@/features/listings/components/listing-filters";
+import { PlatformTrustLine } from "@/features/listings/components/platform-trust-line";
 import { EMPTY_STATE_FALLBACK_LIMIT } from "@/features/listings/constants";
 import { parseListingListFilters } from "@/features/listings/parsers";
 import {
@@ -64,6 +65,8 @@ export default async function ListingsPage({
         />
 
         <ListingFilters filters={filters} />
+
+        <PlatformTrustLine />
 
         <ListingFeed
           fallbackListings={fallback?.items ?? []}
