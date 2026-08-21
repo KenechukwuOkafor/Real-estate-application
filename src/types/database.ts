@@ -72,6 +72,15 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: string | null;
       };
+      /**
+       * The calling agent's own rejection reason (migration 0027). A function
+       * rather than a column grant, because authenticated also reads
+       * agent_profiles through the public policy.
+       */
+      own_agent_rejection_reason: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
       create_inspection_request_with_chat: {
         Args: {
           expires_at: string;

@@ -34,6 +34,7 @@ import {
   createVerificationSubmission,
   insertVerificationDocuments,
   getAgentProfileByUserId,
+  getOwnAgentRejectionReason,
   getAgentProfileWithSubscriptionsByUserId,
   getOwnedListing,
   listAgentListings,
@@ -71,6 +72,7 @@ export async function getCurrentAgentContext() {
   const client = await createSupabaseAuthenticatedClient();
   const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
 
+
   return {
     agentProfile,
     roles: appUser.roles,
@@ -96,8 +98,22 @@ export async function getAgentOnboardingContext() {
   const client = await createSupabaseAuthenticatedClient();
   const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
 
+  /**
+   * Fetched separately, and only when it can be shown.
+   *
+   * rejection_reason is not a column `authenticated` may read after 0027 — it
+   * arrives through own_agent_rejection_reason(), which answers for the caller
+   * and nobody else. Skipping the call unless the status is 'rejected' keeps
+   * the common path to one query.
+   */
+  const rejectionReason =
+    agentProfile?.verification_status === "rejected"
+      ? await getOwnAgentRejectionReason(client)
+      : null;
+
   return {
     agentProfile,
+    rejectionReason,
     roles: appUser.roles,
     user: appUser.user,
   };

@@ -51,10 +51,15 @@ export default async function AgentVerificationPage() {
           {statusCopy[status]}
         </p>
 
-        {status === "rejected" && context.agentProfile?.rejection_reason ? (
+        {/*
+          Through own_agent_rejection_reason(), not a column. See 0027: the
+          same grant that would let an agent read their own note would let any
+          signed-in user read every verified agent's.
+        */}
+        {status === "rejected" && context.rejectionReason ? (
           <div className="mt-6 rounded-[1.5rem] border border-rose-200 bg-rose-50 p-5 text-sm leading-7 text-rose-900">
             <p className="font-medium">Why this was rejected</p>
-            <p className="mt-1">{context.agentProfile.rejection_reason}</p>
+            <p className="mt-1">{context.rejectionReason}</p>
           </div>
         ) : null}
 
