@@ -5,6 +5,7 @@ const getCurrentAppUser = vi.fn();
 const getInspectionRequestById = vi.fn();
 const recordInspectionResponse = vi.fn();
 const markInspectionRequestComplete = vi.fn();
+const cancelInspectionRequestRow = vi.fn();
 
 vi.mock("@/lib/db/supabase", () => ({
   createSupabaseAuthenticatedClient: vi.fn(async () => ({})),
@@ -13,6 +14,7 @@ vi.mock("@/lib/db/supabase", () => ({
 
 vi.mock("@/server/repositories/inspection-repository", () => ({
   attachChatToInspectionRequest: vi.fn(),
+  cancelInspectionRequest: cancelInspectionRequestRow,
   createInspectionRequestWithChat: vi.fn(),
   findActiveInspectionRequest: vi.fn(),
   getInspectableListingById: vi.fn(),
@@ -31,9 +33,11 @@ vi.mock("@/server/services/audit-service", () => ({
 
 vi.mock("@/server/services/user-sync-service", () => ({ getCurrentAppUser }));
 
-const { completeInspectionRequest, respondToInspectionRequest } = await import(
-  "@/server/services/inspection-service"
-);
+const {
+  cancelInspectionRequest,
+  completeInspectionRequest,
+  respondToInspectionRequest,
+} = await import("@/server/services/inspection-service");
 
 /** Four days out, well clear of the wall clock these tests run against. */
 const INSIDE_WINDOW = "2099-01-01T00:00:00.000Z";
@@ -62,6 +66,10 @@ beforeEach(() => {
   );
   markInspectionRequestComplete.mockImplementation(async (_client, id: string) => ({
     completed_at: "2026-08-18T00:00:00.000Z",
+    inspection_request_id: id,
+  }));
+  cancelInspectionRequestRow.mockImplementation(async (_client, id: string) => ({
+    cancelled_at: "2026-08-18T00:00:00.000Z",
     inspection_request_id: id,
   }));
 });
@@ -238,4 +246,110 @@ describe("completeInspectionRequest", () => {
       completeInspectionRequest({ inspectionRequestId: "inspection_1" }),
     ).resolves.toMatchObject({ status: "completed" });
   });
+});
+
+
+/**
+ * The seeker's withdrawal.
+ *
+ * The one transition whose actor is the seeker, so these assert the ABSENCE of
+ * the agent checks the others require, and the presence of a different
+ * ownership rule.
+ */
+describe("cancelInspectionRequest", () => {
+  beforeEach(() => {
+    getCurrentAppUser.mockResolvedValue({
+      roles: ["student"],
+      user: { id: "user_1" },
+    });
+    getInspectionRequestById.mockResolvedValue({
+      agent_profile_id: "agent_profile_1",
+      completion_deadline: null,
+      expires_at: null,
+      id: "inspection_1",
+      requester_user_id: "user_1",
+      responded_at: null,
+      status: "requested",
+    });
+  });
+
+  it("does not require the agent role, because the seeker is the actor", async () => {
+    await expect(
+      cancelInspectionRequest({ inspectionRequestId: "inspection_1" }),
+    ).resolves.toMatchObject({ status: "cancelled" });
+  });
+
+  it("withdraws an accepted inspection too, not just an unanswered one", async () => {
+    getInspectionRequestById.mockResolvedValue({
+      agent_profile_id: "agent_profile_1",
+      completion_deadline: INSIDE_WINDOW,
+      expires_at: null,
+      id: "inspection_1",
+      requester_user_id: "user_1",
+      responded_at: "2026-08-17T00:00:00.000Z",
+      status: "accepted",
+    });
+
+    await expect(
+      cancelInspectionRequest({ inspectionRequestId: "inspection_1" }),
+    ).resolves.toMatchObject({ status: "cancelled" });
+  });
+
+  it("withdraws from a lapsed inspection, which is still the seeker's to leave", async () => {
+    // Stored status, not effective. The row has lapsed and is closed to
+    // everyone else, but "I could not make it" is still truer than the silence
+    // it replaces — and it takes the row out of the lapse count.
+    getInspectionRequestById.mockResolvedValue({
+      agent_profile_id: "agent_profile_1",
+      completion_deadline: OUTSIDE_WINDOW,
+      expires_at: null,
+      id: "inspection_1",
+      requester_user_id: "user_1",
+      responded_at: "2020-01-01T00:00:00.000Z",
+      status: "accepted",
+    });
+
+    await expect(
+      cancelInspectionRequest({ inspectionRequestId: "inspection_1" }),
+    ).resolves.toMatchObject({ status: "cancelled" });
+  });
+
+  it("reports somebody else's inspection as missing", async () => {
+    getInspectionRequestById.mockResolvedValue({
+      agent_profile_id: "agent_profile_1",
+      completion_deadline: null,
+      expires_at: null,
+      id: "inspection_1",
+      requester_user_id: "user_2",
+      responded_at: null,
+      status: "requested",
+    });
+
+    await expect(
+      cancelInspectionRequest({ inspectionRequestId: "inspection_1" }),
+    ).rejects.toMatchObject({ code: "INSPECTION_NOT_FOUND" });
+
+    expect(cancelInspectionRequestRow).not.toHaveBeenCalled();
+  });
+
+  it.each(["completed", "declined", "cancelled"])(
+    "refuses to cancel a %s inspection",
+    async (status) => {
+      getInspectionRequestById.mockResolvedValue({
+        agent_profile_id: "agent_profile_1",
+        completion_deadline: null,
+        expires_at: null,
+        id: "inspection_1",
+        requester_user_id: "user_1",
+        responded_at: null,
+        status,
+      });
+
+      await expect(
+        cancelInspectionRequest({ inspectionRequestId: "inspection_1" }),
+      ).rejects.toMatchObject({ code: "INSPECTION_STATE_TRANSITION_INVALID" });
+
+      expect(cancelInspectionRequestRow).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { CancelInspectionRequest } from "@/features/inspections/components/cancel-inspection-request";
 import { InspectionCountdown } from "@/features/inspections/components/inspection-countdown";
 import { formatTimeRemaining } from "@/features/inspections/expiry";
 import {
@@ -224,8 +225,10 @@ export default async function DashboardPage() {
                   it can end. A lapse especially must not take it away: the
                   visit may well have been rearranged in this very thread, and
                   hiding it would punish the seeker for the agent's silence.
+                  Whether a thread is worth offering is decided server-side —
+                  see conversationExists.
                 */}
-                {(isAccepted || isLapsed || isCompleted) && request.chatId ? (
+                {request.hasConversation && request.chatId ? (
                   <div className="mt-5 border-t border-stone-900/10 pt-4">
                     <Link
                       className="inline-flex items-center gap-2 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
@@ -238,6 +241,22 @@ export default async function DashboardPage() {
                         </span>
                       ) : null}
                     </Link>
+                  </div>
+                ) : null}
+
+                {isWaiting || isAccepted ? (
+                  /*
+                    The seeker's own exit, and the reason it exists: without it
+                    somebody who cannot attend leaves the row to lapse, and the
+                    lapse count 0030 started keeping would record it against an
+                    agent who did nothing wrong.
+                  */
+                  <div className="mt-5 border-t border-stone-900/10 pt-4">
+                    <CancelInspectionRequest
+                      agentName={request.agentName}
+                      inspectionRequestId={request.id}
+                      wasAccepted={isAccepted}
+                    />
                   </div>
                 ) : null}
 

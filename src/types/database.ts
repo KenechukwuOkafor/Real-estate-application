@@ -125,6 +125,13 @@ export type Database = {
           status: string;
         }>;
       };
+      cancel_inspection_request: {
+        Args: { target_request_id: string };
+        Returns: Array<{
+          cancelled_at: string;
+          inspection_request_id: string;
+        }>;
+      };
       complete_inspection_request: {
         Args: { target_request_id: string };
         Returns: Array<{

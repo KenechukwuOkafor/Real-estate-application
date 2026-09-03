@@ -355,6 +355,106 @@ suite("RLS: inspection_requests", () => {
     expect(second?.message).toContain("INSPECTION_STATE_TRANSITION_INVALID");
   });
 
+  /**
+   * The seeker's own exit — 0032.
+   *
+   * Uses its own row, because the shared one above is walked through
+   * accept -> complete in order and cancellation is a different ending.
+   */
+  describe("a seeker withdrawing", () => {
+    let cancellableId = "";
+
+    beforeAll(async () => {
+      const { data, error } = await svc
+        .from("inspection_requests")
+        .insert({
+          agent_profile_id: owningProfileId,
+          expires_at: new Date(Date.now() + 40 * 60 * 60 * 1000).toISOString(),
+          listing_id: listingId,
+          message: "Cancellable fixture.",
+          requester_user_id: seeker.userId,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      cancellableId = data.id;
+    }, 60_000);
+
+    afterAll(async () => {
+      await svc.from("inspection_requests").delete().eq("id", cancellableId);
+    }, 60_000);
+
+    it("refuses somebody else's inspection, as not found", async () => {
+      const { error } = await asUser(await mintFreshToken(otherSeeker)).rpc(
+        "cancel_inspection_request",
+        { target_request_id: cancellableId },
+      );
+
+      expect(error?.message).toContain("INSPECTION_REQUEST_NOT_FOUND");
+
+      const { data: control } = await svc
+        .from("inspection_requests")
+        .select("status")
+        .eq("id", cancellableId)
+        .single();
+      expect(control?.status).toBe("requested");
+    });
+
+    it("refuses the owning agent — cancelling is not theirs to do", async () => {
+      // Deliberate: an agent who accepted and cannot attend says so in the
+      // chat. A one-tap withdrawal would weaken the commitment accepting
+      // makes, and would double as a way to clear a lapse on day four.
+      const { error } = await asUser(await mintFreshToken(owningAgent)).rpc(
+        "cancel_inspection_request",
+        { target_request_id: cancellableId },
+      );
+
+      expect(error?.message).toContain("INSPECTION_REQUEST_NOT_FOUND");
+
+      const { data: control } = await svc
+        .from("inspection_requests")
+        .select("status")
+        .eq("id", cancellableId)
+        .single();
+      expect(control?.status).toBe("requested");
+    });
+
+    it("lets the requesting seeker withdraw, and records when", async () => {
+      const { error } = await asUser(await mintFreshToken(seeker)).rpc(
+        "cancel_inspection_request",
+        { target_request_id: cancellableId },
+      );
+
+      expect(error).toBeNull();
+
+      const { data: control } = await svc
+        .from("inspection_requests")
+        .select("cancelled_at, status")
+        .eq("id", cancellableId)
+        .single();
+      expect(control?.status).toBe("cancelled");
+      expect(control?.cancelled_at).not.toBeNull();
+    });
+
+    it("refuses a second withdrawal", async () => {
+      const { error } = await asUser(await mintFreshToken(seeker)).rpc(
+        "cancel_inspection_request",
+        { target_request_id: cancellableId },
+      );
+
+      expect(error?.message).toContain("INSPECTION_STATE_TRANSITION_INVALID");
+    });
+
+    it("will not let even service role un-cancel it", async () => {
+      const { error } = await svc
+        .from("inspection_requests")
+        .update({ status: "requested" })
+        .eq("id", cancellableId);
+
+      expect(error?.message).toContain("INSPECTION_COMPLETED_IS_TERMINAL");
+    });
+  });
+
   it("will not let even service role reopen a completed inspection", async () => {
     // Terminal for every caller, matching listings_archived_is_terminal. The
     // service-role client bypasses RLS and both functions entirely, so a

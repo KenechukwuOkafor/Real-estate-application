@@ -11,6 +11,7 @@ import type { PortalNavCounts as PortalCounts } from "@/features/agents/componen
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseAuthenticatedClient } from "@/lib/db/supabase";
 import {
+  cancelInspectionRequest as cancelInspectionRequestRow,
   countUnreadMessagesByChat,
   countUnreadMessagesForUser,
   createInspectionRequestWithChat,
@@ -363,10 +364,87 @@ export async function completeInspectionRequest(input: {
   };
 }
 
+/**
+ * The seeker withdraws an inspection they cannot attend.
+ *
+ * No agent role check, and no agent profile: this is the one transition the
+ * seeker performs. Ownership is `requester_user_id`, not the listing.
+ *
+ * CANCELLING IS NOT LAPSING, and nothing here has to enforce that — a lapse is
+ * derived from the accepted state, and this leaves it. Worth knowing because
+ * it is the whole reason this exists: without a way to withdraw, a seeker who
+ * could not attend left the row to lapse, and the lapse count that 0030
+ * started keeping for moderation would have recorded an agent's failure that
+ * never happened.
+ *
+ * There is deliberately no agent equivalent. See 0032.
+ */
+export async function cancelInspectionRequest(input: {
+  inspectionRequestId: string;
+}) {
+  const appUser = await getCurrentAppUser();
+
+  if (!appUser) {
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const inspectionRequest = await getInspectionRequestById(
+    client,
+    input.inspectionRequestId,
+  );
+
+  if (!inspectionRequest) {
+    throw new AppError("INSPECTION_NOT_FOUND", "Inspection request not found.", 404);
+  }
+
+  if (inspectionRequest.requester_user_id !== appUser.user.id) {
+    throw new AppError("INSPECTION_NOT_FOUND", "Inspection request not found.", 404);
+  }
+
+  // The stored status, not the effective one. A seeker may withdraw from a
+  // request whose 48 hours ran out and from an inspection that has lapsed —
+  // both are closed to everybody else, and saying "I could not make it" late
+  // is still truer than the silence it replaces.
+  if (!["accepted", "requested"].includes(inspectionRequest.status)) {
+    throw new AppError(
+      "INSPECTION_STATE_TRANSITION_INVALID",
+      `Inspection cannot be cancelled from status ${inspectionRequest.status}.`,
+      422,
+    );
+  }
+
+  const written = await cancelInspectionRequestRow(
+    client,
+    inspectionRequest.id,
+  );
+
+  await writeAuditLog({
+    action: "inspection_request.cancelled",
+    actorUserId: appUser.user.id,
+    afterData: {
+      cancelled_at: written.cancelled_at,
+      // What they withdrew from. 'accepted' and 'requested' are different
+      // withdrawals and the count that reads this later will care.
+      previous_status: inspectionRequest.status,
+      status: "cancelled",
+    },
+    entityId: written.inspection_request_id,
+    entityType: "inspection_request",
+  });
+
+  return {
+    cancelled_at: written.cancelled_at,
+    id: written.inspection_request_id,
+    status: "cancelled" as const,
+  };
+}
+
 export type AgentInspectionInboxItem = {
   chatId: string | null;
   completedAt: string | null;
   completionDeadline: string | null;
+  hasConversation: boolean;
   effectiveStatus: InspectionStatus;
   /**
    * The deadline itself, so the client can recompute rather than trust a
@@ -423,9 +501,7 @@ export async function listCurrentAgentInspectionRequests(): Promise<
   // messages in it still need counting. Dropping it here would close the
   // conversation in all but name, which is exactly what a lapse must not do.
   const chatIds = requests
-    .filter((request) =>
-      conversationExists(effectiveInspectionStatus(request, now)),
-    )
+    .filter((request) => conversationExists(request, now))
     .map((request) => request.chats?.id)
     .filter((id): id is string => Boolean(id));
 
@@ -444,6 +520,9 @@ export async function listCurrentAgentInspectionRequests(): Promise<
     // number that was true when the page was built — the same reasoning
     // expiresAt already carries.
     completionDeadline: request.completion_deadline,
+    // Resolved here rather than re-derived per surface: whether a thread is
+    // worth offering is one rule, and it is not "the status is accepted".
+    hasConversation: conversationExists(request, now),
     effectiveStatus: effectiveInspectionStatus(request, now),
     expiresAt: request.expires_at,
     id: request.id,
@@ -472,6 +551,7 @@ export type SeekerInspectionItem = {
   completedAt: string | null;
   effectiveStatus: InspectionStatus;
   expiresAt: string | null;
+  hasConversation: boolean;
   id: string;
   /**
    * A query string for listings like this one, used when a request went
@@ -517,8 +597,7 @@ export async function listCurrentSeekerInspectionRequests(): Promise<
   // conversation worth counting unread messages in.
   const chatIds = requests
     .filter(
-      (request) =>
-        conversationExists(effectiveInspectionStatus(request, now)),
+      (request) => conversationExists(request, now),
     )
     .map((request) => request.chats?.id)
     .filter((id): id is string => Boolean(id));
@@ -549,6 +628,7 @@ export async function listCurrentSeekerInspectionRequests(): Promise<
       chatId: request.chats?.id ?? null,
       completedAt: request.completed_at,
       effectiveStatus: effectiveInspectionStatus(request, now),
+      hasConversation: conversationExists(request, now),
       expiresAt: request.expires_at,
       id: request.id,
       listingSlug: listing?.slug ?? null,

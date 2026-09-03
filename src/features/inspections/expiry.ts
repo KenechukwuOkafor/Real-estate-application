@@ -158,22 +158,46 @@ export function blocksNewRequest(
 }
 
 /**
- * Whether there is a live conversation attached to this inspection.
+ * Anything carrying the deadlines, the stored status, and whether it was ever
+ * answered.
+ */
+export type ConversationBearing = DeadlineBearing & {
+  responded_at: string | null;
+};
+
+/**
+ * Whether there is a conversation attached to this inspection.
  *
  * Accepting opens the chat, and NOTHING AFTERWARDS CLOSES IT. A lapse in
  * particular must not: the conversation has its own lifetime, and hiding it
  * because the agent forgot to mark a visit would punish the seeker for the
  * agent's silence — they may well have rearranged in that very chat, which is
- * the likeliest reason the mark was never made.
+ * the likeliest reason the mark was never made. Completing keeps it for the
+ * same reason: the visit happening is not grounds to remove the thread it was
+ * arranged in.
  *
- * Completed keeps it for the same reason: the visit happening is not a reason
- * to take away the thread it was arranged in.
+ * Cancelling keeps it too, but only where there was something to keep. A
+ * seeker can cancel from either live state, and the two are different:
+ * withdrawing from an ACCEPTED inspection ends a real conversation, which they
+ * and the agent should both still be able to read; withdrawing a request
+ * nobody answered ends nothing, and its chat row — created with the request,
+ * never used — is not something to offer either party.
  *
- * A request nobody has answered has a chat row (it is created with the
- * request) but nothing to attend to yet, and a declined or expired one never
- * became a conversation at all.
+ * `responded_at` is what separates them. A cancelled row can only have come
+ * from 'requested' or 'accepted', so a non-null responded_at on one means it
+ * had been accepted. (Declining also stamps responded_at, but a declined
+ * request cannot then be cancelled.)
  */
-export function conversationExists(status: InspectionStatus) {
+export function conversationExists(
+  request: ConversationBearing,
+  now: Date = new Date(),
+) {
+  const status = effectiveInspectionStatus(request, now);
+
+  if (status === "cancelled") {
+    return request.responded_at !== null;
+  }
+
   return status === "accepted" || status === "lapsed" || status === "completed";
 }
 
