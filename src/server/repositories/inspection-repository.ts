@@ -530,14 +530,17 @@ export async function markInspectionRequestComplete(
  *
  * Replaces three sequential writes that had no transaction between them.
  * Returns the same shape the service previously assembled by hand.
+ *
+ * No deadline argument since 0031. The agent's 48-hour window is computed
+ * inside the function: it is the window the agent is held to, and the caller
+ * here is the seeker.
  */
 export async function createInspectionRequestWithChat(
   client: DbClient,
-  input: { expiresAt: string; listingId: string; message: string },
+  input: { listingId: string; message: string },
 ) {
   const { data, error } = await client
     .rpc("create_inspection_request_with_chat", {
-      expires_at: input.expiresAt,
       request_message: input.message,
       target_listing_id: input.listingId,
     })
