@@ -117,6 +117,22 @@ export type Database = {
         Args: { target_listing_id: string };
         Returns: Array<{ archived_at: string; listing_id: string }>;
       };
+      respond_to_inspection_request: {
+        Args: { decision: string; target_request_id: string };
+        Returns: Array<{
+          completion_deadline: string | null;
+          inspection_request_id: string;
+          responded_at: string;
+          status: string;
+        }>;
+      };
+      complete_inspection_request: {
+        Args: { target_request_id: string };
+        Returns: Array<{
+          completed_at: string;
+          inspection_request_id: string;
+        }>;
+      };
       remove_listing_image: {
         Args: { target_image_id: string };
         Returns: Array<{
@@ -340,6 +356,7 @@ export type Database = {
           cancelled_at?: string | null;
           chat_id?: string | null;
           completed_at?: string | null;
+          completion_deadline?: string | null;
           created_at?: string;
           deleted_at?: string | null;
           expires_at: string;
@@ -363,6 +380,7 @@ export type Database = {
           cancelled_at: string | null;
           chat_id: string | null;
           completed_at: string | null;
+          completion_deadline: string | null;
           created_at: string;
           deleted_at: string | null;
           expires_at: string;

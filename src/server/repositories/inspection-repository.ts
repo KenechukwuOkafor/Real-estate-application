@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { blocksNewRequest } from "@/features/inspections/expiry";
+import { mapDatabaseSentinel } from "@/server/repositories/sentinels";
 import type { Database } from "@/types/database";
 
 type DbClient = SupabaseClient<Database>;
@@ -298,14 +299,19 @@ export async function findCounterpartyNames(
 }
 
 /**
- * How many requests are still waiting on this agent.
+ * Everything with a clock still running against this agent.
  *
- * Fetches the open candidates and applies the deadline in TypeScript, for the
+ * Fetches the open candidates and applies the deadlines in TypeScript, for the
  * same reason findActiveInspectionRequest does: the rule about what counts as
  * still-open lives in one module, and a `.gt("expires_at", now)` here would be a
  * second copy of it written in PostgREST filter syntax.
  *
- * Only two columns, because this runs in the layout on every portal page and
+ * Both statuses, since 0030: a request awaiting an answer and an accepted
+ * inspection awaiting its completion mark are both work sitting on this agent,
+ * and each runs against a different column. Which is which is the expiry
+ * module's business, not this query's.
+ *
+ * Only three columns, because this runs in the layout on every portal page and
  * nothing here needs the rest of the row.
  */
 export async function listOpenInspectionRequestDeadlines(
@@ -314,9 +320,9 @@ export async function listOpenInspectionRequestDeadlines(
 ) {
   const { data, error } = await client
     .from("inspection_requests")
-    .select("expires_at, status")
+    .select("completion_deadline, expires_at, status")
+    .in("status", ["requested", "accepted"])
     .eq("agent_profile_id", agentProfileId)
-    .eq("status", "requested")
     .is("deleted_at", null);
 
   if (error) {
@@ -458,27 +464,65 @@ export async function getInspectionRequestById(
   return data as unknown as InspectionRequestWithListingRow | null;
 }
 
-export async function updateInspectionRequestStatus(
+/**
+ * Accept or decline, via the RPC.
+ *
+ * Was a plain UPDATE until 0030. inspection_requests.status is no longer
+ * granted to anyone: the privilege that writes 'accepted' is the privilege that
+ * writes 'completed', and an agent who can write their own status can mark a
+ * visit complete that never happened, on a request nobody ever accepted. So
+ * this goes through public.respond_to_inspection_request, which re-checks
+ * ownership, the stored status and the 48-hour deadline itself.
+ *
+ * Returns the completion deadline the function set, because acceptance is what
+ * starts the four-day window and the caller has no other way to learn it.
+ */
+export async function recordInspectionResponse(
   client: DbClient,
   inspectionRequestId: string,
-  status: Database["public"]["Enums"]["inspection_status"],
-  extras?: Partial<Database["public"]["Tables"]["inspection_requests"]["Update"]>,
+  decision: "accepted" | "declined",
 ) {
   const { data, error } = await client
-    .from("inspection_requests")
-    .update({
-      ...extras,
-      status,
+    .rpc("respond_to_inspection_request", {
+      decision,
+      target_request_id: inspectionRequestId,
     })
-    .eq("id", inspectionRequestId)
-    .select("*")
     .single();
 
   if (error) {
-    throw error;
+    mapDatabaseSentinel(error);
   }
 
-  return data as InspectionRequestRow;
+  return data as {
+    completion_deadline: string | null;
+    inspection_request_id: string;
+    responded_at: string;
+    status: string;
+  };
+}
+
+/**
+ * Mark an accepted inspection complete, via the RPC.
+ *
+ * The four-day window is enforced inside the function, not here. A check in
+ * TypeScript would be advisory: the whole reason status stopped being granted
+ * is that anything above the database can be gone around.
+ */
+export async function markInspectionRequestComplete(
+  client: DbClient,
+  inspectionRequestId: string,
+) {
+  const { data, error } = await client
+    .rpc("complete_inspection_request", {
+      target_request_id: inspectionRequestId,
+    })
+    .single();
+
+  if (error) {
+    mapDatabaseSentinel(error);
+  }
+
+  return data as { completed_at: string; inspection_request_id: string };
 }
 
 /**

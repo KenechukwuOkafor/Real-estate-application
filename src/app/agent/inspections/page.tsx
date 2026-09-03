@@ -2,18 +2,29 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { InspectionCountdown } from "@/features/inspections/components/inspection-countdown";
+import { MarkInspectionComplete } from "@/features/inspections/components/mark-inspection-complete";
 import { RespondToInspection } from "@/features/inspections/components/respond-to-inspection";
-import { formatTimeRemaining } from "@/features/inspections/expiry";
+import {
+  formatTimeRemaining,
+  type InspectionStatus,
+} from "@/features/inspections/expiry";
 import { listCurrentAgentInspectionRequests } from "@/server/services/inspection-service";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL: Record<string, string> = {
-  accepted: "Accepted",
+/**
+ * Typed against the effective statuses, so a new derived state cannot ship
+ * without somebody deciding what the agent is told about it.
+ */
+const STATUS_LABEL: Record<InspectionStatus, string> = {
+  accepted: "Accepted — mark it complete once you have shown them",
   cancelled: "Cancelled by the seeker",
   completed: "Completed",
   declined: "Declined",
   expired: "Expired — you did not respond in time",
+  // The agent's own label may be an accusation, because this one they earned:
+  // they accepted and then never said whether it happened.
+  lapsed: "Lapsed — you did not mark this complete in time",
   requested: "Waiting for your answer",
 };
 
@@ -85,7 +96,8 @@ export default async function AgentInspectionsPage() {
           </h1>
           <p className="mt-3 text-sm leading-6 text-stone-600">
             Seekers have 48 hours to hear back from you. After that the request
-            closes on its own and they have to start again.
+            closes on its own and they have to start again. Once you accept, you
+            have four days to mark the inspection complete.
           </p>
         </section>
 
@@ -101,12 +113,16 @@ export default async function AgentInspectionsPage() {
         <ul className="flex flex-col gap-4">
           {requests.map((request) => {
             const isExpired = request.effectiveStatus === "expired";
+            const isLapsed = request.effectiveStatus === "lapsed";
             const isAwaiting = request.effectiveStatus === "requested";
+            const isAwaitingMark = request.effectiveStatus === "accepted";
 
             return (
               <li
                 className={`rounded-[1.75rem] border border-stone-900/10 p-6 ${
-                  isExpired ? "bg-white/50 text-stone-500" : "bg-white/85"
+                  isExpired || isLapsed
+                    ? "bg-white/50 text-stone-500"
+                    : "bg-white/85"
                 }`}
                 key={request.id}
               >
@@ -150,10 +166,19 @@ export default async function AgentInspectionsPage() {
                     </span>
                     {isAwaiting && request.expiresAt ? (
                       <InspectionCountdown
-                        expiresAt={request.expiresAt}
+                        deadline={request.expiresAt}
                         initialLabel={
                           formatTimeRemaining(request.minutesRemaining) ?? ""
                         }
+                      />
+                    ) : null}
+                    {isAwaitingMark && request.completionDeadline ? (
+                      <InspectionCountdown
+                        deadline={request.completionDeadline}
+                        initialLabel={
+                          formatTimeRemaining(request.minutesRemaining) ?? ""
+                        }
+                        passedLabel="Not marked in time"
                       />
                     ) : null}
                   </div>
@@ -174,7 +199,22 @@ export default async function AgentInspectionsPage() {
                     />
                   ) : null}
 
-                  {request.effectiveStatus === "accepted" && request.chatId ? (
+                  {isAwaitingMark ? (
+                    <div className="mb-4">
+                      <MarkInspectionComplete
+                        inspectionRequestId={request.id}
+                        listingTitle={request.listingTitle}
+                        requesterName={request.requesterName}
+                      />
+                    </div>
+                  ) : null}
+
+                  {/* The chat outlives the inspection. A lapse in particular
+                      does not close it — see conversationExists. */}
+                  {request.chatId &&
+                  (isAwaitingMark ||
+                    isLapsed ||
+                    request.effectiveStatus === "completed") ? (
                     <Link
                       className="inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white"
                       href={`/chats/${request.chatId}`}
@@ -192,6 +232,13 @@ export default async function AgentInspectionsPage() {
                     <p className="text-sm leading-6">
                       This one closed without an answer. {request.requesterName}{" "}
                       can ask again if they are still looking.
+                    </p>
+                  ) : null}
+
+                  {isLapsed ? (
+                    <p className="mt-4 text-sm leading-6">
+                      The four days to mark this complete have passed. Your chat
+                      with {request.requesterName} is still open.
                     </p>
                   ) : null}
                 </div>

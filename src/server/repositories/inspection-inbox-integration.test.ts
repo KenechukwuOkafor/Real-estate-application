@@ -30,6 +30,7 @@ import {
   rlsIntegrationEnabled,
 } from "../../../test/helpers/rls-clients";
 import { listingImagePath } from "../../../test/helpers/storage-paths";
+import { effectiveInspectionStatus } from "@/features/inspections/expiry";
 import { findActiveInspectionRequest } from "@/server/repositories/inspection-repository";
 
 const suite = rlsIntegrationEnabled() ? describe : describe.skip;
@@ -130,6 +131,136 @@ suite("inspection inbox", () => {
       );
 
       expect(active?.id).toBe(liveRequestId);
+    });
+  });
+
+  /**
+   * The completion window's half of the same contract.
+   *
+   * A lapse is derived exactly as expiry is: an accepted row whose deadline
+   * passed with completed_at still null. Nothing writes it, so the proof is
+   * that reading concludes "lapsed" while the row on disk is untouched.
+   */
+  describe("an inspection the agent accepted and never marked", () => {
+    let lapsedRequestId = "";
+    let lapsedChatId = "";
+
+    beforeAll(async () => {
+      lapsedRequestId = await createRequest({
+        completionDeadline: new Date(Date.now() - 6 * HOUR).toISOString(),
+        expiresAt: new Date(Date.now() - 100 * HOUR).toISOString(),
+        requestedAt: new Date(Date.now() - 150 * HOUR).toISOString(),
+        status: "accepted",
+      });
+
+      const { data, error } = await svc
+        .from("chats")
+        .insert({
+          agent_profile_id: agentProfileId,
+          inspection_request_id: lapsedRequestId,
+          listing_id: listingId,
+          student_user_id: seeker.userId,
+          type: "inspection",
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      lapsedChatId = data.id;
+    }, 60_000);
+
+    afterAll(async () => {
+      await svc.from("messages").delete().eq("chat_id", lapsedChatId);
+      await svc.from("chats").delete().eq("id", lapsedChatId);
+      await svc.from("inspection_requests").delete().eq("id", lapsedRequestId);
+    }, 60_000);
+
+    it("reads as lapsed while the row itself is untouched", async () => {
+      const { data, error } = await svc
+        .from("inspection_requests")
+        .select("completed_at, completion_deadline, expires_at, status")
+        .eq("id", lapsedRequestId)
+        .single();
+
+      if (error) throw error;
+
+      // Nothing wrote anything. This is the whole claim.
+      expect(data.status).toBe("accepted");
+      expect(data.completed_at).toBeNull();
+
+      expect(effectiveInspectionStatus(data)).toBe("lapsed");
+    });
+
+    it("cannot be marked complete after the four days", async () => {
+      const { error } = await asUser(await mintFreshToken(agent)).rpc(
+        "complete_inspection_request",
+        { target_request_id: lapsedRequestId },
+      );
+
+      expect(error?.message).toContain("INSPECTION_COMPLETION_WINDOW_CLOSED");
+
+      // And the refusal wrote nothing either.
+      const { data: control } = await svc
+        .from("inspection_requests")
+        .select("completed_at, status")
+        .eq("id", lapsedRequestId)
+        .single();
+      expect(control?.status).toBe("accepted");
+      expect(control?.completed_at).toBeNull();
+    });
+
+    it("leaves the conversation open to both parties", async () => {
+      // "A lapse does not close the chat", proved by writing to it rather than
+      // by reading a closed_at nobody sets. Chat access keys off participation,
+      // never inspection status — this is the test that would catch someone
+      // wiring the two together.
+      const seekerClient = asUser(await mintFreshToken(seeker));
+      const { error: seekerError } = await seekerClient
+        .from("messages")
+        .insert({
+          body: "Are we still on for this?",
+          chat_id: lapsedChatId,
+          sender_user_id: seeker.userId,
+        });
+
+      expect(seekerError).toBeNull();
+
+      const agentClient = asUser(await mintFreshToken(agent));
+      const { data: agentRead, error: agentError } = await agentClient
+        .from("chats")
+        .select("closed_at, id")
+        .eq("id", lapsedChatId)
+        .single();
+
+      expect(agentError).toBeNull();
+      expect(agentRead?.id).toBe(lapsedChatId);
+      expect(agentRead?.closed_at).toBeNull();
+    });
+
+    it("reads the same to both parties", async () => {
+      // One row, one clock, two readers. A second definition of the rule
+      // appearing on one side is exactly what one-place-two-windows exists to
+      // prevent, and it would show up here as a disagreement.
+      const now = new Date();
+
+      const [{ data: asAgentRow }, { data: asSeekerRow }] = await Promise.all([
+        asUser(await mintFreshToken(agent))
+          .from("inspection_requests")
+          .select("completion_deadline, expires_at, status")
+          .eq("id", lapsedRequestId)
+          .single(),
+        asUser(await mintFreshToken(seeker))
+          .from("inspection_requests")
+          .select("completion_deadline, expires_at, status")
+          .eq("id", lapsedRequestId)
+          .single(),
+      ]);
+
+      expect(asAgentRow).not.toBeNull();
+      expect(asSeekerRow).not.toBeNull();
+      expect(effectiveInspectionStatus(asAgentRow!, now)).toBe("lapsed");
+      expect(effectiveInspectionStatus(asSeekerRow!, now)).toBe(
+        effectiveInspectionStatus(asAgentRow!, now),
+      );
     });
   });
 
@@ -384,18 +515,22 @@ suite("inspection inbox", () => {
   }
 
   async function createRequest(input: {
+    completionDeadline?: string;
     expiresAt: string;
     requestedAt: string;
+    status?: "requested" | "accepted";
   }) {
     const { data, error } = await svc
       .from("inspection_requests")
       .insert({
         agent_profile_id: agentProfileId,
+        completion_deadline: input.completionDeadline ?? null,
         expires_at: input.expiresAt,
         listing_id: listingId,
         message: "Fixture request.",
         requested_at: input.requestedAt,
         requester_user_id: seeker.userId,
+        status: input.status ?? "requested",
       })
       .select("id")
       .single();

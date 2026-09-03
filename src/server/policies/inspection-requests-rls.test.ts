@@ -180,31 +180,28 @@ suite("RLS: inspection_requests", () => {
     expect(data ?? []).toEqual([]);
   });
 
-  it("the owning agent can accept it", async () => {
-    await asUser(await mintFreshToken(owningAgent))
-      .from("inspection_requests")
-      .update({ responded_at: new Date().toISOString(), status: "accepted" })
-      .eq("id", requestId);
-
-    const { data: control } = await svc
-      .from("inspection_requests")
-      .select("status")
-      .eq("id", requestId)
-      .single();
-    expect(control?.status).toBe("accepted");
-
-    // Reset for the assertions below.
-    await svc
-      .from("inspection_requests")
-      .update({ responded_at: null, status: "requested" })
-      .eq("id", requestId);
-  });
-
-  it("the requesting seeker cannot accept their own request", async () => {
-    await asUser(await mintFreshToken(seeker))
+  /**
+   * THE WRITE HALF, AS OF 0030.
+   *
+   * These used to prove that the owning agent — and only they — could write
+   * `status` directly, because 0012 granted `update (status, responded_at,
+   * updated_at)`. That grant is gone: the privilege that writes 'accepted' is
+   * the privilege that writes 'completed', so an agent holding it could mark a
+   * visit complete that never happened, on a request nobody accepted, at any
+   * time. Every transition now goes through a SECURITY DEFINER function.
+   *
+   * The failure mode changed with it, and it is worth naming: an RLS POLICY
+   * denial silently affects zero rows, but a missing GRANT is a hard 42501.
+   * So these assert an error code AND a service-role control, where the old
+   * ones could only assert the control.
+   */
+  it("the owning agent cannot write status directly any more", async () => {
+    const { error } = await asUser(await mintFreshToken(owningAgent))
       .from("inspection_requests")
       .update({ status: "accepted" })
       .eq("id", requestId);
+
+    expect(error?.code).toBe("42501");
 
     const { data: control } = await svc
       .from("inspection_requests")
@@ -214,11 +211,68 @@ suite("RLS: inspection_requests", () => {
     expect(control?.status).toBe("requested");
   });
 
-  it("a non-owning agent cannot accept it", async () => {
-    await asUser(await mintFreshToken(otherAgent))
+  it("the owning agent cannot mark an inspection complete by hand", async () => {
+    // The whole four-day window rests on this being impossible. If status were
+    // writable, the deadline would be advisory.
+    const { error } = await asUser(await mintFreshToken(owningAgent))
+      .from("inspection_requests")
+      .update({ completed_at: new Date().toISOString(), status: "completed" })
+      .eq("id", requestId);
+
+    expect(error?.code).toBe("42501");
+
+    const { data: control } = await svc
+      .from("inspection_requests")
+      .select("completed_at, status")
+      .eq("id", requestId)
+      .single();
+    expect(control?.status).toBe("requested");
+    expect(control?.completed_at).toBeNull();
+  });
+
+  it("the owning agent cannot give themselves more time", async () => {
+    const { error } = await asUser(await mintFreshToken(owningAgent))
+      .from("inspection_requests")
+      .update({ completion_deadline: "2099-01-01T00:00:00.000Z" })
+      .eq("id", requestId);
+
+    expect(error?.code).toBe("42501");
+
+    const { data: control } = await svc
+      .from("inspection_requests")
+      .select("completion_deadline")
+      .eq("id", requestId)
+      .single();
+    expect(control?.completion_deadline).toBeNull();
+  });
+
+  it("the requesting seeker cannot accept their own request", async () => {
+    // Now refused for two independent reasons: no UPDATE grant at all, and no
+    // agent profile to satisfy the function's ownership check.
+    const { error } = await asUser(await mintFreshToken(seeker))
       .from("inspection_requests")
       .update({ status: "accepted" })
       .eq("id", requestId);
+
+    expect(error?.code).toBe("42501");
+
+    const { data: control } = await svc
+      .from("inspection_requests")
+      .select("status")
+      .eq("id", requestId)
+      .single();
+    expect(control?.status).toBe("requested");
+  });
+
+  it("a non-owning agent cannot accept it through the function", async () => {
+    const { error } = await asUser(await mintFreshToken(otherAgent)).rpc(
+      "respond_to_inspection_request",
+      { decision: "accepted", target_request_id: requestId },
+    );
+
+    // Not found rather than forbidden: a distinguishable refusal would confirm
+    // the id names a real request.
+    expect(error?.message).toContain("INSPECTION_REQUEST_NOT_FOUND");
 
     const { data: control } = await svc
       .from("inspection_requests")
@@ -229,12 +283,14 @@ suite("RLS: inspection_requests", () => {
   });
 
   it("the owning agent cannot rewrite who requested it", async () => {
-    // REB-ARCH-004: "Cannot modify requester information." Enforced by the
-    // column grant, not the row predicate — the agent does satisfy the policy.
-    await asUser(await mintFreshToken(owningAgent))
+    // REB-ARCH-004: "Cannot modify requester information." Was enforced by the
+    // column grant being narrow; now by there being no UPDATE grant at all.
+    const { error } = await asUser(await mintFreshToken(owningAgent))
       .from("inspection_requests")
       .update({ requester_user_id: otherSeeker.userId })
       .eq("id", requestId);
+
+    expect(error?.code).toBe("42501");
 
     const { data: control } = await svc
       .from("inspection_requests")
@@ -242,5 +298,72 @@ suite("RLS: inspection_requests", () => {
       .eq("id", requestId)
       .single();
     expect(control?.requester_user_id).toBe(seeker.userId);
+  });
+
+  /**
+   * The positive control, last because it is the only one that changes the row.
+   *
+   * Without it every assertion above is satisfied by a table nobody can write
+   * to at all, which would be a passing suite over a broken product.
+   */
+  it("the owning agent accepts through the function, which sets the deadline", async () => {
+    const { error } = await asUser(await mintFreshToken(owningAgent)).rpc(
+      "respond_to_inspection_request",
+      { decision: "accepted", target_request_id: requestId },
+    );
+
+    expect(error).toBeNull();
+
+    const { data: control } = await svc
+      .from("inspection_requests")
+      .select("completion_deadline, responded_at, status")
+      .eq("id", requestId)
+      .single();
+
+    expect(control?.status).toBe("accepted");
+    expect(control?.responded_at).not.toBeNull();
+    expect(control?.completion_deadline).not.toBeNull();
+
+    // Four days out, give or take the round trip.
+    const deadline = new Date(control!.completion_deadline!).getTime();
+    const expected = Date.now() + 4 * 24 * 60 * 60 * 1000;
+    expect(Math.abs(deadline - expected)).toBeLessThan(60_000);
+  });
+
+  it("marks it complete inside the window, and refuses a second time", async () => {
+    // Runs after the acceptance above: this suite's cases share one row on
+    // purpose, so the lifecycle is exercised in the order it really happens.
+    const { error } = await asUser(await mintFreshToken(owningAgent)).rpc(
+      "complete_inspection_request",
+      { target_request_id: requestId },
+    );
+
+    expect(error).toBeNull();
+
+    const { data: control } = await svc
+      .from("inspection_requests")
+      .select("completed_at, status")
+      .eq("id", requestId)
+      .single();
+    expect(control?.status).toBe("completed");
+    expect(control?.completed_at).not.toBeNull();
+
+    const { error: second } = await asUser(
+      await mintFreshToken(owningAgent),
+    ).rpc("complete_inspection_request", { target_request_id: requestId });
+
+    expect(second?.message).toContain("INSPECTION_STATE_TRANSITION_INVALID");
+  });
+
+  it("will not let even service role reopen a completed inspection", async () => {
+    // Terminal for every caller, matching listings_archived_is_terminal. The
+    // service-role client bypasses RLS and both functions entirely, so a
+    // trigger is the only thing that holds here.
+    const { error } = await svc
+      .from("inspection_requests")
+      .update({ status: "accepted" })
+      .eq("id", requestId);
+
+    expect(error?.message).toContain("INSPECTION_COMPLETED_IS_TERMINAL");
   });
 });
