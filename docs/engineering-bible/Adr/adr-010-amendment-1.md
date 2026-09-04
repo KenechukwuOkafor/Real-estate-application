@@ -349,22 +349,45 @@ comment was the specification that had to be rewritten.
 
 ## The shape to watch for
 
-This is the third form of the same failure recorded in this amendment:
+Four instances of the same failure are now recorded in this project:
 
 | Where | The measurement | Why it could not fail |
 |---|---|---|
 | RLS denial tests | HTTP status | denial and success both return 200 |
 | Privilege assertions | `information_schema` | does not report `MAINTAIN` at all |
 | The revision suite | an admin-only path | the test supplied a non-admin, and that passed |
+| The populated-database replay | a backfill's `WHERE` clause | no seeded row matched it |
 
 In each case the check ran, reported success, and was structurally incapable of reporting
 anything else.
+
+**The fourth is the sharpest, and it is different in kind.** The first three made a *defect*
+invisible. The fourth made a *check* meaningless — and it did so inside the instrument built
+specifically to catch this class of problem.
+
+The populated-database job exists because the replay from zero cannot test an upgrade: on an
+empty database "a backfill matches nothing, a constraint is trivially satisfiable, and a
+statement whose cost scales with row count is instant". Migration 0034 added
+`listings.rejected_at` and backfilled `where status = 'rejected'`. The seed contained no
+rejected listing. So the job seeded, migrated, matched zero rows, and reported success —
+having verified exactly as much as the empty-database job it was built to compensate for.
+
+Nothing about the job was wrong. The job did what it says. What was missing was a row, and
+the absence of a row is not something a green check can express.
+
+**So: a job that tests an upgrade path is only as good as the fixture it upgrades.** When a
+migration's backfill, constraint or data change is conditional — and almost all of them are —
+the condition needs a matching row in the seed, added in the same change as the migration.
+Otherwise the reassurance is real and the coverage is not.
 
 ## What to do about it
 
 - A comment in a test explaining why a weaker input is acceptable is a claim about the
   authorization model. Check it against the model, not against the code's current behaviour
   — the code's current behaviour is what you are trying to verify.
+- When a migration changes data conditionally, ask what row makes the condition true and
+  whether the seed has one. A passing upgrade job proves nothing about a `WHERE` that matched
+  nothing.
 - When a security fix makes tests fail, read the failures as specification changes before
   reaching for the tests. Four failures here were the suite correctly reporting that its
   assumption had been withdrawn.
