@@ -222,10 +222,53 @@ revoke all on function public.probe_admin_only() from public, anon, authenticate
  probe_admin_only | f                | {postgres=X/,service_role=X/}
 ```
 
-Note also that `ALTER DEFAULT PRIVILEGES ... REVOKE ALL ON FUNCTIONS FROM anon,
-authenticated` does **not** suppress PostgreSQL's built-in `PUBLIC` EXECUTE default: a
-function created afterwards still arrives with `=X/`. Per-function revocation from all three
-of `public`, `anon` and `authenticated` is the only form observed to hold.
+## The default-privileges form does not close it either
+
+The obvious systemic fix — revoke it once, as a default, so no future function repeats it —
+does not work for functions. `ALTER DEFAULT PRIVILEGES ... REVOKE ALL ON FUNCTIONS FROM
+anon, authenticated` removes those two roles from the default ACL, and a function created
+afterwards **still arrives with `=X/`**, because PostgreSQL's built-in `PUBLIC` EXECUTE
+default is applied independently of that entry. Adding `FROM public` to the same statement
+does not suppress it either:
+
+```
+alter default privileges in schema public revoke all on functions from anon, authenticated;
+alter default privileges in schema public revoke all on functions from public;
+
+-- default ACL now: f | {postgres=X/postgres,service_role=X/postgres}   <- looks closed
+create function public.f_after3() returns int language sql as 'select 1';
+
+  proname  | anon_can_execute | proacl
+-----------+------------------+-----------------------------------------------------------
+ f_after3  | t                | {=X/postgres,postgres=X/postgres,service_role=X/postgres}
+```
+
+The default ACL reads as closed and the function still arrives open. **Per-function
+`REVOKE ... FROM public, anon, authenticated` is the only form observed to hold**, which is
+why this cannot be solved once and must be written at every function — and therefore why it
+is asserted in CI rather than trusted to reviewers.
+
+For tables the default-privileges form *does* work, and is used. The two object types differ
+here; do not reason from one to the other.
+
+## The instrument could not see the thing it was pointed at
+
+`information_schema.table_privileges` reports the seven SQL-standard privileges. It does
+**not** report `MAINTAIN`, which PostgreSQL 17 added and which is exactly the privilege that
+leaked through 0023's enumerated revoke.
+
+So the natural way to write the check — query `information_schema`, assert the client roles
+hold nothing unexpected — returns a clean result on a database where `anon` holds `MAINTAIN`
+on three tables. It is not a weak check. It is a check that cannot see the defect, reporting
+success.
+
+This is the same shape as a denial test passing because RLS returns an empty result rather
+than an error (see the Implementation Note above): in both cases the measurement is
+structurally incapable of distinguishing the failure from the pass, and no amount of running
+it more carefully helps.
+
+**Privilege assertions read `has_table_privilege`, `has_function_privilege`,
+`pg_class.relacl`, `pg_proc.proacl` and `pg_default_acl` — never `information_schema`.**
 
 ## What this cost
 
@@ -237,6 +280,28 @@ attributed to any user id they named. Unexercised by the application, which reac
 only through the service-role client behind an admin check. Reachable regardless: PostgREST
 exposes every function in the exposed schema, and the application is not the only caller of
 its own database.
+
+## Known residual — the reviewer is still an argument
+
+`apply_listing_revision` and `reject_listing_revision` now validate `reviewer_user_id`, but
+it remains **caller-supplied**, which is inconsistent with how this project has resolved the
+same question everywhere else. `listing_views.viewer_user_id` became a system default
+(`current_app_user_id()`, INSERT not granted on the column). The inspection response window
+moved inside the function rather than staying a parameter. In both cases the argument
+disappeared rather than being checked.
+
+It cannot disappear here while the caller is the service-role client, because that key
+carries no user identity to derive a reviewer from — validation is the strongest available
+form given that caller.
+
+**The fully consistent shape** is to call these as the admin's own authenticated client and
+derive the reviewer from the session, at which point the argument is gone and there is
+nothing left to validate. That is a change to the admin service's client strategy, not to
+these functions.
+
+The residual today: an admin can attribute a moderation decision to a *different* admin.
+Small, and the result is still a moderation record made by someone entitled to make one.
+Recorded rather than fixed; not in the stack that introduced the check.
 
 ## Requirements added
 
@@ -255,6 +320,57 @@ its own database.
 10. **The Supabase CLI version is pinned.** `latest` let the CLI, the Postgres image, and
     that image's bootstrap default privileges change under CI without a commit. Between
     21 August and 3 September 2026 it did.
+
+---
+
+# Implementation Note — A Test Can Encode The Defect It Exists To Catch
+
+A test asserts what someone believed. When the belief is the defect, the test passes and
+defends it.
+
+The clearest example this project has produced sat in the setup of
+`listing-revision-integration.test.ts`, in a comment explaining why any user would do as the
+reviewer:
+
+> Any real user will do as the reviewer; the functions record it, they do not authorise from
+> it — admin-service is what authorises.
+
+Every clause is accurate as a description of the code. `apply_listing_revision` and
+`reject_listing_revision` genuinely did not authorise from `reviewer_user_id`, and
+`admin-service` genuinely was what authorised. And that is precisely the bug: two
+`SECURITY DEFINER` functions performing a moderation write with no check of their own,
+depending entirely on a grant, in a schema where — as recorded above — a grant is not
+reliably what it appears to be.
+
+The test suite therefore had a passing, green, well-written assertion whose premise was the
+vulnerability. Nothing in it was going to fail while the exposure existed, because it had
+been written to accommodate it. Fixing the functions turned four tests red, and the setup
+comment was the specification that had to be rewritten.
+
+## The shape to watch for
+
+This is the third form of the same failure recorded in this amendment:
+
+| Where | The measurement | Why it could not fail |
+|---|---|---|
+| RLS denial tests | HTTP status | denial and success both return 200 |
+| Privilege assertions | `information_schema` | does not report `MAINTAIN` at all |
+| The revision suite | an admin-only path | the test supplied a non-admin, and that passed |
+
+In each case the check ran, reported success, and was structurally incapable of reporting
+anything else.
+
+## What to do about it
+
+- A comment in a test explaining why a weaker input is acceptable is a claim about the
+  authorization model. Check it against the model, not against the code's current behaviour
+  — the code's current behaviour is what you are trying to verify.
+- When a security fix makes tests fail, read the failures as specification changes before
+  reaching for the tests. Four failures here were the suite correctly reporting that its
+  assumption had been withdrawn.
+- Prefer assertions that fail closed on an unexpected environment. `expect(error).toBeNull()`
+  cannot tell you the call was refused for a *different* reason than the one under test;
+  assert the sentinel.
 
 ---
 
