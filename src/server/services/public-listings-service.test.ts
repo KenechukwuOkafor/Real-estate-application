@@ -4,6 +4,11 @@ const createListingView = vi.fn();
 const getPublicListingIdByUuid = vi.fn();
 
 vi.mock("@/lib/db/supabase", () => ({
+  // trackListingView prefers the authenticated client, because after 0028 the
+  // caller's token is what supplies viewer_user_id — attribution travels with
+  // the connection rather than in the payload. The anon client is the
+  // fallback, and is what a signed-out visitor gets.
+  createSupabaseAuthenticatedClient: vi.fn(async () => ({})),
   createSupabaseServerClient: vi.fn(async () => ({})),
 }));
 

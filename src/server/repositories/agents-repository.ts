@@ -86,8 +86,12 @@ export async function getAgentProfileWithSubscriptionsByUserId(
   const { data, error } = await client
     .from("agent_profiles")
     .select(
+      // Not `*`. PostgREST expands it to every column, which after 0027 is
+      // fifteen against a seven-column grant and fails 42501 — taking the
+      // whole agent portal with it, because getCurrentAgentContext runs this
+      // on every authenticated agent page.
       `
-        *,
+        ${AGENT_PROFILE_COLUMNS},
         subscriptions (
           id,
           plan,
@@ -847,7 +851,6 @@ export async function registerListingImages(
    * maintains the flag and the pointer together. Insertion does not get a vote.
    */
   const rows = input.images.map((image) => ({
-    is_cover: false,
     listing_id: input.listingId,
     mime_type: image.mimeType,
     position: image.position,

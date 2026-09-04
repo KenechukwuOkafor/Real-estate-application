@@ -1,4 +1,4 @@
-import Image from "next/image";
+/* eslint-disable @next/next/no-img-element */
 import { redirect } from "next/navigation";
 
 import {
@@ -268,16 +268,47 @@ export default async function AdminListingsPage() {
                         ) : null}
                         {activeImages.length > 0 ? (
                           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                            {activeImages.slice(0, 6).map((image) => (
-                              <Image
-                                key={image.id}
-                                alt={`${listing.title} preview`}
-                                className="aspect-[4/3] rounded-2xl object-cover"
-                                src={signedImages.get(image.storage_path) ?? ""}
-                                width={640}
-                                height={480}
-                              />
-                            ))}
+                            {/*
+                              A plain img, for the same reason listing-card.tsx
+                              uses one: these are short-lived signed URLs into a
+                              private bucket.
+
+                              next/image was throwing outright — the Supabase
+                              host is not in next.config's remotePatterns, and
+                              there is no images block at all — which returned
+                              500 for the whole moderation queue whenever a
+                              listing had a cover image, which is all of them.
+                              An admin could not moderate.
+
+                              Configuring the host would have fixed the crash
+                              and left something worse: next/image proxies
+                              through /_next/image and caches the optimised
+                              copy, so a private object would be served from
+                              that cache after its 60-second signature expired.
+                              ADR-033 made these buckets private on purpose.
+
+                              Images that failed to sign are skipped rather than
+                              rendered with src="", which is itself invalid.
+                            */}
+                            {activeImages
+                              .slice(0, 6)
+                              .map((image) => ({
+                                id: image.id,
+                                url: signedImages.get(image.storage_path) ?? null,
+                              }))
+                              .filter(
+                                (image): image is { id: string; url: string } =>
+                                  image.url !== null,
+                              )
+                              .map((image) => (
+                                <img
+                                  key={image.id}
+                                  alt={`${listing.title} preview`}
+                                  className="aspect-[4/3] rounded-2xl object-cover"
+                                  loading="lazy"
+                                  src={image.url}
+                                />
+                              ))}
                           </div>
                         ) : null}
                       </div>

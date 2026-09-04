@@ -3,7 +3,10 @@ import "server-only";
 import { parseListingIdentifier } from "@/features/listings/parsers";
 import { isUuid } from "@/lib/api/identifiers";
 import type { ListingListFilters } from "@/features/listings/types";
-import { createSupabaseServerClient } from "@/lib/db/supabase";
+import {
+  createSupabaseAuthenticatedClient,
+  createSupabaseServerClient,
+} from "@/lib/db/supabase";
 import {
   createListingView,
   getPublicListingByIdentifier,
@@ -142,7 +145,6 @@ export async function trackListingView(input: {
   sessionId?: string | null;
   slugOrPublicId: string;
   userAgent?: string | null;
-  viewerUserId?: string | null;
 }): Promise<ViewTrackingOutcome> {
   const { publicId } = parseListingIdentifier(input.slugOrPublicId);
 
@@ -154,7 +156,27 @@ export async function trackListingView(input: {
     return { reason: "malformed", tracked: false };
   }
 
-  const client = await createSupabaseServerClient();
+  /**
+   * Two clients, and which one is used IS the attribution.
+   *
+   * After 0028 viewer_user_id is system-supplied: it defaults to
+   * current_app_user_id() and no role holds INSERT on it. That value comes
+   * from the Clerk token the client carries, so a view recorded through the
+   * anon client is anonymous by construction and one recorded through the
+   * authenticated client can only ever name the caller.
+   *
+   * The route used to pass a viewerUserId it had resolved itself, which was
+   * correct but incidental — the database accepted whatever it was told, which
+   * is what let an unauthenticated caller name somebody else. Identity now
+   * travels with the connection rather than in the payload.
+   *
+   * Falling back rather than failing: view tracking is non-blocking per
+   * BR-ANA-003, and an expired token should record an anonymous view instead
+   * of losing it.
+   */
+  const client = await createSupabaseAuthenticatedClient().catch(() =>
+    createSupabaseServerClient(),
+  );
   const listing = await getPublicListingIdByUuid(client, publicId);
 
   if (!listing) {
@@ -167,7 +189,6 @@ export async function trackListingView(input: {
     referrer: input.referrer ?? null,
     sessionId: input.sessionId ?? null,
     userAgent: input.userAgent ?? null,
-    viewerUserId: input.viewerUserId ?? null,
   });
 
   return { tracked: true };

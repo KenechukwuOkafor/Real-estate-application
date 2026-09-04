@@ -99,8 +99,21 @@ describe("admin moderation queue", () => {
   it("does not label a sublet as a yearly or monthly rent", async () => {
     const page = await renderAsPersona("/admin/listings", "Admin");
 
-    expect(page.text).not.toContain("per year");
-    expect(page.text).not.toContain("per month");
+    /**
+     * Scoped to the sublet's own price, not to the whole page.
+     *
+     * This asserted that the page contained no "per year" anywhere, which held
+     * only because the queue happened to contain exactly one listing. The seed
+     * now carries a pending_review yearly listing as well — so the page says
+     * "per year" correctly, about a different property, and the old assertion
+     * failed while nothing was wrong.
+     *
+     * A page-global assertion standing in for a per-row one is only ever right
+     * by accident, and it fails in the direction that wastes time: red when the
+     * code is correct.
+     */
+    expect(page.text).not.toMatch(/₦?180,000\s*per (year|month)/);
+    expect(page.text).toMatch(/₦?180,000\s*6 months/);
   });
 
   /**

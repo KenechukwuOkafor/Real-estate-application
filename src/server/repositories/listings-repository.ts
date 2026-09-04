@@ -495,6 +495,19 @@ export async function unsaveListing(
   }
 }
 
+/**
+ * Record a view.
+ *
+ * `viewer_user_id` is deliberately absent from the payload. After 0028 the
+ * column defaults to current_app_user_id() and INSERT is not granted on it, so
+ * the database names the caller and the caller cannot name anyone. Passing it
+ * would now fail 42501 — which is the point: attribution is not something a
+ * request gets to assert.
+ *
+ * That makes the client's identity, not the route's, decide what is recorded.
+ * A signed-out visitor resolves to NULL; a signed-in one resolves to their own
+ * users row, and only if the request carries their Clerk token.
+ */
 export async function createListingView(
   client: DbClient,
   input: {
@@ -503,7 +516,6 @@ export async function createListingView(
     referrer?: string | null;
     sessionId?: string | null;
     userAgent?: string | null;
-    viewerUserId?: string | null;
   },
 ) {
   const { error } = await client.from("listing_views").insert({
@@ -512,7 +524,6 @@ export async function createListingView(
     referrer: input.referrer ?? null,
     session_id: input.sessionId ?? null,
     user_agent: input.userAgent ?? null,
-    viewer_user_id: input.viewerUserId ?? null,
   });
 
   if (error) {
