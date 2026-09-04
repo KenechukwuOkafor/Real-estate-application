@@ -558,6 +558,7 @@ export type Database = {
           approved_at?: string | null;
           approved_by?: string | null;
           archived_at?: string | null;
+          rejected_at?: string | null;
           area: string;
           bathrooms: number;
           bedrooms: number;
@@ -606,6 +607,7 @@ export type Database = {
           agent_profile_id: string;
           amenities: Json;
           approved_at: string | null;
+          rejected_at: string | null;
           approved_by: string | null;
           archived_at: string | null;
           area: string;

@@ -147,8 +147,13 @@ describe("agent inspection inbox", () => {
 
     // The expired one must not be counted as needing an answer — it cannot be
     // answered any more.
+    //
+    // The seed now holds TWO live requests and one expired, so the correct
+    // count is 2 and the wrong one is 3. This guard was written against an
+    // older seed with one live request, where 2 was the wrong answer; the
+    // number changed but the thing being proved did not.
     expect(page.text).toMatch(/requests? need|request needs/);
-    expect(page.text).not.toContain("2 requests need an answer");
+    expect(page.text).not.toContain("3 requests need an answer");
   });
 
   it("says what accepting commits the agent to, before they accept", async () => {

@@ -329,6 +329,43 @@ values
     null,
     now() - interval '6 hours'
   ),
+  -- A REJECTED listing, and the seed had none.
+  --
+  -- Two things needed one. The dashboard's action queue puts a moderator's
+  -- reason in front of an agent, and with nothing rejected that path rendered
+  -- for nobody and could not be seen to work.
+  --
+  -- The second is sharper. 0034 backfills rejected_at for rows already sitting
+  -- at 'rejected', and CI's populated-database job — which exists precisely
+  -- because "a backfill matches nothing" on an empty one — had no rejected
+  -- listing either. So that job applied the backfill against zero rows and
+  -- reported success, reproducing for this migration the exact blind spot it
+  -- was built to remove. One row is the difference between a job that checks
+  -- the upgrade path and a job that says it did.
+  (
+    '3c719a67-c526-44d2-b9f5-83042d03f005',
+    '20887cbf-53fc-4c45-adb2-c5d4d33cf005',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    'rejected',
+    'Room Share Near Onuiyi Junction',
+    'room-share-onuiyi-junction',
+    'Shared room in a compound with borehole water and a security gate, a short walk from the junction.',
+    'lodge_room',
+    'yearly',
+    null,
+    150000,
+    1,
+    1,
+    'Onuiyi',
+    'Nsukka',
+    'Enugu',
+    'Nigeria',
+    6.859100,
+    7.398300,
+    '["water","gated"]'::jsonb,
+    null,
+    now() - interval '5 days'
+  ),
   (
     '3c719a67-c526-44d2-b9f5-83042d03f002',
     '20887cbf-53fc-4c45-adb2-c5d4d33cf002',
@@ -405,6 +442,18 @@ set
   approved_at = excluded.approved_at,
   submitted_at = excluded.submitted_at;
 
+-- The moderator's sentence, which is the whole point of a rejection.
+--
+-- Set separately because rejection_reason is not in the column list above and
+-- adding it would mean a null on every other row. Deliberately NOT setting
+-- rejected_at: on a fresh reset 0034's backfill has already run before this
+-- seed executes, and on the upgrade path the backfill runs after it — leaving
+-- this null is what lets that path be exercised rather than papered over.
+update public.listings
+   set rejection_reason =
+         'The photos do not show the room itself, and the price is missing the agency fee.'
+ where id = '3c719a67-c526-44d2-b9f5-83042d03f005';
+
 insert into public.listing_images (
   id,
   listing_id,
@@ -441,6 +490,15 @@ values
     'image/webp',
     175000,
     false
+  ),
+  (
+    '40fbc9b0-d821-42d7-bf6e-887a49b3a011',
+    '3c719a67-c526-44d2-b9f5-83042d03f005',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f005/01992a10-0011-7000-8000-0000000000b1.webp',
+    0,
+    'image/webp',
+    168000,
+    true
   ),
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a010',
