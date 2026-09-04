@@ -291,3 +291,37 @@ export function formatReplyTime(minutes: number | null) {
 
   return `${Math.round(hours / 24)} days`;
 }
+
+/**
+ * Whether the agent has run out of submission slots.
+ *
+ * EXTRACTED BECAUSE THE FIRST VERSION WAS DEAD CODE. The dashboard derived
+ * this by scanning agentStatusBand().attention for an item whose title
+ * mentioned slots — and that list only ever contains rejected listings. The
+ * branch could not fire, so the slots warning never rendered for anybody, and
+ * nothing failed: the seeded verified agent has three slots, so no test and no
+ * review was ever looking at the state where it should appear.
+ *
+ * A pure function with its own tests cannot be dead in the same way.
+ *
+ * VERIFICATION IS CHECKED FIRST, and it is not a technicality. Quota is
+ * granted when verification is approved (ADR-034), so an unverified agent
+ * always has zero. Telling them they are out of submission slots would name
+ * the wrong blocker — they cannot submit because they are not verified, and
+ * buying slots would not change that. Their warning is the verification one.
+ */
+export function hasExhaustedSlots(input: {
+  freeListingQuota: number;
+  hasActiveSubscription: boolean;
+  verificationStatus: string;
+}) {
+  if (input.hasActiveSubscription) {
+    return false;
+  }
+
+  if (input.verificationStatus !== "verified") {
+    return false;
+  }
+
+  return input.freeListingQuota <= 0;
+}

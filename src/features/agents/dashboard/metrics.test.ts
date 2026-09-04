@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   dashboardState,
+  hasExhaustedSlots,
   deltaPercent,
   formatReplyTime,
   medianReplyMinutes,
@@ -244,5 +245,46 @@ describe("formatReplyTime", () => {
     expect(formatReplyTime(45)).toBe("45 min");
     expect(formatReplyTime(90)).toBe("2 hr");
     expect(formatReplyTime(60 * 72)).toBe("3 days");
+  });
+});
+
+describe("hasExhaustedSlots", () => {
+  const verified = {
+    freeListingQuota: 0,
+    hasActiveSubscription: false,
+    verificationStatus: "verified",
+  };
+
+  it("warns a verified agent who has spent every slot", () => {
+    // The case the dashboard could not render. The warning was derived by
+    // scanning the status band's attention list, which only ever holds
+    // rejected listings, so the branch was unreachable — and no seeded agent
+    // was ever in this state, so nothing failed.
+    expect(hasExhaustedSlots(verified)).toBe(true);
+  });
+
+  it("stays quiet while the agent still has a slot", () => {
+    expect(hasExhaustedSlots({ ...verified, freeListingQuota: 1 })).toBe(false);
+  });
+
+  it("stays quiet for a subscriber, whatever their quota says", () => {
+    // ADR-034: either satisfies entitlement, and subscribing neither
+    // replenishes quota nor consumes it. A subscriber at zero quota is not
+    // blocked and must not be told they are.
+    expect(hasExhaustedSlots({ ...verified, hasActiveSubscription: true })).toBe(
+      false,
+    );
+  });
+
+  it("names verification, not slots, for an unverified agent", () => {
+    // Quota is granted when verification is approved, so an unverified agent
+    // is always at zero. Telling them they are out of submission slots points
+    // at the wrong blocker — buying slots would not let them submit.
+    for (const status of ["not_submitted", "pending_review", "rejected"]) {
+      expect(
+        hasExhaustedSlots({ ...verified, verificationStatus: status }),
+        `${status} should not produce a slots warning`,
+      ).toBe(false);
+    }
   });
 });
