@@ -90,10 +90,10 @@ export async function requestInspection(input: {
     );
   }
 
-  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  // The 48-hour deadline is computed by the function, not here. It is the
+  // agent's window, and this path runs as the seeker — see 0031.
   const { chat, inspectionRequest: updatedRequest } =
     await createInspectionRequestWithChat(client, {
-      expiresAt,
       listingId: listing.id,
       message: input.message.trim(),
     });

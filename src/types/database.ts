@@ -83,7 +83,6 @@ export type Database = {
       };
       create_inspection_request_with_chat: {
         Args: {
-          expires_at: string;
           request_message: string;
           target_listing_id: string;
         };

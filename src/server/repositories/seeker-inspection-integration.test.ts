@@ -227,6 +227,103 @@ suite("seeker inspection requests", () => {
     expect(expired?.listings?.property_type).toBe("self_contain");
   });
 
+  /**
+   * The deadline the seeker no longer gets to name — 0031.
+   *
+   * The old three-argument signature let the caller supply expires_at. A
+   * far-future value gave the agent unlimited time; a past one produced a
+   * request that was expired before it existed, so the agent's inbox never
+   * counted it and the seeker's dashboard read "No reply" against somebody who
+   * was never given a chance to reply.
+   */
+  describe("the response window is not the caller's to set", () => {
+    let ownListingId = "";
+
+    beforeAll(async () => {
+      // Its own listing: the shared one already carries an active request from
+      // this seeker, and one-active-request-per-listing would refuse before
+      // the deadline is ever reached.
+      ownListingId = await createListing();
+    }, 60_000);
+
+    afterAll(async () => {
+      // Same constraint order the suite teardown uses, over this block's own
+      // listing. Leaving it behind survives into the seeded feed and breaks
+      // unrelated suites two files later, which has happened before.
+      if (!ownListingId) return;
+
+      // inspection_requests.chat_id and chats.inspection_request_id reference
+      // each other, so neither table can go first. Break the link, then the
+      // order below is ordinary.
+      await svc
+        .from("inspection_requests")
+        .update({ chat_id: null })
+        .eq("listing_id", ownListingId);
+      await svc.from("chats").delete().eq("listing_id", ownListingId);
+      await svc
+        .from("inspection_requests")
+        .delete()
+        .eq("listing_id", ownListingId);
+      await svc
+        .from("listings")
+        .update({ status: "draft" })
+        .eq("id", ownListingId);
+      await svc
+        .from("listings")
+        .update({ cover_image_id: null })
+        .eq("id", ownListingId);
+      await svc.from("listing_images").delete().eq("listing_id", ownListingId);
+
+      const { error } = await svc
+        .from("listings")
+        .delete()
+        .eq("id", ownListingId);
+      if (error) throw new Error(`teardown own listing: ${JSON.stringify(error)}`);
+    }, 60_000);
+
+    it("refuses a call that tries to name a deadline", async () => {
+      const client = asUser(await mintFreshToken(otherSeeker));
+
+      const { error } = await client.rpc(
+        "create_inspection_request_with_chat",
+        {
+          expires_at: new Date(Date.now() + 4000 * HOUR).toISOString(),
+          request_message: "Let me pick my own deadline.",
+          target_listing_id: ownListingId,
+          // The old signature is dropped rather than kept beside the new one,
+          // so this is not "ignored" — there is no function to call.
+        } as never,
+      );
+
+      expect(error).not.toBeNull();
+    });
+
+    it("writes 48 hours itself, measured from now", async () => {
+      const client = asUser(await mintFreshToken(otherSeeker));
+
+      const { data, error } = await client
+        .rpc("create_inspection_request_with_chat", {
+          request_message: "Asking the ordinary way.",
+          target_listing_id: ownListingId,
+        })
+        .single();
+
+      expect(error).toBeNull();
+
+      const created = data as { inspection_request_id: string };
+
+      const { data: row } = await svc
+        .from("inspection_requests")
+        .select("expires_at")
+        .eq("id", created.inspection_request_id)
+        .single();
+
+      const deadline = new Date(row!.expires_at).getTime();
+
+      expect(Math.abs(deadline - (Date.now() + 48 * HOUR))).toBeLessThan(60_000);
+    });
+  });
+
   async function createListing() {
     // Approved the long way round: BR-MEDIA-006 refuses an approved listing
     // with no cover image, and a fixture in an impossible state proves things
