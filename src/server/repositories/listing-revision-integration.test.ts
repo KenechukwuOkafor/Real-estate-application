@@ -11,6 +11,7 @@
  * paths are called as service-role, because that is how admin-service calls
  * them and they are granted to nobody else.
  */
+import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type CastMember, getCast } from "../../../test/helpers/cast";
@@ -24,6 +25,30 @@ import { listingImagePath } from "../../../test/helpers/storage-paths";
 
 const suite = rlsIntegrationEnabled() ? describe : describe.skip;
 
+const DB_URL =
+  process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+
+/**
+ * A raw connection, because PostgREST cannot express what this needs to test.
+ *
+ * The supabase-js clients each enter as one fixed role. Proving the check
+ * inside the function holds independently of the grant means granting EXECUTE
+ * back and then entering as `authenticated` in the same transaction, which is
+ * two SET ROLEs and a rollback — statements, not requests.
+ */
+async function sql(statements: string) {
+  const client = new Client({ connectionString: DB_URL });
+  await client.connect();
+  try {
+    await client.query(statements);
+    return "";
+  } catch (error) {
+    return (error as Error).message;
+  } finally {
+    await client.end();
+  }
+}
+
 const APPROVED_TITLE = "Approved Title";
 const APPROVED_PRICE = 250000;
 
@@ -36,6 +61,7 @@ suite("listing revisions", () => {
   let listingId = "";
   let imageId = "";
   let reviewerUserId = "";
+  let nonAdminUserId = "";
 
   beforeAll(async () => {
     svc = asServiceRole();
@@ -50,15 +76,30 @@ suite("listing revisions", () => {
       .filter((profile) => profile.created)
       .map((profile) => profile.id);
 
-    // Any real user will do as the reviewer; the functions record it, they do
-    // not authorise from it — admin-service is what authorises.
-    const { data: someUser, error } = await svc
-      .from("users")
-      .select("id")
+    // An ADMIN specifically, and no longer "any real user will do". That was
+    // this suite's assumption, written here as "the functions record it, they
+    // do not authorise from it — admin-service is what authorises", and it was
+    // the defect: apply_listing_revision and reject_listing_revision are
+    // SECURITY DEFINER, contained no check at all, and their only protection
+    // was a grant that a default ACL handed to anon in every freshly built
+    // environment. 0029 makes both functions check for themselves.
+    const { data: adminUser, error } = await svc
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin")
       .limit(1)
       .single();
     if (error) throw error;
-    reviewerUserId = someUser.id;
+    reviewerUserId = adminUser.user_id;
+
+    const { data: plainUser, error: plainError } = await svc
+      .from("users")
+      .select("id")
+      .not("id", "eq", reviewerUserId)
+      .limit(1)
+      .single();
+    if (plainError) throw plainError;
+    nonAdminUserId = plainUser.id;
   });
 
   afterAll(async () => {
@@ -359,6 +400,83 @@ suite("listing revisions", () => {
         .single();
 
       expect(error?.message).toContain("LISTING_REVISION_ALREADY_REVIEWED");
+    });
+
+    /**
+     * The authorization these two functions did not have.
+     *
+     * Both are SECURITY DEFINER, so RLS is not in the path, and both take
+     * reviewer_user_id as an argument. Before 0029 the only thing standing
+     * between an anonymous caller and approving arbitrary title, description
+     * and price onto a live listing was who held EXECUTE — and the default ACL
+     * handed EXECUTE to anon on every function in a freshly built environment,
+     * which `revoke ... from public` does not take back.
+     *
+     * These run as the service role, so they exercise the check itself rather
+     * than the grant. The grant is asserted separately in CI.
+     */
+    it("refuses a reviewer who does not hold the admin role", async () => {
+      await seedApprovedListing();
+      const proposal = await proposeAs(owner);
+      const revisionId = (proposal.data as { revision_id: string }).revision_id;
+
+      const { error } = await svc
+        .rpc("apply_listing_revision", {
+          reviewer_user_id: nonAdminUserId,
+          target_revision_id: revisionId,
+        })
+        .single();
+
+      expect(error?.message).toContain("REVIEWER_IS_NOT_AN_ADMIN");
+
+      // And the revision is untouched — a refused call must not half-apply.
+      const { data: revision } = await svc
+        .from("listing_revisions")
+        .select("status, reviewed_by")
+        .eq("id", revisionId)
+        .single();
+      expect(revision?.status).toBe("pending_review");
+      expect(revision?.reviewed_by).toBeNull();
+    });
+
+    it("refuses a rejection attributed to a non-admin too", async () => {
+      await seedApprovedListing();
+      const proposal = await proposeAs(owner);
+      const revisionId = (proposal.data as { revision_id: string }).revision_id;
+
+      const { error } = await svc
+        .rpc("reject_listing_revision", {
+          reason: "Attributed to somebody who cannot moderate.",
+          reviewer_user_id: nonAdminUserId,
+          target_revision_id: revisionId,
+        })
+        .single();
+
+      expect(error?.message).toContain("REVIEWER_IS_NOT_AN_ADMIN");
+    });
+
+    /**
+     * The check must not depend on the grant, because the grant is exactly
+     * what failed. EXECUTE is handed back to `authenticated` here in the same
+     * shape the default ACL handed it out, and the function must still refuse.
+     */
+    it("refuses a non-service-role caller even when EXECUTE is granted back", async () => {
+      await seedApprovedListing();
+      const proposal = await proposeAs(owner);
+      const revisionId = (proposal.data as { revision_id: string }).revision_id;
+
+      const restored = await sql(`
+        begin;
+        grant execute on function public.apply_listing_revision(uuid, uuid) to authenticated;
+        grant execute on function public.assert_caller_moderates(uuid) to authenticated;
+        set local role authenticated;
+        select public.apply_listing_revision(
+          '${revisionId}'::uuid, '${reviewerUserId}'::uuid
+        );
+        rollback;
+      `);
+
+      expect(restored).toContain("ADMIN_ROLE_REQUIRED");
     });
 
     it("leaves the listing alone when a revision is rejected", async () => {
