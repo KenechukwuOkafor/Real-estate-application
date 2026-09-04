@@ -238,6 +238,52 @@ the Sentry rule, not through a build log nobody reads.
 
 ---
 
+## Known ceiling — the agent dashboard's view counts
+
+**Symptom you would see first:** `/agent` gets slow, worst on the 90-day toggle,
+and only for agents with a lot of traffic. Nothing errors.
+
+`agent_listing_view_counts` (migration 0033) computes distinct viewers per
+listing per day with `count(distinct ...)` at read time. There is no rollup and
+no scheduler behind it, which is right for launch volume and is a real ceiling.
+
+Measured against a local database, one agent's 90-day window:
+
+| rows in window | time |
+|---|---|
+| 20,000 | 91 ms |
+| 50,000 | 233 ms |
+| 100,000 | 438 ms |
+| 200,000 | 858 ms (10 MB external merge sort) |
+
+Linear, roughly 4.4 microseconds per row. **The cost is the `count(distinct)`
+sort, not the index lookup**, so adding or widening an index will not help — the
+`(listing_id, created_at)` index is already used and the scan is a few
+milliseconds of the total.
+
+**The threshold: about 100,000 view rows for one agent inside one window.** At
+that point the 90-day toggle is around 440ms on the server before anything
+renders. Check it with:
+
+```sql
+select count(*)
+from public.listing_views v
+join public.listings l on l.id = v.listing_id
+where l.agent_profile_id = '<agent_profile_id>'
+  and v.created_at >= now() - interval '90 days';
+```
+
+**What the fix is, and what it is not.** It is a daily distinct-viewer rollup —
+a table of (listing, day, viewers) written on the read path or by the scheduler
+— or a cardinality sketch. It is **not** an incremental counter: distinct
+viewers cannot be maintained by adding one per view, because the same person
+returning must not increment it. That makes this a different shape of solution
+from the usual "cache the number" instinct, which is why it is written down
+here rather than left to be worked out under pressure.
+
+The dashboard defaults to 30 days rather than 90 for this reason. If that
+default is ever changed, this is the cost being taken on.
+
 ## What is deliberately not alerted
 
 Per the error registry in `src/lib/api/error-codes.ts`, errors in the

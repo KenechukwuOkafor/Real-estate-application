@@ -496,6 +496,85 @@ export async function getPendingListingRevision(
 }
 
 /**
+ * Every revision this agent has proposed that a moderator has since acted on
+ * or is still holding, newest first.
+ *
+ * THE SECOND REJECTION CHANNEL. agentStatusBand only knows about
+ * listings.rejection_reason, so a rejected REVISION on an approved listing was
+ * surfaced nowhere at all: the listing stays approved and live, the correction
+ * the agent made was refused, and nothing on any screen said so. They found
+ * out by opening the listing and noticing their edit had not taken.
+ *
+ * Scoped through the listing rather than by any column on the revision itself,
+ * because listing_revisions has no agent_profile_id — ownership lives one join
+ * away, and agents_read_own_listing_revisions already expresses exactly this.
+ */
+export async function listAgentListingRevisions(
+  client: DbClient,
+  agentProfileId: string,
+) {
+  const { data, error } = await client
+    .from("listing_revisions")
+    .select(
+      `
+        id,
+        listing_id,
+        status,
+        rejection_reason,
+        submitted_at,
+        reviewed_at,
+        listings!inner ( id, title, agent_profile_id )
+      `,
+    )
+    .eq("listings.agent_profile_id", agentProfileId)
+    .order("submitted_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as unknown as Array<{
+    id: string;
+    listing_id: string;
+    listings: { agent_profile_id: string; id: string; title: string } | null;
+    rejection_reason: string | null;
+    reviewed_at: string | null;
+    status: string;
+    submitted_at: string;
+  }>;
+}
+
+/**
+ * Distinct viewers per listing per day, for the calling agent.
+ *
+ * Straight through to 0033's aggregate. listing_views itself is unreadable by
+ * any client role and stays that way — the objection is to the per-visit trail
+ * each row carries, not to a count.
+ *
+ * Dates, not instants: the buckets are Africa/Lagos days.
+ */
+export async function getAgentListingViewCounts(
+  client: DbClient,
+  sinceDay: string,
+  untilDay: string,
+) {
+  const { data, error } = await client.rpc("agent_listing_view_counts", {
+    since_day: sinceDay,
+    until_day: untilDay,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as Array<{
+    listing_id: string;
+    viewed_on: string;
+    viewers: number;
+  }>;
+}
+
+/**
  * Every pending revision, with the listing it proposes to change.
  *
  * The listing comes back alongside so a moderator can be shown what changed

@@ -384,6 +384,11 @@ export async function rejectListingAsAdmin(listingId: string, reason: string) {
   const listing = await updateListingStatus(adminClient, listingId, "rejected", currentListing.status, {
     dispute_reason: null,
     flag_reason: null,
+    // Stamped here, not derived later. updated_at moves on every edit, so a
+    // listing rejected in June and edited yesterday would claim yesterday —
+    // which is why the activity feed could not order rejections at all before
+    // 0034. The backfill there is an approximation; from now on this is exact.
+    rejected_at: new Date().toISOString(),
     rejection_reason: reason.trim() || "Rejected by admin review.",
   });
 

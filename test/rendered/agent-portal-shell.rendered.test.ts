@@ -35,10 +35,28 @@ describe("agent portal shell", () => {
   it("renders every destination twice — once per layout", async () => {
     const page = await renderAsPersona("/agent", "Agent (verified)");
 
-    // Two navigations, one item list. If somebody adds a destination to only
-    // one of them, the counts stop matching.
+    // Counted INSIDE the two nav elements, not across the page.
+    //
+    // This used to split the whole document on `>Label<`, which worked only
+    // for as long as no other element on the page happened to contain one of
+    // these words on its own. The dashboard's per-listing table has a
+    // `<th>Requests</th>`, and the assertion started reporting three
+    // navigations — a false failure about navigation caused by a table.
+    //
+    // The claim is "each destination appears in both navs". Scoping to the
+    // navs is what makes the assertion mean that, rather than meaning "this
+    // word appears exactly twice anywhere".
+    const navs = page.html.match(
+      /<nav[^>]*aria-label="Agent portal[^"]*"[\s\S]*?<\/nav>/g,
+    );
+
+    expect(navs, "both portal navs should be in the HTML").toHaveLength(2);
+
     for (const label of NAV_LABELS) {
-      const occurrences = page.html.split(`>${label}<`).length - 1;
+      const occurrences = (navs ?? [])
+        .map((nav) => nav.split(`>${label}<`).length - 1)
+        .reduce((total, count) => total + count, 0);
+
       expect(occurrences, `${label} should appear in both navs`).toBe(2);
     }
   });
@@ -91,13 +109,25 @@ describe("agent portal shell", () => {
     expect(css).toContain("display: none");
   });
 
-  describe("the status band", () => {
-    it("shows all three facts that decide what an agent can do today", async () => {
+  /**
+   * The status band's three facts moved when the dashboard replaced this page.
+   *
+   * Verification and submission slots are now the account strip at the foot of
+   * the dashboard; the third fact — how many requests are waiting — stopped
+   * being a number and became the action queue at the top, which is the point
+   * of the change. An agent could read "3 inspection requests" off the old band
+   * and still not know which listing or how long was left.
+   *
+   * These assertions follow the facts to where they went rather than being
+   * deleted, because the claim being tested is "an agent can see what governs
+   * their day", and that claim did not change.
+   */
+  describe("what governs an agent's day", () => {
+    it("still shows verification and slots, now in the account strip", async () => {
       const page = await renderAsPersona("/agent", "Agent (verified)");
 
       expect(page.text).toContain("Verification");
       expect(page.text).toContain("Submission slots");
-      expect(page.text).toContain("Inspection requests");
     });
 
     it("shows the verified persona as verified rather than as a fallback", async () => {
@@ -110,11 +140,16 @@ describe("agent portal shell", () => {
       expect(page.text).not.toContain("Not started");
     });
 
-    it("shows an unverified agent what to do about it", async () => {
+    it("shows an unverified agent with no listings the checklist, not zeros", async () => {
+      // This persona has no listings, so they get the first-run state — three
+      // steps rather than a page of zeros with a verification warning beside
+      // them. Zeros read as failure to someone who has not started.
       const page = await renderAsPersona("/agent", "Agent (unverified)");
 
-      expect(page.text).toContain("Not started");
-      expect(page.text).toContain("Start verification");
+      expect(page.text).toContain("Let's get your first listing up.");
+      expect(page.text).toContain("Get verified so you can submit listings");
+      // And crucially NOT the metrics, which would all be zero.
+      expect(page.text).not.toContain("Response rate");
     });
   });
 
