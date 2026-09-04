@@ -113,7 +113,15 @@ jobs:
       - name: Install the Supabase CLI
         uses: supabase/setup-cli@v3
         with:
-          version: latest
+          # PINNED, and it has to stay pinned. `latest` meant the CLI — and so
+          # the Postgres image it starts, and so that image's bootstrap default
+          # privileges — changed under CI without a commit. Between 21 Aug and
+          # 3 Sep it did exactly that: anon and authenticated began arriving
+          # with SELECT/INSERT/UPDATE/DELETE on every table created after 0010,
+          # and the first thing that noticed was a test asserting the opposite.
+          # An unreproducible CI is not a signal, it is a coin toss that
+          # sometimes agrees with you. See 0029.
+          version: 2.116.0
 
       # Supabase verifies Clerk JWTs against the JWKS of the domain configured
       # here, so it must name the instance CI actually mints tokens from. The
@@ -238,6 +246,124 @@ jobs:
           seeded=$(psql "select count(*) from public.listings where status='approved';")
           echo "approved listings seeded: $seeded"
           test "$seeded" = "3"
+
+      # ----------------------------------------------------------------------
+      # Grants, asserted rather than assumed.
+      #
+      # Every finding in this class has been invisible until something asserted
+      # it, and this is the first one that would have shipped had CI not
+      # happened to disagree with a developer machine. What went wrong was not
+      # a missing revoke in one migration — it was that nothing anywhere stated
+      # what the privileges are supposed to be, so a default that changed
+      # underneath the project changed the answer silently.
+      #
+      # These read has_table_privilege and pg_proc.proacl, NOT
+      # information_schema. information_schema.table_privileges does not report
+      # MAINTAIN, which is the PostgreSQL 17 privilege that walked straight
+      # through 0023's enumerated revoke — a check written against it would be
+      # blind to exactly the thing that leaked.
+      # ----------------------------------------------------------------------
+      - name: Assert the grants are what the migrations say
+        run: |
+          set -euo pipefail
+
+          psql() {
+            docker exec "$(docker ps -qf name=supabase_db)" \
+              psql -U postgres -d postgres -t -A -c "$1" | tr -d '[:space:]'
+          }
+
+          # 1. The root cause. anon and authenticated must not appear in any
+          # default ACL owned by postgres in this schema: if they do, the NEXT
+          # table or function created inherits privileges nobody granted, which
+          # is how jobs, listing_revisions and verification_documents got them.
+          # This is the only assertion here that fires before the mistake.
+          defacl=$(psql "
+            select count(*) from pg_default_acl d
+            join pg_namespace n on n.oid = d.defaclnamespace
+            where n.nspname = 'public'
+              and pg_get_userbyid(d.defaclrole) = 'postgres'
+              and (d.defaclacl::text like '%anon=%'
+                   or d.defaclacl::text like '%authenticated=%');")
+          echo "default ACL entries granting client roles: $defacl"
+          test "$defacl" = "0"
+
+          # 2. Privileges a client role has no use for, on any table, ever.
+          # MAINTAIN is in this list because it was NOT in 0023's, and that is
+          # the whole lesson.
+          destructive=$(psql "
+            select count(*) from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            cross join (values ('anon'),('authenticated')) as r(role)
+            cross join (values ('TRUNCATE'),('REFERENCES'),('TRIGGER'),('MAINTAIN')) as p(priv)
+            where n.nspname = 'public' and c.relkind = 'r'
+              and has_table_privilege(r.role, c.oid, p.priv);")
+          echo "client-role TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants: $destructive"
+          test "$destructive" = "0"
+
+          # 3. The three tables the default ACL reached. anon has no policy on
+          # any of them and must hold no privilege either; authenticated holds
+          # SELECT and nothing more at table level.
+          systables=$(psql "
+            select count(*) from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            cross join (values ('SELECT'),('INSERT'),('UPDATE'),('DELETE')) as p(priv)
+            where n.nspname = 'public'
+              and c.relname in ('jobs','listing_revisions','verification_documents')
+              and has_table_privilege('anon', c.oid, p.priv);")
+          echo "anon privileges on system tables: $systables"
+          test "$systables" = "0"
+
+          writable=$(psql "
+            select count(*) from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            cross join (values ('INSERT'),('UPDATE'),('DELETE')) as p(priv)
+            where n.nspname = 'public'
+              and c.relname in ('jobs','listing_revisions')
+              and has_table_privilege('authenticated', c.oid, p.priv);")
+          echo "authenticated write grants on jobs/listing_revisions: $writable"
+          test "$writable" = "0"
+
+          # 4. The service-role functions. Four of these are SECURITY DEFINER,
+          # so RLS is not behind them — EXECUTE reaching a client role is the
+          # whole exposure, and `revoke ... from public` does not by itself
+          # remove a direct grant to a named role. Proven reachable through
+          # PostgREST at /rpc/<name> with nothing but the anon key.
+          fnexec=$(psql "
+            select count(*) from pg_proc p
+            join pg_namespace n on n.oid = p.pronamespace
+            cross join (values ('anon'),('authenticated')) as r(role)
+            where n.nspname = 'public'
+              and p.proname in (
+                'enqueue_job','claim_jobs','complete_job','fail_job',
+                'job_queue_health','apply_listing_revision',
+                'reject_listing_revision','assert_caller_moderates')
+              and has_function_privilege(r.role, p.oid, 'EXECUTE');")
+          echo "client-role EXECUTE on service-role functions: $fnexec"
+          test "$fnexec" = "0"
+
+          # 5. And anon on the authenticated-caller functions. Each of these
+          # refuses an anonymous caller on its own, so this is defence in depth
+          # — which is the layer that was quietly missing everywhere else here.
+          # The four identity helpers from 0008 are excluded deliberately: anon
+          # must keep EXECUTE on those or no policy can evaluate for an
+          # anonymous caller.
+          anonfn=$(psql "
+            select count(*) from pg_proc p
+            join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'public'
+              and p.proname in (
+                'archive_own_listing','remove_listing_image',
+                'own_agent_rejection_reason','is_chat_participant',
+                'counterparty_display_names',
+                'create_inspection_request_with_chat','submit_listing_revision',
+                -- Do not exist yet at the migration that adds this check; they
+                -- arrive above it in the stack and are matched by name, so the
+                -- assertion covers them the moment they do.
+                'respond_to_inspection_request','complete_inspection_request',
+                'cancel_inspection_request')
+              and has_function_privilege('anon', p.oid, 'EXECUTE');")
+          echo "anon EXECUTE on authenticated-caller functions: $anonfn"
+          test "$anonfn" = "0"
 
       # The integration suites run against THIS database — the one just built by
       # replaying every migration into an empty Postgres. That is the point: the
@@ -410,7 +536,15 @@ jobs:
       - name: Install the Supabase CLI
         uses: supabase/setup-cli@v3
         with:
-          version: latest
+          # PINNED, and it has to stay pinned. `latest` meant the CLI — and so
+          # the Postgres image it starts, and so that image's bootstrap default
+          # privileges — changed under CI without a commit. Between 21 Aug and
+          # 3 Sep it did exactly that: anon and authenticated began arriving
+          # with SELECT/INSERT/UPDATE/DELETE on every table created after 0010,
+          # and the first thing that noticed was a test asserting the opposite.
+          # An unreproducible CI is not a signal, it is a coin toss that
+          # sometimes agrees with you. See 0029.
+          version: 2.116.0
 
       # Which migrations are new, and therefore which ones have to survive
       # contact with existing rows.
