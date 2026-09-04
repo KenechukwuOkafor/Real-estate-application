@@ -57,6 +57,9 @@ requested ──(48 hours, expires_at)──> [expired]
            └─ completed        (terminal)
 
 requested ──> declined         (terminal)
+
+requested ──> cancelled        (terminal, the seeker's own act)
+accepted  ──> cancelled        (terminal, the seeker's own act)
 ```
 
 Square brackets mark states that are **derived at read time and never stored**.
@@ -65,6 +68,8 @@ Square brackets mark states that are **derived at read time and never stored**.
   complete. Four days is an outer bound, not a waiting period: the same hour is fine.
 - Marking complete is the agent's act alone. The seeker is not asked to confirm.
 - An accepted inspection never marked has **lapsed**.
+- The **seeker** may withdraw from either live state. Cancelling is not lapsing: a
+  cancelled row is not accepted, so no completion window runs against it.
 - There is no scheduled time, no slot, no negotiation and no rescheduling. The parties
   agree when and where in the chat or outside the app.
 
@@ -131,6 +136,26 @@ The lesson generalises past this domain: a derived state added to the same type 
 stored ones buys a smaller diff and pays for it by making every consumer's omission
 invisible.
 
+## Withdrawal belongs to the seeker, and only the seeker
+
+A seeker who accepts a visit and then cannot attend must be able to say so. Without that,
+their only exit is silence, and silence on an accepted inspection is a **lapse** — recorded,
+and countable against an agent who did nothing wrong. The absence of a cancel path did not
+merely inconvenience the seeker; it corrupted the one signal the completion window was
+introduced to keep.
+
+Agents have no equivalent, deliberately. An agent who accepted and cannot attend says so in
+the chat. A one-tap withdrawal would weaken the commitment that accepting is meant to make,
+and it would double as a way to clear a lapse on day four — the record would then measure
+who remembered to press a button, not who turned up.
+
+**The cost of that, stated rather than hidden:** an agent who withdraws honestly takes the
+same lapse as one who simply went silent. That is a perverse incentive, and it is real. It
+is also, today, a defect in what the lapse *count* can distinguish rather than a missing
+button — and nothing reads that count yet. When something does, "the agent said they could
+not make it" must become distinguishable from "the agent said nothing", and the answer at
+that point is a richer signal, not a cancel button that erases the record.
+
 ## The grant was the real decision
 
 Migration 0012 granted the owning agent `update (status, responded_at, updated_at)`. RLS
@@ -165,9 +190,10 @@ through that same grant.
 - **A lapse cannot be notified.** Nothing happens at the instant it becomes true, so there
   is no event to hang a message on. ADR-019's "Missed appointments" metric and any
   notification of one are unmeasurable by construction, and are struck.
-- **`cancelled` and `expired` remain vestigial enum values.** `expired` is derived and can
-  now never be written; `cancelled` has no writer at all, which leaves a seeker who cannot
-  attend with no way to say so. That is the natural next slice.
+- **`expired` remains a vestigial enum value.** It is derived and can now never be written,
+  while its twin `lapsed` deliberately has no enum value at all — which makes `expired` the
+  odd one out rather than a precedent. Removing an enum value costs more than the confusion
+  it saves, so it stays as a fossil.
 - **The four days live in SQL; the words live in TypeScript.** Two places for one number,
   accepted because only one of them is enforcement.
 - **Clock skew is visible.** The UI derives `lapsed` from Node's clock and the function
@@ -196,6 +222,10 @@ through that same grant.
 - Never grant `status`, `completed_at` or `completion_deadline` to any client role.
 - Never add a scheduled-time column, a date picker, or slot negotiation.
 - A lapse never closes a chat and never produces a seeker-facing score or badge.
+- Never give agents a cancel path that clears a lapse. If honest withdrawal needs
+  recognising, it is recorded as its own fact — it does not erase the record.
+- Cancelling must never be counted as a lapse. It is free today because a cancelled row
+  leaves the accepted state; keep it that way.
 - Seeker-facing copy for a lapse names the agent's silence. It never blames the seeker, and
   it never claims the inspection did not happen — nobody knows that.
 

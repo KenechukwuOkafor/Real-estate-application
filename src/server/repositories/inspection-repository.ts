@@ -526,6 +526,31 @@ export async function markInspectionRequestComplete(
 }
 
 /**
+ * The seeker withdraws, via the RPC.
+ *
+ * The one inspection transition whose actor is the seeker rather than the
+ * agent, which is why the function resolves an app user and not an agent
+ * profile. Goes through an RPC for the same reason the others do: status is
+ * not granted to anybody.
+ */
+export async function cancelInspectionRequest(
+  client: DbClient,
+  inspectionRequestId: string,
+) {
+  const { data, error } = await client
+    .rpc("cancel_inspection_request", {
+      target_request_id: inspectionRequestId,
+    })
+    .single();
+
+  if (error) {
+    mapDatabaseSentinel(error);
+  }
+
+  return data as { cancelled_at: string; inspection_request_id: string };
+}
+
+/**
  * Atomic creation via public.create_inspection_request_with_chat.
  *
  * Replaces three sequential writes that had no transaction between them.

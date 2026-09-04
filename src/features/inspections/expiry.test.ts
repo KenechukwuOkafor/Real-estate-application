@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   blocksNewRequest,
+  conversationExists,
   effectiveInspectionStatus,
   formatTimeRemaining,
   isAwaitingCompletion,
@@ -15,12 +16,14 @@ function request(
   overrides: Partial<{
     completion_deadline: string | null;
     expires_at: string | null;
+    responded_at: string | null;
     status: string;
   }>,
 ) {
   return {
     completion_deadline: null,
     expires_at: null,
+    responded_at: null,
     status: "requested",
     ...overrides,
   };
@@ -124,6 +127,22 @@ describe("effectiveInspectionStatus", () => {
     ).toBe("accepted");
   });
 
+  it("never lapses a cancelled inspection, deadline or not", () => {
+    // The property the cancellation slice rests on: withdrawing leaves the
+    // accepted state, so it leaves the window. If this ever fails, a seeker
+    // pulling out starts counting against the agent again.
+    expect(
+      effectiveInspectionStatus(
+        request({
+          completion_deadline: daysFromNow(-30),
+          responded_at: daysFromNow(-34),
+          status: "cancelled",
+        }),
+        NOW,
+      ),
+    ).toBe("cancelled");
+  });
+
   it.each(["declined", "cancelled", "completed"])(
     "never lapses a %s inspection, whatever deadline it carries",
     (status) => {
@@ -151,6 +170,43 @@ describe("effectiveInspectionStatus", () => {
         NOW,
       ),
     ).toBe("accepted");
+  });
+});
+
+describe("conversationExists", () => {
+  it("keeps the thread through every ending that had one", () => {
+    for (const row of [
+      request({ completion_deadline: daysFromNow(1), status: "accepted" }),
+      request({ completion_deadline: daysFromNow(-1), status: "accepted" }),
+      request({ status: "completed" }),
+    ]) {
+      expect(conversationExists(row, NOW)).toBe(true);
+    }
+  });
+
+  it("offers nothing where no conversation ever happened", () => {
+    for (const row of [
+      request({ expires_at: hoursFromNow(5) }),
+      request({ expires_at: hoursFromNow(-5) }),
+      request({ responded_at: hoursFromNow(-2), status: "declined" }),
+    ]) {
+      expect(conversationExists(row, NOW)).toBe(false);
+    }
+  });
+
+  it("splits a cancellation on whether it had been accepted", () => {
+    // Withdrawing from an accepted inspection ends a real conversation both
+    // parties should still be able to read. Withdrawing an unanswered request
+    // ends only the asking, and its chat row was never used.
+    expect(
+      conversationExists(
+        request({ responded_at: hoursFromNow(-30), status: "cancelled" }),
+        NOW,
+      ),
+    ).toBe(true);
+    expect(
+      conversationExists(request({ status: "cancelled" }), NOW),
+    ).toBe(false);
   });
 });
 
