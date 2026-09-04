@@ -360,7 +360,11 @@ jobs:
                 -- arrive above it in the stack and are matched by name, so the
                 -- assertion covers them the moment they do.
                 'respond_to_inspection_request','complete_inspection_request',
-                'cancel_inspection_request')
+                'cancel_inspection_request',
+                -- Reads listing_views, which no client role may select at all
+                -- (0014). If anon ever holds EXECUTE on this, per-listing view
+                -- counts for every agent are readable with the public key.
+                'agent_listing_view_counts')
               and has_function_privilege('anon', p.oid, 'EXECUTE');")
           echo "anon EXECUTE on authenticated-caller functions: $anonfn"
           test "$anonfn" = "0"

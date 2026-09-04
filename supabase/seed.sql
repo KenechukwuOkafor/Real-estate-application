@@ -622,4 +622,133 @@ values
 on conflict (id) do update
 set body = excluded.body, read_at = excluded.read_at;
 
+-- ---------------------------------------------------------------------------
+-- Listing views, and a shape the agent dashboard can actually be built against.
+--
+-- listing_views had ZERO seeded rows, so every view count on every surface
+-- rendered 0 locally. A dashboard whose central number is always zero cannot
+-- be shown to be working, and this is the sixth time seed realism has stood
+-- between a feature and being testable — see the comments above about quota,
+-- verification, chats, the moderation queue and the unread count.
+--
+-- FLAT DATA WOULD BE NO BETTER THAN NO DATA. The per-listing table exists to
+-- separate three situations that look identical if every listing has the same
+-- numbers, so the three approved listings are seeded to be genuinely different:
+--
+--   f001 Clean Self Contain     busiest, and it converts       (many viewers, 1 request)
+--   f002 Two Bedroom Hilltop    quiet, but converts best       (few viewers,  1 request)
+--   f003 Lodge Room UNN Gate    watched by everyone, asked     (many viewers, 0 requests)
+--                               about by nobody
+--
+-- f003 is the case the table is FOR. Views with no requests is a price or a
+-- photo problem, never a visibility problem, and it is the one conclusion an
+-- agent cannot reach from a listing count. Ranking by views and ranking by
+-- conversion deliberately disagree here; a flat seed cannot show that working.
+--
+-- TWO REGRESSION TRAPS ARE BUILT INTO THIS DATA ON PURPOSE.
+--
+-- 1. Every row shares ONE ip_hash — the shared-NAT situation 0033 refuses to
+--    deduplicate on. Measured, rather than asserted, because the first version
+--    of this comment overstated it: appending ip_hash as a LAST fallback is
+--    harmless here (104 viewers either way) precisely because session_id is
+--    always present. What collapses is giving ip_hash precedence, or deduping
+--    on it alone — both take f001 from 104 viewers to 1. Those are the shapes
+--    this data catches, and they are the ones that would silently under-report
+--    the busiest listings in production.
+--
+-- 2. The signed-in student views f001 twice on the same day from two DIFFERENT
+--    session ids. viewer_user_id takes precedence over session_id, so that is
+--    one viewer. Reverse the coalesce and it becomes two.
+--
+-- Deterministic ids from md5 so a re-run updates rather than duplicates.
+-- ---------------------------------------------------------------------------
+insert into public.listing_views (
+  id, listing_id, viewer_user_id, session_id, ip_hash, user_agent, referrer, created_at
+)
+select
+  md5(shape.listing_id::text || day_offset::text || viewer_no::text || repeat_no::text)::uuid,
+  shape.listing_id,
+  null,
+  -- One id per (listing, day, viewer). The repeats below reuse it, which is
+  -- what makes raw rows and distinct viewers differ.
+  'seed-' || right(shape.listing_id::text, 4) || '-d' || day_offset::text || '-v' || viewer_no::text,
+  -- The shared address. See trap 1 above.
+  'seed-shared-nat-ip-hash',
+  'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile',
+  case when viewer_no % 3 = 0 then 'https://www.google.com/' else null end,
+  (now() at time zone 'Africa/Lagos')::date - day_offset
+    + make_interval(hours => 8 + (viewer_no % 12), mins => (repeat_no * 17) % 60)
+from (
+  values
+    -- listing,                                   viewers/day base, variation
+    ('3c719a67-c526-44d2-b9f5-83042d03f001'::uuid, 6, 4),
+    ('3c719a67-c526-44d2-b9f5-83042d03f002'::uuid, 2, 2),
+    ('3c719a67-c526-44d2-b9f5-83042d03f003'::uuid, 5, 3)
+) as shape(listing_id, base, variation)
+cross join lateral generate_series(0, 13) as day_offset
+cross join lateral generate_series(1, shape.base + (day_offset % shape.variation)) as viewer_no
+-- The duplicates. A refresh, a back navigation, a second look after lunch —
+-- all the same person on the same day, and all one viewer.
+cross join lateral generate_series(1, 1 + (viewer_no % 3)) as repeat_no
+on conflict (id) do update
+set created_at = excluded.created_at,
+    session_id = excluded.session_id;
+
+-- The signed-in student, on f001, twice today from two different browsers.
+-- Trap 2: one viewer, because viewer_user_id wins over session_id.
+insert into public.listing_views (
+  id, listing_id, viewer_user_id, session_id, ip_hash, user_agent, referrer, created_at
+)
+values
+  (
+    '01992a10-9001-7000-8000-0000000000e1',
+    '3c719a67-c526-44d2-b9f5-83042d03f001',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464000',
+    'seed-student-phone',
+    'seed-shared-nat-ip-hash',
+    'Mozilla/5.0 (Linux; Android 13) Mobile',
+    null,
+    now() - interval '3 hours'
+  ),
+  (
+    '01992a10-9002-7000-8000-0000000000e2',
+    '3c719a67-c526-44d2-b9f5-83042d03f001',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464000',
+    'seed-student-laptop',
+    'seed-shared-nat-ip-hash',
+    'Mozilla/5.0 (X11; Linux x86_64) Chrome/120',
+    null,
+    now() - interval '2 hours'
+  )
+on conflict (id) do update set created_at = excluded.created_at;
+
+-- ---------------------------------------------------------------------------
+-- A second inspection request, on f002.
+--
+-- Without it every seeded request sits on f001 and the conversion column is
+-- one non-zero cell beside two zeros — which cannot show that ranking by views
+-- and ranking by conversion disagree. f002 is the quiet listing that converts
+-- best; f003 stays deliberately at zero because that is the case being taught.
+--
+-- 'requested' rather than accepted, and inside its 48 hours, so the agent inbox
+-- also has something awaiting an answer.
+-- ---------------------------------------------------------------------------
+insert into public.inspection_requests (
+  id, listing_id, agent_profile_id, requester_user_id, message, status,
+  requested_at, expires_at
+)
+values
+  (
+    '01920a1b-2c3d-7e4f-8a9b-0c1d2e3fb002',
+    '3c719a67-c526-44d2-b9f5-83042d03f002',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    '6d5ec8a0-a70a-4974-b8b7-1c833f464000',
+    'Is the Hilltop flat still available for December?',
+    'requested',
+    now() - interval '6 hours',
+    now() + interval '42 hours'
+  )
+on conflict (id) do update
+set status = excluded.status, expires_at = excluded.expires_at;
+
 commit;
