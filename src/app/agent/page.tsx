@@ -90,7 +90,7 @@ export default async function AgentHomePage({
               {dashboard.actions.map((action) => (
                 <li
                   className={`rounded-2xl border p-4 ${ACTION_TONE[action.kind] ?? "border-stone-200 bg-white"}`}
-                  key={`${action.kind}-${action.href}-${action.title}`}
+                  key={`${action.kind}-${action.href ?? "none"}-${action.title}`}
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="font-medium">{action.title}</p>
@@ -101,12 +101,20 @@ export default async function AgentHomePage({
                     ) : null}
                   </div>
                   <p className="mt-1 text-sm leading-6 text-stone-700">{action.detail}</p>
-                  <Link
-                    className="mt-2 inline-block text-sm font-medium underline underline-offset-4"
-                    href={action.href}
-                  >
-                    {action.hrefLabel}
-                  </Link>
+                  {/*
+                    No link when there is nowhere to go. An agent out of
+                    submission slots has no destination — there is no billing
+                    surface yet — and a button leading somewhere unhelpful is
+                    worse than the sentence above it.
+                  */}
+                  {action.href && action.hrefLabel ? (
+                    <Link
+                      className="mt-2 inline-block text-sm font-medium underline underline-offset-4"
+                      href={action.href}
+                    >
+                      {action.hrefLabel}
+                    </Link>
+                  ) : null}
                 </li>
               ))}
             </ul>
