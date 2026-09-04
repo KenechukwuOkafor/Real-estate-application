@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+import { getOrCreateViewSessionId } from "@/features/listings/view-session";
+
 type ListingsViewTrackerProps = {
   /**
    * The listing's `public_uuid`, NOT its primary key.
@@ -22,6 +24,11 @@ export function ListingViewTracker({ publicId }: ListingsViewTrackerProps) {
     void fetch(`/api/listings/${publicId}/views`, {
       body: JSON.stringify({
         referrer: document.referrer || null,
+        // The column has existed since 0001 and been null on every row. Without
+        // it a refresh is a second person, and the per-listing conversion ratio
+        // — the most actionable number on the agent dashboard — divides requests
+        // by page loads instead of by people. See 0033.
+        sessionId: getOrCreateViewSessionId(),
       }),
       headers: {
         "Content-Type": "application/json",

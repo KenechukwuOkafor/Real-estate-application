@@ -88,6 +88,17 @@ export type Database = {
         };
         Returns: Array<{ chat_id: string; inspection_request_id: string }>;
       };
+      agent_listing_view_counts: {
+        // Dates, not timestamps: the buckets are Africa/Lagos days. Passing an
+        // ISO instant here would be silently coerced and could land the caller
+        // one day either side of what they meant. See 0033.
+        Args: { since_day: string; until_day: string };
+        Returns: Array<{
+          listing_id: string;
+          viewed_on: string;
+          viewers: number;
+        }>;
+      };
       apply_listing_revision: {
         Args: { reviewer_user_id: string; target_revision_id: string };
         Returns: Array<{ listing_id: string; revision_id: string }>;
