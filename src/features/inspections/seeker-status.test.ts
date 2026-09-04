@@ -14,6 +14,7 @@ const ALL_STATUSES: InspectionStatus[] = [
   "expired",
   "cancelled",
   "completed",
+  "lapsed",
 ];
 
 describe("seeker status copy", () => {
@@ -58,7 +59,41 @@ describe("seeker status copy", () => {
     expect(seekerStatusDetail("accepted", "Campus Keys")).toBeNull();
     expect(seekerStatusDetail("requested", "Campus Keys")).toBeNull();
     expect(seekerStatusDetail("cancelled", "Campus Keys")).toBeNull();
-    expect(seekerStatusDetail("completed", "Campus Keys")).toBeNull();
+  });
+
+  describe("a lapse, which is expiry's twin one step later", () => {
+    it("does not blame the seeker or the clock", () => {
+      const label = SEEKER_STATUS_LABEL.lapsed.toLowerCase();
+
+      expect(label).not.toContain("expired");
+      expect(label).not.toContain("your");
+      expect(label).not.toContain("you ");
+    });
+
+    it("names who did not confirm, and claims nothing about the visit", () => {
+      // The one thing nobody knows is whether the inspection happened. The
+      // copy must not imply it did not — only that the agent never said.
+      const detail = seekerStatusDetail("lapsed", "Prime Homes Nsukka");
+
+      expect(detail).toBe(
+        "Prime Homes Nsukka did not confirm this inspection took place.",
+      );
+      expect(detail?.toLowerCase()).not.toContain("did not happen");
+    });
+
+    it("carries no alarm colour, for the same reason expiry carries none", () => {
+      expect(SEEKER_STATUS_CLASSES.lapsed).not.toContain("red");
+      expect(SEEKER_STATUS_CLASSES.lapsed).not.toContain("amber");
+    });
+  });
+
+  it("attributes a completion to the agent who recorded it", () => {
+    // "Completed" alone could read as something the seeker agreed to. They
+    // were never asked, and a later dispute depends on it being clear whose
+    // claim this is.
+    expect(seekerStatusDetail("completed", "Campus Keys")).toBe(
+      "Campus Keys marked this inspection complete.",
+    );
   });
 
   it("attributes the seeker's own action to them, not to the agent", () => {

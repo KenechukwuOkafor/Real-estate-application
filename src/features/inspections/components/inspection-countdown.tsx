@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 
 import {
   formatTimeRemaining,
-  minutesRemaining,
+  minutesUntil,
 } from "@/features/inspections/expiry";
 
 type InspectionCountdownProps = {
-  expiresAt: string;
+  /** The deadline itself, whichever window it belongs to. */
+  deadline: string;
   /**
    * What the server computed, rendered first.
    *
@@ -18,6 +19,13 @@ type InspectionCountdownProps = {
    * stale, not to disagree with it.
    */
   initialLabel: string;
+  /**
+   * What to say once the deadline passes on a page nobody has reloaded.
+   *
+   * Differs by window: a request runs out and is "Expired", an accepted
+   * inspection runs out and was never marked.
+   */
+  passedLabel?: string;
 };
 
 /**
@@ -28,35 +36,35 @@ type InspectionCountdownProps = {
  * morning would see "3 hours left" on a request that expired at lunchtime, and
  * would click accept on the strength of it.
  *
+ * Takes a deadline rather than a row: it used to build `{ expires_at, status:
+ * "requested" }` around the value it was given, which hardcoded it to one of
+ * the two windows and would have silently refused to count the other.
+ *
  * A minute is the right interval because the text is coarse — it changes at
  * most once a minute, and only in the last hour does it change that often.
  */
 export function InspectionCountdown({
-  expiresAt,
+  deadline,
   initialLabel,
+  passedLabel = "Expired",
 }: InspectionCountdownProps) {
   const [label, setLabel] = useState(initialLabel);
 
   useEffect(() => {
     function recompute() {
-      const remaining = minutesRemaining({
-        expires_at: expiresAt,
-        status: "requested",
-      });
-
-      setLabel(formatTimeRemaining(remaining) ?? "Expired");
+      setLabel(formatTimeRemaining(minutesUntil(deadline)) ?? passedLabel);
     }
 
     recompute();
     const timer = window.setInterval(recompute, 60_000);
 
     return () => window.clearInterval(timer);
-  }, [expiresAt]);
+  }, [deadline, passedLabel]);
 
   return (
     <span
       className={
-        label === "Expired"
+        label === passedLabel
           ? "text-sm font-medium text-stone-500"
           : "text-sm font-medium text-amber-800"
       }

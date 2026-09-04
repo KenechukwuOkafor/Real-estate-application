@@ -127,11 +127,13 @@ export default async function DashboardPage() {
             const isWaiting = request.effectiveStatus === "requested";
             const isExpired = request.effectiveStatus === "expired";
             const isAccepted = request.effectiveStatus === "accepted";
+            const isLapsed = request.effectiveStatus === "lapsed";
+            const isCompleted = request.effectiveStatus === "completed";
 
             return (
               <li
                 className={`rounded-[1.75rem] border border-stone-900/10 p-6 ${
-                  isExpired ? "bg-white/50" : "bg-white/85"
+                  isExpired || isLapsed ? "bg-white/50" : "bg-white/85"
                 }`}
                 key={request.id}
               >
@@ -173,7 +175,7 @@ export default async function DashboardPage() {
                     */}
                     {isWaiting && request.expiresAt ? (
                       <InspectionCountdown
-                        expiresAt={request.expiresAt}
+                        deadline={request.expiresAt}
                         initialLabel={
                           formatTimeRemaining(request.minutesRemaining) ??
                           "Expired"
@@ -217,7 +219,13 @@ export default async function DashboardPage() {
                   </div>
                 ) : null}
 
-                {isAccepted && request.chatId ? (
+                {/*
+                  The conversation outlives the inspection, in every direction
+                  it can end. A lapse especially must not take it away: the
+                  visit may well have been rearranged in this very thread, and
+                  hiding it would punish the seeker for the agent's silence.
+                */}
+                {(isAccepted || isLapsed || isCompleted) && request.chatId ? (
                   <div className="mt-5 border-t border-stone-900/10 pt-4">
                     <Link
                       className="inline-flex items-center gap-2 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
@@ -230,6 +238,45 @@ export default async function DashboardPage() {
                         </span>
                       ) : null}
                     </Link>
+                  </div>
+                ) : null}
+
+                {isLapsed ? (
+                  /*
+                    Worded like the expired case, and for the same reason. The
+                    seeker did nothing wrong, and nobody knows whether the visit
+                    happened — only that the agent never said. "Ask again" is
+                    offered because blocksNewRequest no longer blocks a lapsed
+                    row, but it does not lead: somewhere else to look does.
+                  */
+                  <div className="mt-5 border-t border-stone-900/10 pt-4">
+                    <p className="text-sm text-stone-600">
+                      {seekerStatusDetail("lapsed", request.agentName)}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <Link
+                        className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
+                        href={`/?${request.similarListingsQuery}`}
+                      >
+                        See similar places
+                      </Link>
+                      {request.listingSlug ? (
+                        <Link
+                          className="rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-medium text-stone-800"
+                          href={`/listings/${request.listingSlug}`}
+                        >
+                          Ask again
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                {isCompleted ? (
+                  <div className="mt-5 border-t border-stone-900/10 pt-4">
+                    <p className="text-sm text-stone-600">
+                      {seekerStatusDetail("completed", request.agentName)}
+                    </p>
                   </div>
                 ) : null}
 

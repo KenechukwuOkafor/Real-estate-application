@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  conversationExists,
   effectiveInspectionStatus,
   isAwaitingResponse,
   minutesRemaining,
@@ -21,7 +22,8 @@ import {
   listSeekerInspectionRequests,
   listOpenInspectionRequestDeadlines,
   markChatMessagesRead,
-  updateInspectionRequestStatus,
+  markInspectionRequestComplete,
+  recordInspectionResponse,
 } from "@/server/repositories/inspection-repository";
 import { getAgentProfileByUserId } from "@/server/repositories/agents-repository";
 import { writeAuditLog } from "@/server/services/audit-service";
@@ -229,15 +231,20 @@ export async function respondToInspectionRequest(input: {
     );
   }
 
-  const now = new Date().toISOString();
-  const updated = await updateInspectionRequestStatus(
+  const written = await recordInspectionResponse(
     client,
     inspectionRequest.id,
     decision,
-    {
-      responded_at: now,
-    },
   );
+
+  // The function returns what it wrote, under its own column names. Normalised
+  // here so callers keep reading the row shape they always did.
+  const updated = {
+    completion_deadline: written.completion_deadline,
+    id: written.inspection_request_id,
+    responded_at: written.responded_at,
+    status: written.status,
+  };
 
   await writeAuditLog({
     action:
@@ -246,6 +253,9 @@ export async function respondToInspectionRequest(input: {
         : "inspection_request.declined",
     actorUserId: appUser.user.id,
     afterData: {
+      // The deadline acceptance fixed, recorded where a fact like that belongs.
+      // Null on a decline: nothing was committed to, so nothing is owed.
+      completion_deadline: updated.completion_deadline,
       responded_at: updated.responded_at,
       status: updated.status,
     },
@@ -256,8 +266,107 @@ export async function respondToInspectionRequest(input: {
   return updated;
 }
 
+/**
+ * The agent records that an inspection happened.
+ *
+ * Their action alone. The seeker is not asked to confirm, because requiring
+ * both would leave every visit an unresponsive seeker attended stuck open, and
+ * would make the agent's record depend on somebody else's diligence. A seeker
+ * who disputes a completion is a case worth building once there is volume; it
+ * is not built here.
+ *
+ * Every check below is duplicated inside complete_inspection_request, and that
+ * duplication is the point: these exist to produce a sentence a person can
+ * read, and the function exists because anything above the database can be
+ * gone around. Neither is the other's backup.
+ *
+ * OBSERVING A LAPSE WRITES NOTHING. There is no branch here that records one,
+ * no audit row, no status change. A lapse is what a read concludes, and reads
+ * stay reads.
+ */
+export async function completeInspectionRequest(input: {
+  inspectionRequestId: string;
+}) {
+  const appUser = await getCurrentAppUser();
+
+  if (!appUser) {
+    throw new AppError("UNAUTHENTICATED", "Unauthenticated request.");
+  }
+
+  if (!appUser.roles.includes("agent")) {
+    throw new AppError("UNAUTHORIZED", "Agent role is required.");
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
+
+  if (!agentProfile) {
+    throw new AppError("AGENT_PROFILE_NOT_FOUND", "Agent profile not found.");
+  }
+
+  const inspectionRequest = await getInspectionRequestById(
+    client,
+    input.inspectionRequestId,
+  );
+
+  if (!inspectionRequest) {
+    throw new AppError("INSPECTION_NOT_FOUND", "Inspection request not found.", 404);
+  }
+
+  // 404 rather than 403 for somebody else's, matching the respond path: a
+  // distinguishable refusal turns the id into an oracle.
+  if (inspectionRequest.agent_profile_id !== agentProfile.id) {
+    throw new AppError("INSPECTION_NOT_FOUND", "Inspection request not found.", 404);
+  }
+
+  const effective = effectiveInspectionStatus(inspectionRequest);
+
+  if (effective === "lapsed") {
+    throw new AppError(
+      "INSPECTION_COMPLETION_WINDOW_CLOSED",
+      "The four days to mark this inspection complete have passed.",
+      422,
+    );
+  }
+
+  if (effective !== "accepted") {
+    throw new AppError(
+      "INSPECTION_STATE_TRANSITION_INVALID",
+      `Inspection cannot be marked complete from status ${effective}.`,
+      422,
+    );
+  }
+
+  const written = await markInspectionRequestComplete(
+    client,
+    inspectionRequest.id,
+  );
+
+  await writeAuditLog({
+    action: "inspection_request.completed",
+    actorUserId: appUser.user.id,
+    afterData: {
+      completed_at: written.completed_at,
+      // The deadline it was marked against, so the audit row can be read later
+      // as evidence the mark landed inside the window.
+      completion_deadline: inspectionRequest.completion_deadline,
+      status: "completed",
+    },
+    entityId: written.inspection_request_id,
+    entityType: "inspection_request",
+  });
+
+  return {
+    completed_at: written.completed_at,
+    id: written.inspection_request_id,
+    status: "completed" as const,
+  };
+}
+
 export type AgentInspectionInboxItem = {
   chatId: string | null;
+  completedAt: string | null;
+  completionDeadline: string | null;
   effectiveStatus: InspectionStatus;
   /**
    * The deadline itself, so the client can recompute rather than trust a
@@ -309,12 +418,13 @@ export async function listCurrentAgentInspectionRequests(): Promise<
   const requests = await listAgentInspectionRequests(client, agentProfile.id);
   const now = new Date();
 
-  // Only accepted requests have a conversation worth counting. A declined or
-  // expired request's chat, if one exists, is not something we are asking the
-  // agent to attend to.
+  // Every request whose conversation is real, which since 0030 is more than
+  // just the accepted ones: a lapsed inspection keeps its chat, and unread
+  // messages in it still need counting. Dropping it here would close the
+  // conversation in all but name, which is exactly what a lapse must not do.
   const chatIds = requests
-    .filter(
-      (request) => effectiveInspectionStatus(request, now) === "accepted",
+    .filter((request) =>
+      conversationExists(effectiveInspectionStatus(request, now)),
     )
     .map((request) => request.chats?.id)
     .filter((id): id is string => Boolean(id));
@@ -329,6 +439,11 @@ export async function listCurrentAgentInspectionRequests(): Promise<
 
   return requests.map((request) => ({
     chatId: request.chats?.id ?? null,
+    completedAt: request.completed_at,
+    // The deadline itself, so the client can recompute rather than trust a
+    // number that was true when the page was built — the same reasoning
+    // expiresAt already carries.
+    completionDeadline: request.completion_deadline,
     effectiveStatus: effectiveInspectionStatus(request, now),
     expiresAt: request.expires_at,
     id: request.id,
@@ -354,6 +469,7 @@ export type SeekerInspectionItem = {
   /** The agent's public display name — who the seeker actually asked. */
   agentName: string;
   chatId: string | null;
+  completedAt: string | null;
   effectiveStatus: InspectionStatus;
   expiresAt: string | null;
   id: string;
@@ -401,7 +517,8 @@ export async function listCurrentSeekerInspectionRequests(): Promise<
   // conversation worth counting unread messages in.
   const chatIds = requests
     .filter(
-      (request) => effectiveInspectionStatus(request, now) === "accepted",
+      (request) =>
+        conversationExists(effectiveInspectionStatus(request, now)),
     )
     .map((request) => request.chats?.id)
     .filter((id): id is string => Boolean(id));
@@ -430,6 +547,7 @@ export async function listCurrentSeekerInspectionRequests(): Promise<
       // unnamed.
       agentName: listing?.agent_profiles?.display_name ?? "The agent",
       chatId: request.chats?.id ?? null,
+      completedAt: request.completed_at,
       effectiveStatus: effectiveInspectionStatus(request, now),
       expiresAt: request.expires_at,
       id: request.id,

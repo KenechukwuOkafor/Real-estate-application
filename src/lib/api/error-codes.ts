@@ -114,6 +114,14 @@ export const ERROR_CODES = {
   // "the window closed". Expiry is evaluated on read, so the stored status is
   // still 'requested' and only the deadline says otherwise.
   INSPECTION_EXPIRED: { category: "business_rule", httpStatus: 422 },
+  // The second window, and distinct from INSPECTION_EXPIRED for the same
+  // reason that one is distinct from the state-transition code: "you did not
+  // answer in time" and "you answered and then never said whether it happened"
+  // are different things to tell somebody. Derived on read, like its twin.
+  INSPECTION_COMPLETION_WINDOW_CLOSED: {
+    category: "business_rule",
+    httpStatus: 422,
+  },
 
   // ------------------------------------------------------------- listings
   LISTING_IMAGE_NOT_UPLOADED: { category: "business_rule", httpStatus: 422 },

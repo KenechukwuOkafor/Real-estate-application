@@ -103,6 +103,8 @@ export const ERROR_COPY: Readonly<Record<string, string>> = {
     "This inspection request has already been answered.",
   INSPECTION_EXPIRED:
     "This request passed its 48 hour window, so it can no longer be answered. The seeker can send a new one.",
+  INSPECTION_COMPLETION_WINDOW_CLOSED:
+    "The four days to mark this inspection complete have passed, so it can no longer be marked. Your chat with them is still open.",
   INSPECTION_NOT_OWNED: "This inspection request belongs to someone else.",
   INSPECTION_NOT_FOUND:
     "We could not find that inspection request. It may have been withdrawn.",

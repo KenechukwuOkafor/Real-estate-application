@@ -4,18 +4,34 @@ import {
   blocksNewRequest,
   effectiveInspectionStatus,
   formatTimeRemaining,
+  isAwaitingCompletion,
   isAwaitingResponse,
   minutesRemaining,
 } from "@/features/inspections/expiry";
 
 const NOW = new Date("2026-08-20T12:00:00.000Z");
 
-function request(overrides: Partial<{ expires_at: string | null; status: string }>) {
-  return { expires_at: null, status: "requested", ...overrides };
+function request(
+  overrides: Partial<{
+    completion_deadline: string | null;
+    expires_at: string | null;
+    status: string;
+  }>,
+) {
+  return {
+    completion_deadline: null,
+    expires_at: null,
+    status: "requested",
+    ...overrides,
+  };
 }
 
 function hoursFromNow(hours: number) {
   return new Date(NOW.getTime() + hours * 60 * 60 * 1000).toISOString();
+}
+
+function daysFromNow(days: number) {
+  return hoursFromNow(days * 24);
 }
 
 describe("effectiveInspectionStatus", () => {
@@ -69,6 +85,105 @@ describe("effectiveInspectionStatus", () => {
   it("treats a missing deadline as open rather than guessing one", () => {
     expect(effectiveInspectionStatus(request({}), NOW)).toBe("requested");
   });
+
+  it("reports an accepted inspection past four days as lapsed, column unchanged", () => {
+    const row = request({
+      completion_deadline: daysFromNow(-1),
+      status: "accepted",
+    });
+
+    // The same contract the expired case has: nothing wrote this, and the
+    // stored value is stale by design.
+    expect(row.status).toBe("accepted");
+    expect(effectiveInspectionStatus(row, NOW)).toBe("lapsed");
+  });
+
+  it("reports an accepted inspection inside its window as still accepted", () => {
+    expect(
+      effectiveInspectionStatus(
+        request({ completion_deadline: daysFromNow(1), status: "accepted" }),
+        NOW,
+      ),
+    ).toBe("accepted");
+  });
+
+  it("lapses exactly at the deadline rather than a moment after", () => {
+    expect(
+      effectiveInspectionStatus(
+        request({ completion_deadline: NOW.toISOString(), status: "accepted" }),
+        NOW,
+      ),
+    ).toBe("lapsed");
+  });
+
+  it("treats an accepted inspection with no completion deadline as open", () => {
+    // Rows accepted before the completion window existed carry no deadline.
+    // They must not all read as lapsed the moment this ships.
+    expect(
+      effectiveInspectionStatus(request({ status: "accepted" }), NOW),
+    ).toBe("accepted");
+  });
+
+  it.each(["declined", "cancelled", "completed"])(
+    "never lapses a %s inspection, whatever deadline it carries",
+    (status) => {
+      expect(
+        effectiveInspectionStatus(
+          request({ completion_deadline: daysFromNow(-30), status }),
+          NOW,
+        ),
+      ).toBe(status);
+    },
+  );
+
+  it("does not let the request window lapse an inspection, or the completion window expire one", () => {
+    // The two windows read different columns. Crossing them would resurrect
+    // the bug this module exists to prevent, in a new costume.
+    expect(
+      effectiveInspectionStatus(
+        request({ completion_deadline: daysFromNow(-9) }),
+        NOW,
+      ),
+    ).toBe("requested");
+    expect(
+      effectiveInspectionStatus(
+        request({ expires_at: daysFromNow(-9), status: "accepted" }),
+        NOW,
+      ),
+    ).toBe("accepted");
+  });
+});
+
+describe("isAwaitingCompletion", () => {
+  it("is true only while the agent still has something to mark", () => {
+    expect(
+      isAwaitingCompletion(
+        request({ completion_deadline: daysFromNow(2), status: "accepted" }),
+        NOW,
+      ),
+    ).toBe(true);
+    expect(
+      isAwaitingCompletion(
+        request({ completion_deadline: daysFromNow(-2), status: "accepted" }),
+        NOW,
+      ),
+    ).toBe(false);
+  });
+
+  it("is false once the inspection is marked complete", () => {
+    expect(
+      isAwaitingCompletion(
+        request({ completion_deadline: daysFromNow(2), status: "completed" }),
+        NOW,
+      ),
+    ).toBe(false);
+  });
+
+  it("is false for a request nobody has answered yet", () => {
+    expect(
+      isAwaitingCompletion(request({ expires_at: hoursFromNow(5) }), NOW),
+    ).toBe(false);
+  });
 });
 
 describe("blocksNewRequest", () => {
@@ -103,6 +218,18 @@ describe("blocksNewRequest", () => {
       ).toBe(false);
     },
   );
+
+  it("stops blocking once an accepted inspection has lapsed", () => {
+    // The same principle as the expired case: an agent's silence must not lock
+    // a seeker out of a listing. Here they were accepted and then left waiting,
+    // which is if anything a stronger claim to ask again.
+    expect(
+      blocksNewRequest(
+        request({ completion_deadline: daysFromNow(-1), status: "accepted" }),
+        NOW,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("isAwaitingResponse", () => {
@@ -132,9 +259,29 @@ describe("minutesRemaining", () => {
   });
 
   it("does not apply to a request that has already been answered", () => {
+    // Its 48-hour window closed when the agent answered. The clock it runs
+    // against now is the completion deadline, which this row does not carry.
     expect(
       minutesRemaining(
         request({ expires_at: hoursFromNow(5), status: "accepted" }),
+        NOW,
+      ),
+    ).toBe(null);
+  });
+
+  it("counts an accepted inspection down to its completion deadline", () => {
+    expect(
+      minutesRemaining(
+        request({ completion_deadline: hoursFromNow(3), status: "accepted" }),
+        NOW,
+      ),
+    ).toBe(180);
+  });
+
+  it("has nothing left to count once the inspection has lapsed", () => {
+    expect(
+      minutesRemaining(
+        request({ completion_deadline: hoursFromNow(-3), status: "accepted" }),
         NOW,
       ),
     ).toBe(null);
