@@ -23,6 +23,7 @@ const ALL_STATUSES: Record<ListingStatus, true> = {
   flagged: true,
   pending_review: true,
   rejected: true,
+  rented: true,
   under_dispute: true,
 };
 

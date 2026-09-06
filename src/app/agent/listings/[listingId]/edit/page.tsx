@@ -5,7 +5,10 @@ import { ListingForm } from "@/features/agents/components/listing-form";
 import { ListingImageManager } from "@/features/agents/components/listing-image-manager";
 import { ProposeListingChangeForm } from "@/features/agents/components/propose-listing-change-form";
 import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
-import { isListingEditable } from "@/features/listings/editability";
+import {
+  isListingEditable,
+  isListingRevisable,
+} from "@/features/listings/editability";
 import { formatListingStatus } from "@/features/listings/format";
 import { isUuid } from "@/lib/api/identifiers";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
@@ -41,10 +44,11 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
 
   const editable = isListingEditable(listing.status);
 
-  // A live listing is not edited in place — it is changed by proposal. See
+  // A reviewed listing is not edited in place — it is changed by proposal. See
   // migration 0023: the listing keeps the values a moderator approved until a
-  // moderator approves the new ones.
-  const isLive = listing.status === "approved";
+  // moderator approves the new ones. Rented counts, and is the only editing
+  // path a rented listing has at all (0036).
+  const isLive = isListingRevisable(listing.status);
   const pendingRevision = isLive
     ? await getCurrentAgentPendingRevision(listing.id).catch(() => null)
     : null;
@@ -174,8 +178,9 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
           <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
             <h2 className="text-xl font-semibold">Change this listing</h2>
             <p className="mt-1 text-sm text-stone-600">
-              This listing is live. Changes go to a moderator before seekers see
-              them.
+              {listing.status === "rented"
+                ? "This listing is off the market, but it has been reviewed — so changes still go to a moderator before it goes back into search."
+                : "This listing is live. Changes go to a moderator before seekers see them."}
             </p>
             <div className="mt-6">
               <ProposeListingChangeForm

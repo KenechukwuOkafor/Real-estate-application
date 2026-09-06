@@ -61,23 +61,32 @@ export type ValidationIssue = {
 export type ErrorDetails =
   | { kind: "validation"; issues: ValidationIssue[] }
   /**
-   * One code, four situations. LISTING_STATE_TRANSITION_INVALID is raised when
-   * editing, submitting, archiving or removing an image, and the copy could only
-   * describe all four at once. The action and the status it was refused from are
-   * exactly the two facts a specific sentence needs.
+   * One code, six situations. LISTING_STATE_TRANSITION_INVALID is raised when
+   * editing, submitting, archiving, removing an image, marking a listing taken
+   * or putting it back, and the copy could only describe all six at once. The
+   * action and the status it was refused from are exactly the two facts a
+   * specific sentence needs.
    */
   | {
       kind: "state_transition";
-      action: "edit" | "submit" | "archive" | "remove_image";
+      action: ListingAction;
       currentStatus: string;
     };
+
+export type ListingAction =
+  | "edit"
+  | "submit"
+  | "archive"
+  | "remove_image"
+  | "mark_rented"
+  | "mark_available";
 
 export function validationDetails(issues: ValidationIssue[]): ErrorDetails {
   return { issues, kind: "validation" };
 }
 
 export function stateTransitionDetails(
-  action: "edit" | "submit" | "archive" | "remove_image",
+  action: ListingAction,
   currentStatus: string,
 ): ErrorDetails {
   return { action, currentStatus, kind: "state_transition" };

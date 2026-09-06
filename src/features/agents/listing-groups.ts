@@ -20,8 +20,9 @@ export type GroupKey =
   | "rejected"
   | "in_review"
   | "live"
+  | "taken"
   | "draft"
-  | "closed";
+  | "removed";
 
 export type ListingGroup<T> = {
   /** Said when the group is empty, or null to hide the group entirely. */
@@ -64,6 +65,18 @@ const GROUP_ORDER: Array<{
     subtitle: "Visible to seekers and accepting inspection requests.",
     title: "Live",
   },
+  // Directly under Live, because these are the two states of real inventory
+  // and an agent holds them in mind together: what is earning and what is
+  // between tenants. Drafts sit below both — they are work in progress, not
+  // property on the books.
+  {
+    emptyDetail: null,
+    key: "taken",
+    statuses: ["rented"],
+    subtitle:
+      "Off the market and costing you nothing. Mark one available when it frees up.",
+    title: "Taken",
+  },
   {
     emptyDetail: "No drafts.",
     key: "draft",
@@ -73,10 +86,11 @@ const GROUP_ORDER: Array<{
   },
   {
     emptyDetail: null,
-    key: "closed",
+    key: "removed",
     statuses: ["archived"],
-    subtitle: "Taken down and not restorable. List the property again to bring it back.",
-    title: "Taken down",
+    subtitle:
+      "Permanently removed. Listing one of these again means a new listing, and a submission slot.",
+    title: "Removed",
   },
 ];
 
