@@ -433,12 +433,24 @@ values
   --
   -- approved_at is set and stays set. It was approved, once, and marking it
   -- taken did not un-approve it — which is the fact that lets it go back on
-  -- the market with no re-review. rented_at is stamped below, with the cover.
+  -- the market with no re-review.
+  --
+  -- INSERTED AS 'approved' AND PROMOTED BELOW, which is not squeamishness. CI's
+  -- upgrade job seeds a database built from the migrations that existed BEFORE
+  -- the current change and then applies the new ones on top, because that is
+  -- the order production is in. At that moment listing_status has no 'rented'
+  -- value and listings has no rented_at column, so a literal here fails the
+  -- whole seed with
+  --
+  --   ERROR: invalid input value for enum listing_status: "rented"  (22P02)
+  --
+  -- Seed data must therefore be insertable at every migration level CI seeds
+  -- at, not only at the newest one. See the guarded promotion further down.
   (
     '3c719a67-c526-44d2-b9f5-83042d03f006',
     '20887cbf-53fc-4c45-adb2-c5d4d33cf006',
     'fbbda28e-2358-49c2-ab0a-e472d7db6001',
-    'rented',
+    'approved',
     'Self Contain Off Ugwuoye Road',
     'self-contain-off-ugwuoye-road',
     'Compact self contain with its own bathroom, water storage, and a quiet compound set back from the road.',
@@ -641,12 +653,41 @@ where id in (
   '3c719a67-c526-44d2-b9f5-83042d03f006'
 );
 
--- When it was let. Set here rather than in the insert above because rented_at
--- is not in that column list, and adding it would mean an explicit null on
--- every other row for the sake of one.
-update public.listings
-   set rented_at = now() - interval '21 days'
- where id = '3c719a67-c526-44d2-b9f5-83042d03f006';
+-- ---------------------------------------------------------------------------
+-- Promote the sixth listing to 'rented', where the schema knows what that is.
+--
+-- Guarded because this same file is seeded against a database built from the
+-- PREVIOUS set of migrations by CI's upgrade job — see the comment on the
+-- insert above. On that database the branch is not taken and the listing stays
+-- approved, which is exactly what production looked like before 0035.
+--
+-- EXECUTE rather than a plain statement inside the IF. A plpgsql body defers
+-- parsing until a statement actually runs, so a plain UPDATE would probably be
+-- fine — but "probably" is doing load-bearing work in that sentence, and the
+-- failure mode is a seed that breaks CI rather than anything a test would
+-- catch. Dynamic SQL is not parsed at all until the string is executed, which
+-- removes the question.
+--
+-- rented_at is checked rather than the enum value: it arrives in 0036, which
+-- cannot have run unless 0035 committed, so one check covers both.
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'listings'
+      and column_name = 'rented_at'
+  ) then
+    execute $q$
+      update public.listings
+         set status = 'rented',
+             rented_at = now() - interval '21 days'
+       where id = '3c719a67-c526-44d2-b9f5-83042d03f006'
+    $q$;
+  end if;
+end
+$$;
 
 -- ---------------------------------------------------------------------------
 -- An accepted inspection with a real conversation behind it.
