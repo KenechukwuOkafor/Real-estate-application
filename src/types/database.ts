@@ -82,6 +82,16 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: string | null;
       };
+      /**
+       * The calling agent's own remaining quota (migration 0037). A function
+       * rather than a column grant, for the same reason as the line above:
+       * authenticated also reads agent_profiles through the public policy, so
+       * the column disclosed every verified agent's remaining inventory.
+       */
+      own_agent_free_listing_quota: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
       create_inspection_request_with_chat: {
         Args: {
           request_message: string;

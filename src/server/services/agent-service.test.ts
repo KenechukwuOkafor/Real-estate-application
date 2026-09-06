@@ -10,6 +10,7 @@ const insertVerificationDocuments = vi.fn();
 const registerListingImages = vi.fn();
 const updateListingCoverImage = vi.fn();
 const getAgentProfileByUserId = vi.fn();
+const getOwnAgentFreeListingQuota = vi.fn();
 // getAgentOnboardingContext calls this whenever the profile is 'rejected', so
 // the resubmission test reaches it. Defaults to null: the reason is rendered
 // on /agent/verification, not consulted by any decision here.
@@ -32,6 +33,7 @@ vi.mock("@/server/repositories/agents-repository", () => ({
   createVerificationSubmission,
   insertVerificationDocuments,
   getAgentProfileByUserId,
+  getOwnAgentFreeListingQuota,
   getOwnAgentRejectionReason,
   getAgentProfileWithSubscriptionsByUserId: vi.fn(),
   getOwnedListing,
@@ -86,14 +88,38 @@ const draftInput = {
   title: "Self contain near UNN",
 };
 
+/**
+ * The profile row as `authenticated` may read it.
+ *
+ * free_listing_quota is NOT on it, and the throw is deliberate. The column
+ * left the grant in 0037 — it disclosed every verified agent's remaining
+ * inventory to any signed-in caller — so the value now reaches the service
+ * through own_agent_free_listing_quota(). A test that set it here would be
+ * arranging a field nothing reads, and would go on passing while asserting
+ * nothing. Use arrangeAgent.
+ */
 function agentProfile(overrides: Record<string, unknown> = {}) {
+  if ("free_listing_quota" in overrides) {
+    throw new Error(
+      "free_listing_quota is not readable off the profile row. Use arrangeAgent({ quota }).",
+    );
+  }
+
   return {
-    free_listing_quota: 0,
     id: "agent_profile_1",
     user_id: "user_1",
     verification_status: "not_submitted",
     ...overrides,
   };
+}
+
+/** The profile and the quota, which no longer arrive from the same place. */
+function arrangeAgent({
+  quota = 0,
+  ...profile
+}: { quota?: number } & Record<string, unknown> = {}) {
+  getAgentProfileByUserId.mockResolvedValue(agentProfile(profile));
+  getOwnAgentFreeListingQuota.mockResolvedValue(quota);
 }
 
 function ownedListing(overrides: Record<string, unknown> = {}) {
@@ -115,7 +141,7 @@ beforeEach(() => {
     roles: ["agent"],
     user: { id: "user_1" },
   });
-  getAgentProfileByUserId.mockResolvedValue(agentProfile());
+  arrangeAgent();
   getCurrentListingEntitlementSubscription.mockResolvedValue(null);
   createDraftListing.mockResolvedValue({
     area: "Odenigbo",
@@ -136,7 +162,13 @@ beforeEach(() => {
     submitted_at: "2026-08-17T00:00:00.000Z",
   });
   updateAgentFreeListingQuota.mockImplementation(
-    async (_client, _id, next: number) => agentProfile({ free_listing_quota: next }),
+    // Runs as service_role, which still selects the column. The shape is
+    // spelled out rather than going through agentProfile(), which models the
+    // narrower row an agent's own client sees.
+    async (_client, _id, next: number) => ({
+      ...agentProfile(),
+      free_listing_quota: next,
+    }),
   );
   registerListingImages.mockResolvedValue([{ id: "img_new_1" }]);
   updateListingCoverImage.mockResolvedValue({ id: "listing_1" });
@@ -170,9 +202,7 @@ beforeEach(() => {
 
 describe("createCurrentAgentDraftListing", () => {
   it("lets an unverified agent with no quota create a draft", async () => {
-    getAgentProfileByUserId.mockResolvedValue(
-      agentProfile({ free_listing_quota: 0, verification_status: "not_submitted" }),
-    );
+    arrangeAgent({ quota: 0, verification_status: "not_submitted" });
 
     await expect(
       createCurrentAgentDraftListing(draftInput),
@@ -182,9 +212,7 @@ describe("createCurrentAgentDraftListing", () => {
   });
 
   it("never consumes quota to create a draft", async () => {
-    getAgentProfileByUserId.mockResolvedValue(
-      agentProfile({ free_listing_quota: 3, verification_status: "verified" }),
-    );
+    arrangeAgent({ quota: 3, verification_status: "verified" });
 
     await createCurrentAgentDraftListing(draftInput);
 
@@ -205,9 +233,7 @@ describe("createCurrentAgentDraftListing", () => {
 
 describe("submitCurrentAgentListingForReview", () => {
   it("rejects an unverified agent even when they hold quota", async () => {
-    getAgentProfileByUserId.mockResolvedValue(
-      agentProfile({ free_listing_quota: 3, verification_status: "not_submitted" }),
-    );
+    arrangeAgent({ quota: 3, verification_status: "not_submitted" });
 
     await expect(
       submitCurrentAgentListingForReview("listing_1"),
@@ -217,9 +243,7 @@ describe("submitCurrentAgentListingForReview", () => {
   });
 
   it("lets a verified agent with quota submit and spends one slot", async () => {
-    getAgentProfileByUserId.mockResolvedValue(
-      agentProfile({ free_listing_quota: 3, verification_status: "verified" }),
-    );
+    arrangeAgent({ quota: 3, verification_status: "verified" });
 
     await expect(
       submitCurrentAgentListingForReview("listing_1"),
@@ -235,9 +259,7 @@ describe("submitCurrentAgentListingForReview", () => {
   });
 
   it("rejects a verified agent with no quota and no subscription", async () => {
-    getAgentProfileByUserId.mockResolvedValue(
-      agentProfile({ free_listing_quota: 0, verification_status: "verified" }),
-    );
+    arrangeAgent({ quota: 0, verification_status: "verified" });
 
     await expect(
       submitCurrentAgentListingForReview("listing_1"),
@@ -247,9 +269,7 @@ describe("submitCurrentAgentListingForReview", () => {
   });
 
   it("passes the observed status as the compare-and-set guard", async () => {
-    getAgentProfileByUserId.mockResolvedValue(
-      agentProfile({ free_listing_quota: 3, verification_status: "verified" }),
-    );
+    arrangeAgent({ quota: 3, verification_status: "verified" });
     getOwnedListing.mockResolvedValue(ownedListing({ status: "rejected" }));
 
     await submitCurrentAgentListingForReview("listing_1");
@@ -264,9 +284,7 @@ describe("submitCurrentAgentListingForReview", () => {
   });
 
   it("does not spend a slot when the guarded status write loses a race", async () => {
-    getAgentProfileByUserId.mockResolvedValue(
-      agentProfile({ free_listing_quota: 3, verification_status: "verified" }),
-    );
+    arrangeAgent({ quota: 3, verification_status: "verified" });
     // The AppError the repository actually throws, not a bare Error. A bare
     // Error here would resolve to 500 through a route while the real thing
     // resolves to 409, so the fixture has to carry the code or the test is
@@ -474,7 +492,7 @@ describe("updateCurrentAgentDraftListing — the duration pair", () => {
 
   beforeEach(() => {
     getCurrentAppUser.mockResolvedValue({ roles: ["agent"], user: { id: "user_1" } });
-    getAgentProfileByUserId.mockResolvedValue(agentProfile());
+    arrangeAgent();
     updateDraftListing.mockResolvedValue(existingListing());
   });
 

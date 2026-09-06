@@ -43,6 +43,7 @@ import {
   insertVerificationDocuments,
   getAgentListingViewCounts,
   getAgentProfileByUserId,
+  getOwnAgentFreeListingQuota,
   getOwnAgentRejectionReason,
   getAgentProfileWithSubscriptionsByUserId,
   getOwnedListing,
@@ -85,9 +86,24 @@ export async function getCurrentAgentContext() {
   const client = await createSupabaseAuthenticatedClient();
   const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
 
+  /**
+   * A sibling of the profile rather than a field on it, because after 0037 it
+   * no longer comes from the same place. The column is not readable by
+   * `authenticated` — it disclosed every verified agent's remaining inventory
+   * to any signed-in caller — so the value arrives from a function that
+   * answers for the caller and nobody else.
+   *
+   * Keeping it off `agentProfile` is the point: a future caller who fetches
+   * somebody else's profile row cannot accidentally read a quota off it,
+   * because the type no longer has one.
+   */
+  const freeListingQuota = agentProfile
+    ? await getOwnAgentFreeListingQuota(client)
+    : 0;
 
   return {
     agentProfile,
+    freeListingQuota,
     roles: appUser.roles,
     user: appUser.user,
   };
@@ -161,19 +177,19 @@ export async function getCurrentAgentListingEntitlement() {
       activeSubscription,
       canCreateDraft: true,
       canSubmitListing: isVerified,
-      freeListingQuota: context.agentProfile.free_listing_quota,
+      freeListingQuota: context.freeListingQuota,
       isVerified,
       source: "subscription" as const,
     };
   }
 
-  const hasQuota = context.agentProfile.free_listing_quota > 0;
+  const hasQuota = context.freeListingQuota > 0;
 
   return {
     activeSubscription: null,
     canCreateDraft: true,
     canSubmitListing: isVerified && hasQuota,
-    freeListingQuota: context.agentProfile.free_listing_quota,
+    freeListingQuota: context.freeListingQuota,
     isVerified,
     source: hasQuota ? ("quota" as const) : ("none" as const),
   };
@@ -204,7 +220,7 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
     };
   }
 
-  if (context.agentProfile.free_listing_quota > 0) {
+  if (context.freeListingQuota > 0) {
     // SERVICE ROLE for the spend. free_listing_quota is not grantable to an
     // agent — the privilege to decrement it is the privilege to raise it, and
     // an agent who can set their own quota can mint unlimited submissions.
@@ -213,8 +229,8 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
       ? await updateAgentFreeListingQuota(
           adminClient,
           context.agentProfile.id,
-          context.agentProfile.free_listing_quota - 1,
-          context.agentProfile.free_listing_quota,
+          context.freeListingQuota - 1,
+          context.freeListingQuota,
         )
       : context.agentProfile;
 
@@ -708,7 +724,9 @@ export async function getCurrentAgentListingsOverview() {
       );
     }) ?? null;
 
-  const freeListingQuota = agentProfile?.free_listing_quota ?? 0;
+  // From getCurrentAgentContext, which reads it through
+  // own_agent_free_listing_quota(). Not a column on the profile row any more.
+  const freeListingQuota = context.freeListingQuota;
   const isVerified = agentProfile?.verification_status === "verified";
 
   return {

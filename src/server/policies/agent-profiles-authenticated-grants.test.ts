@@ -32,6 +32,25 @@ const suite = rlsIntegrationEnabled() ? describe : describe.skip;
  */
 const MODERATION_COLUMNS = ["rejection_reason", "suspension_reason"] as const;
 
+/**
+ * How much inventory an agent has left to publish.
+ *
+ * 0027 granted this to `authenticated` justified as "the entitlement
+ * calculation" — a statement about need, not about safety. The need is only
+ * ever for the caller's own row, and the public policy meant the grant also
+ * answered every signed-in stranger. 0026 had already named what the column is
+ * while withholding it from anon: "commercially theirs". Every agent in this
+ * market is also a Ruvo user, so the signed-in stranger is very often a
+ * competitor.
+ *
+ * Guarded with a written value for the same reason as the moderation columns:
+ * a denial proved against an empty column proves nothing.
+ */
+const QUOTA_COLUMN = "free_listing_quota" as const;
+
+/** Distinctive, so a leak is recognisable and a pass is not an absence. */
+const PROBE_QUOTA = 47;
+
 /** Not rendered by any authenticated surface, so not granted. */
 const UNGRANTED_COLUMNS = [
   "verified_at",
@@ -48,6 +67,7 @@ suite("agent_profiles grants for authenticated", () => {
   let profileId: string;
   let originalRejection: string | null = null;
   let originalSuspension: string | null = null;
+  let originalQuota = 0;
 
   beforeAll(async () => {
     svc = asServiceRole();
@@ -64,11 +84,12 @@ suite("agent_profiles grants for authenticated", () => {
 
     const current = await svc
       .from("agent_profiles")
-      .select("rejection_reason, suspension_reason")
+      .select("rejection_reason, suspension_reason, free_listing_quota")
       .eq("id", profileId)
       .single();
     originalRejection = current.data?.rejection_reason ?? null;
     originalSuspension = current.data?.suspension_reason ?? null;
+    originalQuota = current.data?.free_listing_quota ?? 0;
 
     // The value the guard exists to protect. Without it every assertion below
     // could pass against an empty column, which is the failure mode ADR-010-A1
@@ -76,6 +97,7 @@ suite("agent_profiles grants for authenticated", () => {
     await svc
       .from("agent_profiles")
       .update({
+        free_listing_quota: PROBE_QUOTA,
         rejection_reason: "PROBE private moderator assessment",
         suspension_reason: "PROBE private suspension note",
       })
@@ -90,6 +112,7 @@ suite("agent_profiles grants for authenticated", () => {
     const { error } = await svc
       .from("agent_profiles")
       .update({
+        free_listing_quota: originalQuota,
         rejection_reason: originalRejection,
         suspension_reason: originalSuspension,
       })
@@ -179,6 +202,104 @@ suite("agent_profiles grants for authenticated", () => {
         "PROBE private moderator assessment",
       );
     }
+  });
+
+  it(`denies authenticated ${QUOTA_COLUMN}, which really holds a balance`, async () => {
+    const control = await svc
+      .from("agent_profiles")
+      .select(QUOTA_COLUMN)
+      .eq("id", profileId)
+      .single();
+
+    // The balance is really there. Without this the denial below could be a
+    // denial of nothing.
+    expect(control.error).toBeNull();
+    expect(control.data?.free_listing_quota).toBe(PROBE_QUOTA);
+
+    const client = asUser(await mintFreshToken(seeker));
+    const { error } = await client
+      .from("agent_profiles")
+      .select(QUOTA_COLUMN)
+      .eq("id", profileId);
+
+    expect(error?.code).toBe("42501");
+  });
+
+  it("never returns another agent's balance under any select shape", async () => {
+    // The disclosure as it was actually measured: no crafted query, just the
+    // public policy plus the grant. `select("*")` is the shape a curious
+    // caller reaches for first.
+    //
+    // ASSERTED ON THE KEY, NOT ON THE SERIALISED ROW. The sibling test above
+    // greps the JSON for a distinctive sentence, which works because
+    // "PROBE private moderator assessment" appears nowhere by accident. A
+    // quota is a small integer, and the first version of this test searched
+    // for "47" — which matched inside the row's own uuid, `...e472d7db6001`,
+    // and failed on a fix that was working. A number needs a different
+    // instrument than a string does.
+    const client = asUser(await mintFreshToken(seeker));
+    const attempts = await Promise.all([
+      client.from("agent_profiles").select("*").eq("id", profileId),
+      client.from("agent_profiles").select("id, free_listing_quota"),
+      client
+        .from("agent_profiles")
+        .select("id, display_name, verification_status")
+        .eq("id", profileId),
+    ]);
+
+    for (const attempt of attempts) {
+      for (const row of attempt.data ?? []) {
+        expect(Object.keys(row)).not.toContain(QUOTA_COLUMN);
+      }
+    }
+  });
+
+  it("still gives an agent their own balance, through the function", async () => {
+    // The control for the two denials above: closing the column must not break
+    // the entitlement gate, which is the legitimate need the grant was
+    // serving. Without this, revoking the column and deleting every caller
+    // would also pass.
+    //
+    // Left `not_submitted` deliberately. A second verified profile would be a
+    // candidate for the `profileId` this suite probes against, and the fixture
+    // it picks must stay the one whose columns were arranged in beforeAll.
+    const agent = getCast().owningAgent;
+    const { data: ownProfile, error: arrangeError } = await svc
+      .from("agent_profiles")
+      .insert({
+        display_name: "PROBE Own Balance",
+        free_listing_quota: 5,
+        user_id: agent.userId,
+      })
+      .select("id")
+      .single();
+
+    if (arrangeError) {
+      throw new Error(`arrange own profile: ${JSON.stringify(arrangeError)}`);
+    }
+
+    try {
+      const client = asUser(await mintFreshToken(agent));
+      const { data, error } = await client.rpc("own_agent_free_listing_quota");
+
+      expect(error).toBeNull();
+      expect(data).toBe(5);
+    } finally {
+      // agent_profiles.user_id is UNIQUE, so a profile left behind breaks the
+      // next suite that needs one for this agent.
+      await svc.from("agent_profiles").delete().eq("id", ownProfile.id);
+    }
+  });
+
+  it("answers 0 to a caller asking about a balance that is not theirs", async () => {
+    // There is no argument to pass, which is the design: a caller cannot name
+    // somebody else. This pins that the function is scoped to the caller and
+    // does not, say, return the first row it finds.
+    const client = asUser(await mintFreshToken(seeker));
+    const { data, error } = await client.rpc("own_agent_free_listing_quota");
+
+    expect(error).toBeNull();
+    expect(data).toBe(0);
   });
 
   it("refuses a self-inserted profile that claims to be verified", async () => {

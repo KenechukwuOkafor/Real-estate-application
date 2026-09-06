@@ -28,7 +28,18 @@ type AgentProfileRow = Database["public"]["Tables"]["agent_profiles"]["Row"];
  * are meant to be read together.
  */
 const AGENT_PROFILE_COLUMNS =
-  "bio, deleted_at, display_name, free_listing_quota, id, user_id, verification_status";
+  "bio, deleted_at, display_name, id, user_id, verification_status";
+
+/**
+ * The same row as service_role sees it, for the two quota writes below.
+ *
+ * free_listing_quota left the grant in 0037 — any signed-in caller could read
+ * every verified agent's remaining inventory through the public policy. It is
+ * still selectable by service_role, and the admin approval path audit-logs the
+ * value it wrote, so the privileged select list is spelled out separately
+ * rather than the column quietly rejoining AGENT_PROFILE_COLUMNS.
+ */
+const AGENT_PROFILE_COLUMNS_SERVICE_ROLE = `${AGENT_PROFILE_COLUMNS}, free_listing_quota`;
 
 /** What a caller gets back: the granted columns, not the whole row. */
 export type AgentProfileSelection = Pick<
@@ -36,7 +47,6 @@ export type AgentProfileSelection = Pick<
   | "bio"
   | "deleted_at"
   | "display_name"
-  | "free_listing_quota"
   | "id"
   | "user_id"
   | "verification_status"
@@ -201,6 +211,27 @@ export async function getOwnAgentRejectionReason(client: DbClient) {
   return data ?? null;
 }
 
+/**
+ * The calling agent's own remaining free listing quota.
+ *
+ * Through public.own_agent_free_listing_quota() rather than a column, for the
+ * same reason getOwnAgentRejectionReason exists: `authenticated` reads
+ * agent_profiles under two policies, and a grant cannot tell them apart, so
+ * the column that served the agent's own entitlement check also served every
+ * signed-in stranger asking about them. See 0037, which measured it.
+ *
+ * Takes no target. There is no argument to get wrong.
+ */
+export async function getOwnAgentFreeListingQuota(client: DbClient) {
+  const { data, error } = await client.rpc("own_agent_free_listing_quota");
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? 0;
+}
+
 export async function createVerificationSubmission(
   client: DbClient,
   agentProfileId: string,
@@ -297,7 +328,7 @@ export async function grantFreeListingQuotaIfUnset(
     })
     .eq("id", agentProfileId)
     .eq("free_listing_quota", 0)
-    .select(AGENT_PROFILE_COLUMNS)
+    .select(AGENT_PROFILE_COLUMNS_SERVICE_ROLE)
     .maybeSingle();
 
   if (error) {
@@ -330,7 +361,7 @@ export async function updateAgentFreeListingQuota(
     })
     .eq("id", agentProfileId)
     .eq("free_listing_quota", expectedFreeListingQuota)
-    .select(AGENT_PROFILE_COLUMNS)
+    .select(AGENT_PROFILE_COLUMNS_SERVICE_ROLE)
     .maybeSingle();
 
   if (error) {
