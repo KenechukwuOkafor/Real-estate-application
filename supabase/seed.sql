@@ -416,6 +416,47 @@ values
     '["security","water","near_campus"]'::jsonb,
     now(),
     now()
+  ),
+  -- The one listing that is TAKEN.
+  --
+  -- Same reasoning as the pending_review row above, and the rejected one: a
+  -- state that exists in the schema and in no seeded database is a state whose
+  -- surfaces nobody has ever looked at. Without this the "Taken" group on the
+  -- agent listings page, the Mark available button, the branched dormant copy
+  -- and the seeker's honest-absence page are all unreachable locally and in
+  -- CI's populated replay — and every one of them would have to be exercised
+  -- by hand to be seen at all.
+  --
+  -- It also gives the replay something the fingerprint index now cares about:
+  -- a rented listing holds its property's identity, so a duplicate submission
+  -- against it is refused. That refusal has no fixture otherwise.
+  --
+  -- approved_at is set and stays set. It was approved, once, and marking it
+  -- taken did not un-approve it — which is the fact that lets it go back on
+  -- the market with no re-review. rented_at is stamped below, with the cover.
+  (
+    '3c719a67-c526-44d2-b9f5-83042d03f006',
+    '20887cbf-53fc-4c45-adb2-c5d4d33cf006',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    'rented',
+    'Self Contain Off Ugwuoye Road',
+    'self-contain-off-ugwuoye-road',
+    'Compact self contain with its own bathroom, water storage, and a quiet compound set back from the road.',
+    'self_contain',
+    'yearly',
+    null,
+    310000,
+    1,
+    1,
+    'Ugwuoye',
+    'Nsukka',
+    'Enugu',
+    'Nigeria',
+    6.858200,
+    7.395400,
+    '["water","tiled_floor","gated"]'::jsonb,
+    now() - interval '60 days',
+    now() - interval '75 days'
   )
 on conflict (id) do update
 set
@@ -509,6 +550,18 @@ values
     176000,
     true
   ),
+  -- BR-MEDIA-006 applies to a rented listing too, as of 0036: the cover
+  -- triggers were widened so a listing cannot return to the market coverless.
+  -- Without this row the seed would fail at COMMIT, which is the check working.
+  (
+    '40fbc9b0-d821-42d7-bf6e-887a49b3a012',
+    '3c719a67-c526-44d2-b9f5-83042d03f006',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f006/01992a10-0012-7000-8000-0000000000b2.webp',
+    0,
+    'image/webp',
+    172000,
+    true
+  ),
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a004',
     '3c719a67-c526-44d2-b9f5-83042d03f002',
@@ -577,14 +630,23 @@ set cover_image_id = case id
   when '3c719a67-c526-44d2-b9f5-83042d03f002' then '40fbc9b0-d821-42d7-bf6e-887a49b3a004'::uuid
   when '3c719a67-c526-44d2-b9f5-83042d03f003' then '40fbc9b0-d821-42d7-bf6e-887a49b3a007'::uuid
   when '3c719a67-c526-44d2-b9f5-83042d03f004' then '40fbc9b0-d821-42d7-bf6e-887a49b3a010'::uuid
+  when '3c719a67-c526-44d2-b9f5-83042d03f006' then '40fbc9b0-d821-42d7-bf6e-887a49b3a012'::uuid
   else cover_image_id
 end
 where id in (
   '3c719a67-c526-44d2-b9f5-83042d03f001',
   '3c719a67-c526-44d2-b9f5-83042d03f002',
   '3c719a67-c526-44d2-b9f5-83042d03f003',
-  '3c719a67-c526-44d2-b9f5-83042d03f004'
+  '3c719a67-c526-44d2-b9f5-83042d03f004',
+  '3c719a67-c526-44d2-b9f5-83042d03f006'
 );
+
+-- When it was let. Set here rather than in the insert above because rented_at
+-- is not in that column list, and adding it would mean an explicit null on
+-- every other row for the sake of one.
+update public.listings
+   set rented_at = now() - interval '21 days'
+ where id = '3c719a67-c526-44d2-b9f5-83042d03f006';
 
 -- ---------------------------------------------------------------------------
 -- An accepted inspection with a real conversation behind it.
