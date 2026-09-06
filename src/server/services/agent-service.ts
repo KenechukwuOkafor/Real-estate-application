@@ -15,6 +15,14 @@ import {
   validateListingRevisionInput,
   validateVerificationSubmissionInput,
 } from "@/features/agents/validation";
+import {
+  type AgentListingCard,
+  METRIC_WINDOW_DAYS,
+  subletTermPassed,
+  tooNewToJudge,
+} from "@/features/agents/listing-cards";
+import { revisionSignals } from "@/features/agents/listing-revisions";
+import { lagosDay, lagosDayStart } from "@/features/agents/lagos-day";
 import { isListingEditable } from "@/features/listings/editability";
 import { stateTransitionDetails } from "@/lib/api/error-details";
 import { AppError } from "@/lib/api/errors";
@@ -33,10 +41,12 @@ import {
   createDraftListing,
   createVerificationSubmission,
   insertVerificationDocuments,
+  getAgentListingViewCounts,
   getAgentProfileByUserId,
   getOwnAgentRejectionReason,
   getAgentProfileWithSubscriptionsByUserId,
   getOwnedListing,
+  listAgentListingRevisions,
   listAgentListings,
   markAgentVerificationPending,
   registerListingImages,
@@ -52,6 +62,7 @@ import {
   updateListingStatus,
   upsertAgentProfile,
 } from "@/server/repositories/agents-repository";
+import { listAgentInspectionRequests } from "@/server/repositories/inspection-repository";
 import { getCurrentListingEntitlementSubscription } from "@/server/repositories/subscriptions-repository";
 import { getCurrentAppUser } from "@/server/services/user-sync-service";
 import type { Database } from "@/types/database";
@@ -571,6 +582,95 @@ export async function listCurrentAgentListings() {
 
   const client = await createSupabaseAuthenticatedClient();
   return listAgentListings(client, context.agentProfile.id);
+}
+
+/**
+ * Every listing the agent owns, with the numbers and the signals the list needs.
+ *
+ * FIVE QUERIES, WHICH IS THE SAME COST THE DASHBOARD ALREADY PAYS, and they run
+ * concurrently. The alternative was to render the list without numbers and
+ * fetch them per card, which is N+1 against an aggregate that is linear in rows
+ * (0033) — the worst arrangement available.
+ *
+ * The window is 30 Africa/Lagos days, matching the dashboard's default. That is
+ * not a coincidence to be maintained by hand: both call lagosDay from one
+ * module, because an agent who reads 4 requests on one screen and 3 on the
+ * other has no way to know which to believe.
+ *
+ * `listings` is returned alongside `cards` because the entitlement banner and
+ * the readiness checklist still read raw rows. The cards are for the list.
+ */
+export async function getCurrentAgentListingCards() {
+  const context = await getCurrentAgentContext();
+  const overview = await getCurrentAgentListingsOverview();
+
+  if (!context.agentProfile) {
+    return { ...overview, cards: [] as AgentListingCard[], windowDays: METRIC_WINDOW_DAYS };
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const agentProfileId = context.agentProfile.id;
+
+  const untilDay = lagosDay(0);
+  const sinceDay = lagosDay(METRIC_WINDOW_DAYS - 1);
+  const windowStart = lagosDayStart(sinceDay);
+  const now = new Date();
+
+  const [requests, revisions, views] = await Promise.all([
+    listAgentInspectionRequests(client, agentProfileId),
+    listAgentListingRevisions(client, agentProfileId),
+    getAgentListingViewCounts(client, sinceDay, untilDay),
+  ]);
+
+  const viewersByListing = new Map<string, number>();
+  for (const row of views) {
+    viewersByListing.set(
+      row.listing_id,
+      (viewersByListing.get(row.listing_id) ?? 0) + Number(row.viewers),
+    );
+  }
+
+  // By requested_at, matching the dashboard: "requests this month" is a
+  // question about demand arriving, not about when the agent got round to it.
+  const requestsByListing = new Map<string, number>();
+  for (const request of requests) {
+    if (new Date(request.requested_at).getTime() < windowStart.getTime()) {
+      continue;
+    }
+
+    requestsByListing.set(
+      request.listing_id,
+      (requestsByListing.get(request.listing_id) ?? 0) + 1,
+    );
+  }
+
+  const signals = revisionSignals(revisions);
+
+  const cards: AgentListingCard[] = overview.listings.map((listing) => ({
+    approvedAt: listing.approved_at,
+    area: listing.area,
+    city: listing.city,
+    id: listing.id,
+    imageCount: (listing.listing_images ?? []).filter(
+      (image) => !image.deleted_at,
+    ).length,
+    priceNaira: listing.price_naira,
+    publicUuid: listing.public_uuid,
+    rejectionReason: listing.rejection_reason,
+    rentalDuration: listing.rental_duration,
+    rentedAt: listing.rented_at,
+    requests: requestsByListing.get(listing.id) ?? 0,
+    revision: signals.get(listing.id) ?? null,
+    slug: listing.slug,
+    status: listing.status,
+    subletMonths: listing.sublet_months,
+    subletTermPassed: subletTermPassed(listing, now),
+    title: listing.title,
+    tooNew: tooNewToJudge(listing, now),
+    viewers: viewersByListing.get(listing.id) ?? 0,
+  }));
+
+  return { ...overview, cards, windowDays: METRIC_WINDOW_DAYS };
 }
 
 export async function getCurrentAgentListingsOverview() {
