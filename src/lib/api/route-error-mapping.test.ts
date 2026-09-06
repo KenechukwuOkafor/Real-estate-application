@@ -31,6 +31,13 @@ const INTENTIONAL_EXEMPTIONS: Record<string, string> = {
     "BR-ANA-003 (Critical): analytics collection must not block user actions. " +
     "This is a fire-and-forget beacon that reports failures as { tracked: false } " +
     "with a 200 rather than surfacing them. Mapping its errors would break the rule.",
+  "src/app/api/agents/[handle]/views/route.ts":
+    "BR-ANA-003 (Critical), the same rule and the same shape as the listing " +
+    "view beacon above. A profile view must never be the reason a page fails, " +
+    "so infrastructure errors are logged and reported as { tracked: false } " +
+    "with a 200. An unresolved handle additionally goes to Sentry, because the " +
+    "defect this endpoint can have is recording nothing while answering 200 — " +
+    "which is exactly what listing views did for months.",
   "src/app/api/monitoring/absence/route.ts":
     "An absence check reports a verdict, it does not raise one. It answers 200 " +
     "even when a threshold is breached, because a non-200 would make a stopped " +

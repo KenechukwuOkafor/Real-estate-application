@@ -27,6 +27,7 @@ import type { Database } from "@/types/database";
 
 export const PROPERTY_IMAGES_BUCKET = "property-images";
 export const VERIFICATION_DOCUMENTS_BUCKET = "verification-documents";
+export const AGENT_AVATARS_BUCKET = "agent-avatars";
 
 /**
  * How long a signed listing-image URL stays valid.
@@ -59,6 +60,18 @@ export const LISTING_IMAGE_SIGNED_URL_TTL_SECONDS = 60 * 60;
  * trade away, so the TTL is as short as a page render tolerates.
  */
 export const VERIFICATION_DOCUMENT_SIGNED_URL_TTL_SECONDS = 60;
+
+/**
+ * An agent avatar gets the same hour a listing image gets, and for the same
+ * reason: it is rendered on a page a stranger may revisit, and a per-render
+ * URL would defeat caching on exactly the connections this product is for.
+ *
+ * It is NOT given longer despite being less sensitive than a listing photo. A
+ * profile link lives in WhatsApp bios for months; if the URL inside it
+ * outlived a moderation decision, an avatar an admin had cleared would keep
+ * rendering wherever it had already been fetched.
+ */
+export const AGENT_AVATAR_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 type DbClient = SupabaseClient<Database>;
 
@@ -119,6 +132,15 @@ export function buildListingImagePrefix(listingId: string) {
 
 export function buildVerificationDocumentPrefix(agentProfileId: string) {
   return `verification/${agentProfileId}`;
+}
+
+/**
+ * Second path segment is the owning profile, matching the two buckets above —
+ * the storage policies in 0039 read (storage.foldername(name))[2] to decide
+ * whose folder an object is in.
+ */
+export function buildAgentAvatarPrefix(agentProfileId: string) {
+  return `avatars/${agentProfileId}`;
 }
 
 export type UploadedObject = {
@@ -329,6 +351,33 @@ export async function signListingImagePaths(client: DbClient, paths: string[]) {
     expiresIn: LISTING_IMAGE_SIGNED_URL_TTL_SECONDS,
     paths,
   });
+}
+
+export async function signAgentAvatarPath(client: DbClient, path: string | null) {
+  if (!path) {
+    return null;
+  }
+
+  const signed = await signStoragePaths(client, {
+    bucketName: AGENT_AVATARS_BUCKET,
+    expiresIn: AGENT_AVATAR_SIGNED_URL_TTL_SECONDS,
+    paths: [path],
+  });
+
+  return signed.get(path) ?? null;
+}
+
+export async function createAgentAvatarUploadTarget(
+  client: DbClient,
+  input: { agentProfileId: string; contentType: string; fileName: string },
+) {
+  const { uploads } = await createUploadTargets(client, {
+    bucketName: AGENT_AVATARS_BUCKET,
+    files: [{ contentType: input.contentType, fileName: input.fileName }],
+    prefix: buildAgentAvatarPrefix(input.agentProfileId),
+  });
+
+  return uploads[0];
 }
 
 export async function signVerificationDocumentPaths(

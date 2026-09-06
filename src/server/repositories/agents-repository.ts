@@ -28,7 +28,10 @@ type AgentProfileRow = Database["public"]["Tables"]["agent_profiles"]["Row"];
  * are meant to be read together.
  */
 const AGENT_PROFILE_COLUMNS =
-  "bio, deleted_at, display_name, id, user_id, verification_status";
+  // handle and avatar_path joined the grant in 0039/0040 and are read here for
+  // the agent's own surfaces: the profile editor previews the picture and
+  // links to /a/<handle>, and the account page links to the same place.
+  "avatar_path, bio, deleted_at, display_name, handle, id, user_id, verification_status";
 
 /**
  * The same row as service_role sees it, for the two quota writes below.
@@ -44,9 +47,11 @@ const AGENT_PROFILE_COLUMNS_SERVICE_ROLE = `${AGENT_PROFILE_COLUMNS}, free_listi
 /** What a caller gets back: the granted columns, not the whole row. */
 export type AgentProfileSelection = Pick<
   AgentProfileRow,
+  | "avatar_path"
   | "bio"
   | "deleted_at"
   | "display_name"
+  | "handle"
   | "id"
   | "user_id"
   | "verification_status"
@@ -298,6 +303,34 @@ export async function updateAgentVerificationStatus(
     })
     .eq("id", agentProfileId)
     .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Point a profile at an avatar object, or clear it.
+ *
+ * avatar_path is the only column 0039 added to the agent's UPDATE grant. The
+ * path it accepts is not validated here because it cannot usefully be: the
+ * storage policies confine an agent to `avatars/<their profile id>/`, so the
+ * worst a crafted value achieves is pointing at an object they could already
+ * read. The boundary is the bucket, not this function.
+ */
+export async function updateAgentAvatarPath(
+  client: DbClient,
+  agentProfileId: string,
+  avatarPath: string | null,
+) {
+  const { data, error } = await client
+    .from("agent_profiles")
+    .update({ avatar_path: avatarPath })
+    .eq("id", agentProfileId)
+    .select("id, avatar_path")
     .single();
 
   if (error) {

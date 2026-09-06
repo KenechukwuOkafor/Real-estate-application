@@ -53,7 +53,12 @@ const PROBE_QUOTA = 47;
 
 /** Not rendered by any authenticated surface, so not granted. */
 const UNGRANTED_COLUMNS = [
-  "verified_at",
+  // verified_at is deliberately NOT here any more. 0026 named it as the one
+  // column a public surface had a plausible future use for, withheld it
+  // because nothing rendered it, and wrote "granting it later is one line".
+  // /a/<handle> renders "Verified since March 2026", so 0040 granted it — to
+  // authenticated as well as anon, because a signed-in seeker reads the same
+  // page. Its entry moved to PUBLIC_COLUMNS in the anon suite.
   "verified_by",
   "founding_agent",
   "verification_submitted_at",

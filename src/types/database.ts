@@ -316,6 +316,37 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["agent_profiles"]["Insert"]>;
         Relationships: [];
       };
+      agent_profile_views: {
+        Insert: {
+          agent_profile_id: string;
+          created_at?: string;
+          id?: string;
+          ip_hash?: string | null;
+          referrer?: string | null;
+          session_id?: string | null;
+          user_agent?: string | null;
+          /**
+           * System-supplied, never client-supplied (0042): defaults to
+           * current_app_user_id() and INSERT is not granted on it. Present on
+           * the Row for service_role reads; absent from Insert so a caller
+           * cannot name anybody.
+           */
+        };
+        Row: {
+          agent_profile_id: string;
+          created_at: string;
+          id: string;
+          ip_hash: string | null;
+          referrer: string | null;
+          session_id: string | null;
+          user_agent: string | null;
+          viewer_user_id: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["agent_profile_views"]["Insert"]
+        >;
+        Relationships: [];
+      };
       agent_verification_submissions: {
         Insert: {
           agent_profile_id: string;

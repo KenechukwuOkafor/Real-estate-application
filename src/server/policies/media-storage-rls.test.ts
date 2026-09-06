@@ -21,6 +21,7 @@ const suite = rlsIntegrationEnabled() ? describe : describe.skip;
 
 const IMAGES = "property-images";
 const DOCS = "verification-documents";
+const AVATARS = "agent-avatars";
 
 /** Real WEBP bytes so the bucket's MIME allowlist accepts the upload. */
 const WEBP = Buffer.from("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", "base64");
@@ -52,6 +53,8 @@ suite("media storage policies", () => {
   let draftPath: string;
   let rejectedPath: string;
   let documentPath: string;
+  let verifiedAvatarPath: string;
+  let unverifiedAvatarPath: string;
 
   // The user and its role come from the shared cast; only the profile is this
   // suite's to create. See test/helpers/cast.ts.
@@ -112,6 +115,18 @@ suite("media storage policies", () => {
     approvedPath = `listings/${approvedListingId}/01992a11-0003-7000-8000-00000000d003.webp`;
     documentPath = `verification/${profileAId}/01992a11-0004-7000-8000-00000000d004.webp`;
 
+    verifiedAvatarPath = `avatars/${profileAId}/01992a11-0005-7000-8000-00000000d005.webp`;
+    unverifiedAvatarPath = `avatars/${profileBId}/01992a11-0006-7000-8000-00000000d006.webp`;
+    await putObject(AVATARS, verifiedAvatarPath);
+    await putObject(AVATARS, unverifiedAvatarPath);
+
+    // Agent A is verified and Agent B is not, which is what the avatar read
+    // policy turns on. seedProfile creates them not_submitted.
+    await svc
+      .from("agent_profiles")
+      .update({ verification_status: "verified", verified_at: new Date().toISOString() })
+      .eq("id", profileAId);
+
     await putObject(IMAGES, draftPath);
     await putObject(IMAGES, rejectedPath);
     await putObject(IMAGES, approvedPath);
@@ -140,6 +155,9 @@ suite("media storage policies", () => {
 
   afterAll(async () => {
     await svc.storage.from(IMAGES).remove([draftPath, rejectedPath, approvedPath]);
+    await svc.storage
+      .from(AVATARS)
+      .remove([verifiedAvatarPath, unverifiedAvatarPath]);
     await svc.storage.from(DOCS).remove([documentPath]);
     for (const id of [approvedListingId, draftListingId, rejectedListingId]) {
       if (!id) continue;
@@ -252,6 +270,86 @@ suite("media storage policies", () => {
       );
 
       expect(claims.exp - Math.floor(Date.now() / 1000)).toBeLessThanOrEqual(61);
+    });
+  });
+
+  /**
+   * The avatar bucket.
+   *
+   * The first test here is the one that matters most, and it is a POSITIVE
+   * one — which is unusual for this file and is the point.
+   *
+   * 0039's read policy filtered on `agent_profiles.deleted_at`, a column anon
+   * does not hold SELECT on, so it RAISED for every anonymous caller instead
+   * of admitting or denying anything. SELECT policies are OR'd and all
+   * evaluated, and storage.objects carries every bucket's policies together —
+   * so a broken policy about avatars denied anonymous reads of every LISTING
+   * IMAGE on the site.
+   *
+   * A suite of denials would have been fully green through that: a policy that
+   * raises for everyone is indistinguishable from a policy that admits nobody.
+   * What caught it was "an anonymous visitor can read an approved listing's
+   * image", a test about a bucket the slice never touched. These pin the
+   * behaviour where it belongs.
+   */
+  describe("agent avatars", () => {
+    it("an anonymous visitor can read a verified agent's avatar", async () => {
+      const { data, error } = await asAnon()
+        .storage.from(AVATARS)
+        .createSignedUrl(verifiedAvatarPath, 3600);
+
+      expect(error).toBeNull();
+      expect(data?.signedUrl).toBeTruthy();
+
+      const response = await fetch(data!.signedUrl);
+      expect(response.status).toBe(200);
+    });
+
+    it("does not break anonymous reads of other buckets", async () => {
+      // The regression, stated as its own assertion rather than left to be
+      // noticed elsewhere. Reading an avatar and a listing image in the same
+      // breath is what the broken policy made impossible.
+      const anon = asAnon();
+      const [avatar, image] = await Promise.all([
+        anon.storage.from(AVATARS).createSignedUrl(verifiedAvatarPath, 60),
+        anon.storage.from(IMAGES).createSignedUrl(approvedPath, 60),
+      ]);
+
+      expect(avatar.data?.signedUrl).toBeTruthy();
+      expect(image.data?.signedUrl).toBeTruthy();
+    });
+
+    it("hides an unverified agent's avatar, which really exists", async () => {
+      const control = await svc.storage
+        .from(AVATARS)
+        .createSignedUrl(unverifiedAvatarPath, 60);
+      expect(control.data?.signedUrl).toBeTruthy();
+
+      const { data } = await asAnon()
+        .storage.from(AVATARS)
+        .createSignedUrl(unverifiedAvatarPath, 60);
+
+      expect(data?.signedUrl).toBeFalsy();
+    });
+
+    it("lets an unverified agent read their own avatar", async () => {
+      // Their page exists before verification and only they can see it, so the
+      // picture on it has to be readable by them and nobody else.
+      const { data } = await asUser(await mintFreshToken(agentB))
+        .storage.from(AVATARS)
+        .createSignedUrl(unverifiedAvatarPath, 60);
+
+      expect(data?.signedUrl).toBeTruthy();
+    });
+
+    it("refuses an agent writing into another agent's folder", async () => {
+      const { error } = await asUser(await mintFreshToken(agentB))
+        .storage.from(AVATARS)
+        .upload(`avatars/${profileAId}/01992a11-0007-7000-8000-00000000d007.webp`, WEBP, {
+          contentType: "image/webp",
+        });
+
+      expect(error).not.toBeNull();
     });
   });
 
