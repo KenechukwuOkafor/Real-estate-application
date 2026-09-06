@@ -293,8 +293,16 @@ values
     6.856100,
     7.392200,
     '["water","prepaid_meter","tiled_floor"]'::jsonb,
-    now(),
-    now()
+    -- Backdated, and not for realism alone.
+    --
+    -- Every seeded listing used to be approved at now(), which made all three
+    -- of them "too new to judge" on the agent listings page: the card
+    -- suppresses its verdict until a listing has been live for the whole
+    -- 30-day metric window, precisely so a four-day-old listing is not ranked
+    -- as dead. So the seed exercised none of the readings it exists to show,
+    -- and 459 seeded views sat behind a "not measured yet" label.
+    now() - interval '64 days',
+    now() - interval '66 days'
   ),
   -- The one listing that is NOT approved.
   --
@@ -390,8 +398,8 @@ values
     6.857400,
     7.401100,
     '["wardrobe","pop_ceiling","balcony"]'::jsonb,
-    now(),
-    now()
+    now() - interval '48 days',
+    now() - interval '50 days'
   ),
   (
     '3c719a67-c526-44d2-b9f5-83042d03f003',
@@ -414,8 +422,11 @@ values
     6.859000,
     7.398000,
     '["security","water","near_campus"]'::jsonb,
-    now(),
-    now()
+    -- Eight months, against a six-month sublet term. This is the ONLY row
+    -- that makes subletTermPassed true, and without it that signal ships
+    -- having never been seen.
+    now() - interval '8 months',
+    now() - interval '8 months' - interval '2 days'
   ),
   -- The one listing that is TAKEN.
   --
@@ -652,6 +663,64 @@ where id in (
   '3c719a67-c526-44d2-b9f5-83042d03f004',
   '3c719a67-c526-44d2-b9f5-83042d03f006'
 );
+
+-- ---------------------------------------------------------------------------
+-- A live listing whose correction was REFUSED.
+--
+-- The seed had no listing_revisions at all, so the whole edit-with-re-review
+-- path existed locally and in CI's populated replay without a single row. That
+-- matters most for the case this signal was built for and which the agent
+-- portal was blind to until now: THE LISTING IS APPROVED, IN SEARCH, AND LOOKS
+-- ENTIRELY NORMAL, while the change the agent asked for was turned down. There
+-- is no other symptom anywhere — the listing's own status is untouched, because
+-- 0023 deliberately leaves it live while a revision is reviewed.
+--
+-- Rejected rather than pending, because a pending revision is refused by the
+-- one-pending-per-listing index the moment anyone submits a real one locally,
+-- and because "refused" is the state with something to say.
+--
+-- Attached to the Hilltop flat, which is approved and has traffic, so the card
+-- shows the refusal alongside numbers rather than in isolation.
+insert into public.listing_revisions (
+  id,
+  listing_id,
+  status,
+  title,
+  description,
+  price_naira,
+  amenities,
+  rental_duration,
+  sublet_months,
+  submitted_at,
+  reviewed_at,
+  rejection_reason
+)
+values
+  (
+    '6b2f4a10-9c31-4d55-8f21-1a4c7e9b5001',
+    '3c719a67-c526-44d2-b9f5-83042d03f002',
+    'rejected',
+    'Two Bedroom Flat at Hilltop — newly refurbished',
+    'Well-ventilated two bedroom apartment with POP ceiling, wardrobe space, accessible road network, and a newly fitted kitchen.',
+    920000,
+    '["wardrobe","pop_ceiling","balcony","fitted_kitchen"]'::jsonb,
+    'monthly',
+    null,
+    now() - interval '9 days',
+    now() - interval '8 days',
+    'The photographs still show the old kitchen. Send updated ones before raising the price.'
+  )
+on conflict (id) do update
+set
+  status = excluded.status,
+  title = excluded.title,
+  description = excluded.description,
+  price_naira = excluded.price_naira,
+  amenities = excluded.amenities,
+  rental_duration = excluded.rental_duration,
+  submitted_at = excluded.submitted_at,
+  reviewed_at = excluded.reviewed_at,
+  rejection_reason = excluded.rejection_reason;
 
 -- ---------------------------------------------------------------------------
 -- Promote the sixth listing to 'rented', where the schema knows what that is.
