@@ -153,17 +153,34 @@ describe("agent portal shell", () => {
     });
   });
 
+  /**
+   * These two asserted the previous design — sections by status, each with its
+   * meaning under the heading. The page is now ONE FLAT LIST with status as
+   * filter chips, because sorting every listing by requests ascending is what
+   * answers "which of my listings is dead", and a sort that only reorders
+   * within sections does not sort.
+   *
+   * Rewritten rather than deleted: status is still how an agent navigates their
+   * inventory, and each state still has to explain itself. Both claims survived
+   * the redesign; only where they are rendered changed. The listings screen's
+   * own behaviour is covered in agent-listings-page.rendered.test.ts.
+   */
   describe("the listings screen", () => {
-    it("groups by state instead of listing everything flat", async () => {
+    it("offers status as a filter rather than as sections", async () => {
       const page = await renderAsPersona("/agent/listings", "Agent (verified)");
 
       expect(page.status).toBe(200);
       expect(page.text).toContain("Live");
       expect(page.text).toContain("Drafts");
+      // The chips are only useful with something to order the result by.
+      expect(page.text).toContain("Sort");
     });
 
-    it("explains what each group means", async () => {
-      const page = await renderAsPersona("/agent/listings", "Agent (verified)");
+    it("still explains what a state means, when one is selected", async () => {
+      const page = await renderAsPersona(
+        "/agent/listings?groups=live",
+        "Agent (verified)",
+      );
 
       expect(page.text).toContain("Visible to seekers");
     });
