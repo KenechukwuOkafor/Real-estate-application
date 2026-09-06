@@ -21,8 +21,24 @@ import {
 
 const suite = rlsIntegrationEnabled() ? describe : describe.skip;
 
-/** Granted to anon by 0026, because a public surface renders them. */
-const PUBLIC_COLUMNS = ["id", "display_name", "verification_status"] as const;
+/**
+ * Granted to anon, each because a public surface renders it.
+ *
+ * The first three are 0026's: what a listing card and listing detail page
+ * show. The last four are 0040's, added when /a/<handle> gave them a reader —
+ * the URL itself, the agent's own words, the picture's storage path, and the
+ * tenure line. Nothing here is granted for a hypothetical; that is how the
+ * list reached fifteen the first time.
+ */
+const PUBLIC_COLUMNS = [
+  "id",
+  "display_name",
+  "verification_status",
+  "handle",
+  "bio",
+  "avatar_path",
+  "verified_at",
+] as const;
 
 /**
  * Ungranted. Split by why, because the two halves justify themselves
@@ -38,12 +54,18 @@ const PRIVATE_COLUMNS = [
 ] as const;
 
 const UNRENDERED_COLUMNS = [
-  "bio",
   "created_at",
   "updated_at",
   "founding_agent",
+  // The date they applied is not the date they were trusted. verified_at is
+  // the honest one and is granted; this one would only ever be a second,
+  // weaker tenure signal competing with it.
   "verification_submitted_at",
-  "verified_at",
+  // Not granted, which means the public page must NOT filter on it. The row
+  // policy already excludes deleted profiles, and Postgres refuses a WHERE on
+  // a column the caller cannot SELECT — so a defensive .is("deleted_at", null)
+  // fails the whole query rather than being harmlessly redundant.
+  "deleted_at",
 ] as const;
 
 suite("agent_profiles column grants", () => {

@@ -92,6 +92,15 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: number;
       };
+      /**
+       * Display name to handle stem (migration 0038). Exposed so a
+       * differential test can pin it against slugifyAgentHandle in
+       * src/features/agents/handle.ts; nothing in the application calls it.
+       */
+      slugify_agent_handle: {
+        Args: { display_name: string };
+        Returns: string;
+      };
       create_inspection_request_with_chat: {
         Args: {
           request_message: string;
@@ -242,12 +251,20 @@ export type Database = {
     Tables: {
       agent_profiles: {
         Insert: {
+          avatar_path?: string | null;
           bio?: string | null;
           created_at?: string;
           deleted_at?: string | null;
           display_name: string;
           founding_agent?: boolean;
           free_listing_quota?: number;
+          /**
+           * Assigned by trigger (0038), never supplied by a caller. Optional
+           * here because the database fills it in; `authenticated` holds no
+           * insert or update privilege on it, because a handle namespace with
+           * an insert grant is a squatting surface.
+           */
+          handle?: string;
           id?: string;
           rejection_reason?: string | null;
           suspension_reason?: string | null;
@@ -264,12 +281,14 @@ export type Database = {
           verified_by?: string | null;
         };
         Row: {
+          avatar_path: string | null;
           bio: string | null;
           created_at: string;
           deleted_at: string | null;
           display_name: string;
           founding_agent: boolean;
           free_listing_quota: number;
+          handle: string;
           id: string;
           rejection_reason: string | null;
           suspension_reason: string | null;
