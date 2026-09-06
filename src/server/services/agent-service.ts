@@ -32,6 +32,9 @@ import {
 } from "@/lib/db/supabase";
 import { writeAuditLog } from "@/server/services/audit-service";
 import {
+  AGENT_AVATARS_BUCKET,
+  buildAgentAvatarPrefix,
+  createAgentAvatarUploadTarget,
   createListingImageUploadTargets,
   createVerificationDocumentUploadTargets,
   listUploadedListingImageObjects,
@@ -43,9 +46,11 @@ import {
   insertVerificationDocuments,
   getAgentListingViewCounts,
   getAgentProfileByUserId,
+  getOwnAgentFreeListingQuota,
   getOwnAgentRejectionReason,
   getAgentProfileWithSubscriptionsByUserId,
   getOwnedListing,
+  updateAgentAvatarPath,
   listAgentListingRevisions,
   listAgentListings,
   markAgentVerificationPending,
@@ -85,9 +90,24 @@ export async function getCurrentAgentContext() {
   const client = await createSupabaseAuthenticatedClient();
   const agentProfile = await getAgentProfileByUserId(client, appUser.user.id);
 
+  /**
+   * A sibling of the profile rather than a field on it, because after 0037 it
+   * no longer comes from the same place. The column is not readable by
+   * `authenticated` — it disclosed every verified agent's remaining inventory
+   * to any signed-in caller — so the value arrives from a function that
+   * answers for the caller and nobody else.
+   *
+   * Keeping it off `agentProfile` is the point: a future caller who fetches
+   * somebody else's profile row cannot accidentally read a quota off it,
+   * because the type no longer has one.
+   */
+  const freeListingQuota = agentProfile
+    ? await getOwnAgentFreeListingQuota(client)
+    : 0;
 
   return {
     agentProfile,
+    freeListingQuota,
     roles: appUser.roles,
     user: appUser.user,
   };
@@ -161,19 +181,19 @@ export async function getCurrentAgentListingEntitlement() {
       activeSubscription,
       canCreateDraft: true,
       canSubmitListing: isVerified,
-      freeListingQuota: context.agentProfile.free_listing_quota,
+      freeListingQuota: context.freeListingQuota,
       isVerified,
       source: "subscription" as const,
     };
   }
 
-  const hasQuota = context.agentProfile.free_listing_quota > 0;
+  const hasQuota = context.freeListingQuota > 0;
 
   return {
     activeSubscription: null,
     canCreateDraft: true,
     canSubmitListing: isVerified && hasQuota,
-    freeListingQuota: context.agentProfile.free_listing_quota,
+    freeListingQuota: context.freeListingQuota,
     isVerified,
     source: hasQuota ? ("quota" as const) : ("none" as const),
   };
@@ -204,7 +224,7 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
     };
   }
 
-  if (context.agentProfile.free_listing_quota > 0) {
+  if (context.freeListingQuota > 0) {
     // SERVICE ROLE for the spend. free_listing_quota is not grantable to an
     // agent — the privilege to decrement it is the privilege to raise it, and
     // an agent who can set their own quota can mint unlimited submissions.
@@ -213,8 +233,8 @@ async function requireListingEntitlement(options?: { consumeQuota?: boolean }) {
       ? await updateAgentFreeListingQuota(
           adminClient,
           context.agentProfile.id,
-          context.agentProfile.free_listing_quota - 1,
-          context.agentProfile.free_listing_quota,
+          context.freeListingQuota - 1,
+          context.freeListingQuota,
         )
       : context.agentProfile;
 
@@ -258,6 +278,109 @@ export async function saveCurrentAgentProfile(input: AgentProfileInput) {
     agentProfile,
     user: context.user,
   };
+}
+
+/**
+ * A signed upload target for a new avatar.
+ *
+ * NO REVIEW QUEUE, and that is a decision rather than an omission: a logo
+ * makes no identity claim, the tick does, and the tick is already gated on
+ * documents and admin review. The control here is removal — admins can clear
+ * an avatar, the same shape listing flagging already uses.
+ *
+ * Not entitlement-gated either. An agent setting up while they wait for
+ * verification has a page only they can see, so there is nothing to gate.
+ */
+export async function createCurrentAgentAvatarUploadTarget(input: {
+  contentType: string;
+  fileName: string;
+}) {
+  const context = await getAgentOnboardingContext();
+
+  if (!context.agentProfile) {
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before adding a photo.",
+    );
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+
+  return createAgentAvatarUploadTarget(client, {
+    agentProfileId: context.agentProfile.id,
+    contentType: input.contentType,
+    fileName: input.fileName,
+  });
+}
+
+/**
+ * Adopt an uploaded object as the profile's avatar, or clear the pointer.
+ *
+ * The path is checked against what actually exists under the agent's own
+ * prefix, which is the same proof listing image registration relies on:
+ * uploading to a path requires a token only the function above issues, so an
+ * object existing under `avatars/<profile id>/` is evidence a target was
+ * issued for this profile and used. A path that is not there is refused rather
+ * than stored — a pointer to nothing renders as a broken picture on the one
+ * page whose job is looking legitimate.
+ */
+export async function saveCurrentAgentAvatar(avatarPath: string | null) {
+  const context = await getAgentOnboardingContext();
+
+  if (!context.agentProfile) {
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before adding a photo.",
+    );
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+
+  if (avatarPath !== null) {
+    const prefix = buildAgentAvatarPrefix(context.agentProfile.id);
+
+    if (!avatarPath.startsWith(`${prefix}/`)) {
+      throw new AppError(
+        "MEDIA_PATH_NOT_OWNED",
+        "That photo does not belong to your profile.",
+        422,
+      );
+    }
+
+    const { data, error } = await client.storage
+      .from(AGENT_AVATARS_BUCKET)
+      .list(prefix, { limit: 1000 });
+
+    if (error) {
+      throw error;
+    }
+
+    const names = new Set((data ?? []).map((object) => `${prefix}/${object.name}`));
+
+    if (!names.has(avatarPath)) {
+      throw new AppError(
+        "MEDIA_OBJECT_MISSING",
+        "That photo was not uploaded. Try again.",
+        422,
+      );
+    }
+  }
+
+  const updated = await updateAgentAvatarPath(
+    client,
+    context.agentProfile.id,
+    avatarPath,
+  );
+
+  await writeAuditLog({
+    action: avatarPath ? "agent_profile.avatar_set" : "agent_profile.avatar_cleared",
+    actorUserId: context.user.id,
+    afterData: { avatar_path: updated.avatar_path },
+    entityId: context.agentProfile.id,
+    entityType: "agent_profile",
+  });
+
+  return { avatarPath: updated.avatar_path };
 }
 
 type AgentVerificationStatus =
@@ -708,7 +831,9 @@ export async function getCurrentAgentListingsOverview() {
       );
     }) ?? null;
 
-  const freeListingQuota = agentProfile?.free_listing_quota ?? 0;
+  // From getCurrentAgentContext, which reads it through
+  // own_agent_free_listing_quota(). Not a column on the profile row any more.
+  const freeListingQuota = context.freeListingQuota;
   const isVerified = agentProfile?.verification_status === "verified";
 
   return {

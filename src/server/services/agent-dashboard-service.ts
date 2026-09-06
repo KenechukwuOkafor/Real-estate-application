@@ -125,7 +125,9 @@ export async function getAgentDashboard(range: RangeDays = DEFAULT_RANGE) {
       requests,
       revisions,
       slotsExhausted: hasExhaustedSlots({
-        freeListingQuota: profile?.free_listing_quota ?? 0,
+        // Through own_agent_free_listing_quota(), carried on the context.
+        // Not a column on the profile row since 0037.
+        freeListingQuota: context.freeListingQuota,
         hasActiveSubscription: Boolean(activeSubscription),
         verificationStatus: profile?.verification_status ?? "not_submitted",
       }),
@@ -138,7 +140,7 @@ export async function getAgentDashboard(range: RangeDays = DEFAULT_RANGE) {
     hasRentedListings: listings.some((listing) => listing.status === "rented"),
     entitlement: {
       activeSubscription,
-      freeListingQuota: profile?.free_listing_quota ?? 0,
+      freeListingQuota: context.freeListingQuota,
       verificationStatus: profile?.verification_status ?? "not_submitted",
     },
     kpis: {

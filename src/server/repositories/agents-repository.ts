@@ -28,15 +28,30 @@ type AgentProfileRow = Database["public"]["Tables"]["agent_profiles"]["Row"];
  * are meant to be read together.
  */
 const AGENT_PROFILE_COLUMNS =
-  "bio, deleted_at, display_name, free_listing_quota, id, user_id, verification_status";
+  // handle and avatar_path joined the grant in 0039/0040 and are read here for
+  // the agent's own surfaces: the profile editor previews the picture and
+  // links to /a/<handle>, and the account page links to the same place.
+  "avatar_path, bio, deleted_at, display_name, handle, id, user_id, verification_status";
+
+/**
+ * The same row as service_role sees it, for the two quota writes below.
+ *
+ * free_listing_quota left the grant in 0037 — any signed-in caller could read
+ * every verified agent's remaining inventory through the public policy. It is
+ * still selectable by service_role, and the admin approval path audit-logs the
+ * value it wrote, so the privileged select list is spelled out separately
+ * rather than the column quietly rejoining AGENT_PROFILE_COLUMNS.
+ */
+const AGENT_PROFILE_COLUMNS_SERVICE_ROLE = `${AGENT_PROFILE_COLUMNS}, free_listing_quota`;
 
 /** What a caller gets back: the granted columns, not the whole row. */
 export type AgentProfileSelection = Pick<
   AgentProfileRow,
+  | "avatar_path"
   | "bio"
   | "deleted_at"
   | "display_name"
-  | "free_listing_quota"
+  | "handle"
   | "id"
   | "user_id"
   | "verification_status"
@@ -201,6 +216,27 @@ export async function getOwnAgentRejectionReason(client: DbClient) {
   return data ?? null;
 }
 
+/**
+ * The calling agent's own remaining free listing quota.
+ *
+ * Through public.own_agent_free_listing_quota() rather than a column, for the
+ * same reason getOwnAgentRejectionReason exists: `authenticated` reads
+ * agent_profiles under two policies, and a grant cannot tell them apart, so
+ * the column that served the agent's own entitlement check also served every
+ * signed-in stranger asking about them. See 0037, which measured it.
+ *
+ * Takes no target. There is no argument to get wrong.
+ */
+export async function getOwnAgentFreeListingQuota(client: DbClient) {
+  const { data, error } = await client.rpc("own_agent_free_listing_quota");
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? 0;
+}
+
 export async function createVerificationSubmission(
   client: DbClient,
   agentProfileId: string,
@@ -277,6 +313,34 @@ export async function updateAgentVerificationStatus(
 }
 
 /**
+ * Point a profile at an avatar object, or clear it.
+ *
+ * avatar_path is the only column 0039 added to the agent's UPDATE grant. The
+ * path it accepts is not validated here because it cannot usefully be: the
+ * storage policies confine an agent to `avatars/<their profile id>/`, so the
+ * worst a crafted value achieves is pointing at an object they could already
+ * read. The boundary is the bucket, not this function.
+ */
+export async function updateAgentAvatarPath(
+  client: DbClient,
+  agentProfileId: string,
+  avatarPath: string | null,
+) {
+  const { data, error } = await client
+    .from("agent_profiles")
+    .update({ avatar_path: avatarPath })
+    .eq("id", agentProfileId)
+    .select("id, avatar_path")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
  * Grant an opening quota, but only to a profile that has none.
  *
  * Guarded on free_listing_quota = 0 so re-running an approval, or approving an
@@ -297,7 +361,7 @@ export async function grantFreeListingQuotaIfUnset(
     })
     .eq("id", agentProfileId)
     .eq("free_listing_quota", 0)
-    .select(AGENT_PROFILE_COLUMNS)
+    .select(AGENT_PROFILE_COLUMNS_SERVICE_ROLE)
     .maybeSingle();
 
   if (error) {
@@ -330,7 +394,7 @@ export async function updateAgentFreeListingQuota(
     })
     .eq("id", agentProfileId)
     .eq("free_listing_quota", expectedFreeListingQuota)
-    .select(AGENT_PROFILE_COLUMNS)
+    .select(AGENT_PROFILE_COLUMNS_SERVICE_ROLE)
     .maybeSingle();
 
   if (error) {

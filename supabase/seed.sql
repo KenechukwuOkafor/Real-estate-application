@@ -374,6 +374,43 @@ values
     null,
     now() - interval '5 days'
   ),
+  -- A DRAFT, and the seed had none.
+  --
+  -- The public agent profile is one component with a viewer-dependent filter:
+  -- a stranger sees approved listings, the owner sees everything. Without a
+  -- draft on the verified agent, the assertion "an anonymous render does not
+  -- contain this draft" passes against a fixture that has no draft to leak,
+  -- and the owner-only section renders for nobody.
+  --
+  -- That is the failure the guard in the rendered suite exists to catch, and
+  -- it did catch it: the suite refuses to run that assertion rather than
+  -- passing it vacuously. This row is what turns the refusal into a real test.
+  --
+  -- No approved_at and no submitted_at: a draft has been neither.
+  (
+    '3c719a67-c526-44d2-b9f5-83042d03f007',
+    '20887cbf-53fc-4c45-adb2-c5d4d33cf007',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    'draft',
+    'Unfinished Draft at Ugwuoba Road',
+    'unfinished-draft-ugwuoba-road',
+    'Draft listing kept for local development: two rooms off Ugwuoba Road, details still being written up.',
+    'lodge_room',
+    'yearly',
+    null,
+    200000,
+    1,
+    1,
+    'Ugwuoba',
+    'Nsukka',
+    'Enugu',
+    'Nigeria',
+    6.860200,
+    7.399400,
+    '["water"]'::jsonb,
+    null,
+    null
+  ),
   (
     '3c719a67-c526-44d2-b9f5-83042d03f002',
     '20887cbf-53fc-4c45-adb2-c5d4d33cf002',

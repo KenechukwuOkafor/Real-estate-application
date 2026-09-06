@@ -1,7 +1,10 @@
 import Link from "next/link";
 
 import { PortalSignOutButton } from "@/features/agents/components/sign-out-button";
-import { getCurrentAgentListingsOverview } from "@/server/services/agent-service";
+import {
+  getAgentOnboardingContext,
+  getCurrentAgentListingsOverview,
+} from "@/server/services/agent-service";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +45,12 @@ const VERIFICATION_COPY: Record<string, { detail: string; label: string }> = {
  * scarcest resource on it forever.
  */
 export default async function AgentAccountPage() {
-  const overview = await getCurrentAgentListingsOverview();
+  const [overview, context] = await Promise.all([
+    getCurrentAgentListingsOverview(),
+    getAgentOnboardingContext(),
+  ]);
   const status = overview.entitlement.verificationStatus;
+  const handle = context.agentProfile?.handle ?? null;
   const verification = VERIFICATION_COPY[status] ?? VERIFICATION_COPY.not_submitted;
   const isVerified = status === "verified";
 
@@ -89,18 +96,44 @@ export default async function AgentAccountPage() {
           ) : null}
         </section>
 
+        {/*
+          THE LINK GOES TO THE PAGE, NOT THE FORM.
+
+          This card used to send an agent to /agent/profile — an editor — and
+          described it as "the name, photo and contact details seekers see on
+          every one of your listings". Every part of that was wrong: there was
+          no photo, there were no contact details, and what a seeker actually
+          saw was a display name and a tick in two tiles of a listing page.
+
+          An agent could not see their own public presence at all, which is the
+          gap this slice exists to close. So the primary action is now VIEW,
+          and editing is the secondary link from there — the page is the thing
+          they are being asked to share, and they will not share what they have
+          not seen.
+        */}
         <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
           <h2 className="text-lg font-semibold">Public profile</h2>
           <p className="mt-1.5 text-sm leading-6 text-stone-700">
-            The name, photo and contact details seekers see on every one of your
-            listings.
+            {handle
+              ? "One link with your photo, your verified mark and everything you have available. Made to paste into WhatsApp."
+              : "Create your profile to get a link you can share."}
           </p>
-          <Link
-            className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
-            href="/agent/profile"
-          >
-            Edit your profile
-          </Link>
+          <div className="mt-3 flex flex-wrap gap-4">
+            {handle ? (
+              <Link
+                className="text-sm font-medium underline underline-offset-4"
+                href={`/a/${handle}`}
+              >
+                See your public page
+              </Link>
+            ) : null}
+            <Link
+              className="text-sm font-medium underline underline-offset-4"
+              href="/agent/profile"
+            >
+              {handle ? "Edit photo, name and bio" : "Create your profile"}
+            </Link>
+          </div>
         </section>
 
         <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">

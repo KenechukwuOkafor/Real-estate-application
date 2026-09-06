@@ -82,6 +82,34 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: string | null;
       };
+      /**
+       * The calling agent's own remaining quota (migration 0037). A function
+       * rather than a column grant, for the same reason as the line above:
+       * authenticated also reads agent_profiles through the public policy, so
+       * the column disclosed every verified agent's remaining inventory.
+       */
+      own_agent_free_listing_quota: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      /**
+       * Display name to handle stem (migration 0038). Exposed so a
+       * differential test can pin it against slugifyAgentHandle in
+       * src/features/agents/handle.ts; nothing in the application calls it.
+       */
+      slugify_agent_handle: {
+        Args: { display_name: string };
+        Returns: string;
+      };
+      /**
+       * Two integers for a public agent profile (migration 0041). Counts
+       * rather than rows: the caller is anon, and rows would publish an
+       * agent's demand timeline out of a page that renders "9 of 10".
+       */
+      agent_response_rate: {
+        Args: { target_agent_profile_id: string };
+        Returns: Array<{ answerable: number; answered: number }>;
+      };
       create_inspection_request_with_chat: {
         Args: {
           request_message: string;
@@ -232,12 +260,20 @@ export type Database = {
     Tables: {
       agent_profiles: {
         Insert: {
+          avatar_path?: string | null;
           bio?: string | null;
           created_at?: string;
           deleted_at?: string | null;
           display_name: string;
           founding_agent?: boolean;
           free_listing_quota?: number;
+          /**
+           * Assigned by trigger (0038), never supplied by a caller. Optional
+           * here because the database fills it in; `authenticated` holds no
+           * insert or update privilege on it, because a handle namespace with
+           * an insert grant is a squatting surface.
+           */
+          handle?: string;
           id?: string;
           rejection_reason?: string | null;
           suspension_reason?: string | null;
@@ -254,12 +290,14 @@ export type Database = {
           verified_by?: string | null;
         };
         Row: {
+          avatar_path: string | null;
           bio: string | null;
           created_at: string;
           deleted_at: string | null;
           display_name: string;
           founding_agent: boolean;
           free_listing_quota: number;
+          handle: string;
           id: string;
           rejection_reason: string | null;
           suspension_reason: string | null;
@@ -276,6 +314,37 @@ export type Database = {
           verified_by: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["agent_profiles"]["Insert"]>;
+        Relationships: [];
+      };
+      agent_profile_views: {
+        Insert: {
+          agent_profile_id: string;
+          created_at?: string;
+          id?: string;
+          ip_hash?: string | null;
+          referrer?: string | null;
+          session_id?: string | null;
+          user_agent?: string | null;
+          /**
+           * System-supplied, never client-supplied (0042): defaults to
+           * current_app_user_id() and INSERT is not granted on it. Present on
+           * the Row for service_role reads; absent from Insert so a caller
+           * cannot name anybody.
+           */
+        };
+        Row: {
+          agent_profile_id: string;
+          created_at: string;
+          id: string;
+          ip_hash: string | null;
+          referrer: string | null;
+          session_id: string | null;
+          user_agent: string | null;
+          viewer_user_id: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["agent_profile_views"]["Insert"]
+        >;
         Relationships: [];
       };
       agent_verification_submissions: {
