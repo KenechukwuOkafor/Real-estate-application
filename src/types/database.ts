@@ -101,6 +101,15 @@ export type Database = {
         Args: { display_name: string };
         Returns: string;
       };
+      /**
+       * Two integers for a public agent profile (migration 0041). Counts
+       * rather than rows: the caller is anon, and rows would publish an
+       * agent's demand timeline out of a page that renders "9 of 10".
+       */
+      agent_response_rate: {
+        Args: { target_agent_profile_id: string };
+        Returns: Array<{ answerable: number; answered: number }>;
+      };
       create_inspection_request_with_chat: {
         Args: {
           request_message: string;
