@@ -52,9 +52,16 @@ export function DashboardListingsTable({ rows }: { rows: PerListingRow[] }) {
             return (
               <tr className="border-b border-stone-900/5" key={row.listingId}>
                 <td className="py-3 pr-4">
+                  {/*
+                    /agent/listings?focus=<id>, not /agent/listings/<id>. The
+                    latter has never existed — every listing title in this table
+                    was a 404 — and it should not, because every action an agent
+                    takes on a listing already fits on its card. A page that
+                    would contain nothing the card does not is a route.
+                  */}
                   <Link
                     className="font-medium underline underline-offset-4"
-                    href={`/agent/listings/${row.listingId}`}
+                    href={`/agent/listings?focus=${row.listingId}`}
                   >
                     {row.title}
                   </Link>

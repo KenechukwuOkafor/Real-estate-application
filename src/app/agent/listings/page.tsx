@@ -1,35 +1,56 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import {
-  MarkAvailableButton,
-  MarkTakenButton,
-} from "@/features/agents/components/listing-availability-buttons";
-import { RemoveListingButton } from "@/features/agents/components/remove-listing-button";
-import { SubmitReadinessChecklist } from "@/features/agents/components/submit-readiness-checklist";
-import { submitReadiness } from "@/features/agents/submit-readiness";
-import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
-import { SubmitListingReviewButton } from "@/features/agents/components/submit-listing-review-button";
-import { groupAgentListings } from "@/features/agents/listing-groups";
-import {
-  isListingEditable,
-  isListingRevisable,
-} from "@/features/listings/editability";
-import { formatListingStatus, formatPriceNaira } from "@/features/listings/format";
-import { getCurrentAgentListingsOverview } from "@/server/services/agent-service";
+import { AgentListingsList } from "@/features/agents/components/agent-listings-list";
+import { parseListingFilters } from "@/features/agents/listing-cards";
+import { LISTING_GROUPS } from "@/features/agents/listing-groups";
+import { getCurrentAgentListingCards } from "@/server/services/agent-service";
 
 export const dynamic = "force-dynamic";
 
-export default async function AgentListingsPage() {
-  const overview = await getCurrentAgentListingsOverview().catch(() => null);
+type AgentListingsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AgentListingsPage({
+  searchParams,
+}: AgentListingsPageProps) {
+  const overview = await getCurrentAgentListingCards().catch(() => null);
 
   if (!overview) {
     redirect("/dashboard");
   }
 
-  const { entitlement, listings } = overview;
+  const { cards, entitlement, windowDays } = overview;
 
-  const groups = groupAgentListings(listings);
+  /*
+    A query parameter rather than a hash fragment, and the difference matters.
+
+    A hash never reaches the server, so a link to a listing the page filters out
+    by default — a removed one, or one hidden behind an active filter — would
+    land on a page that scrolls to nothing, with no way for the agent to tell
+    that is what happened. The list forces the focused listing to be visible
+    whatever the filters say.
+
+    This is what the dashboard's per-listing table and activity feed point at.
+    They previously linked to /agent/listings/[listingId], which has never
+    existed: an agent clicking their own listing's title got a 404.
+  */
+  const resolved = await searchParams;
+  const focusParam = resolved.focus;
+  const focusId = (Array.isArray(focusParam) ? focusParam[0] : focusParam) ?? null;
+
+  // Parsed here rather than in the client component so a shared or refreshed
+  // URL paints the filtered list on the first render. See parseListingFilters.
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(resolved)) {
+    const single = Array.isArray(value) ? value[0] : value;
+    if (single !== undefined) params.set(key, single);
+  }
+  const initial = parseListingFilters(
+    params,
+    LISTING_GROUPS.map((group) => group.key),
+  );
 
   return (
     <main className="px-5 py-8 text-stone-900 md:px-8 md:py-10">
@@ -40,7 +61,7 @@ export default async function AgentListingsPage() {
               Your listings
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
-              Grouped by what needs doing.
+              What each one is doing.
             </h1>
           </div>
           <Link
@@ -59,11 +80,14 @@ export default async function AgentListingsPage() {
               </span>
             ) : entitlement.activeSubscription ? (
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">
-                {entitlement.activeSubscription.plan.charAt(0).toUpperCase() + entitlement.activeSubscription.plan.slice(1)} plan active
+                {entitlement.activeSubscription.plan.charAt(0).toUpperCase() +
+                  entitlement.activeSubscription.plan.slice(1)}{" "}
+                plan active
               </span>
             ) : entitlement.freeListingQuota > 0 ? (
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">
-                {entitlement.freeListingQuota} submission slot{entitlement.freeListingQuota === 1 ? "" : "s"} remaining
+                {entitlement.freeListingQuota} submission slot
+                {entitlement.freeListingQuota === 1 ? "" : "s"} remaining
               </span>
             ) : (
               <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-800">
@@ -84,185 +108,30 @@ export default async function AgentListingsPage() {
             ) : entitlement.activeSubscription ? (
               "Your subscription covers listing submissions. Drafts are always free."
             ) : entitlement.freeListingQuota > 0 ? (
-              "One slot is used each time you submit a listing for review. Drafts are always free."
+              "One slot is used each time you submit a listing for review. Marking a listing as taken costs nothing, in either direction."
             ) : (
               "You have no submission slots left. Drafts are still free and unlimited, and existing listings are not affected."
             )}
           </p>
         </section>
 
-        {listings.length === 0 ? (
+        {cards.length === 0 ? (
           <div className="rounded-[1.75rem] border border-dashed border-stone-900/15 bg-white/75 p-8 text-stone-600">
             No listings yet. Create your first draft to begin.
           </div>
-        ) : null}
-
-        {groups.map((group) => (
-        <section className="grid gap-4" key={group.key}>
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">
-              {group.title}
-              {group.listings.length > 0 ? (
-                <span className="ml-2 text-base font-medium text-stone-500">
-                  {group.listings.length}
-                </span>
-              ) : null}
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-stone-600">{group.subtitle}</p>
-          </div>
-
-          {group.listings.length === 0 ? (
-            <p className="rounded-[1.5rem] border border-dashed border-stone-900/15 bg-white/60 p-5 text-sm text-stone-600">
-              {group.emptyDetail}
-            </p>
-          ) : null}
-
-          {group.listings.map((listing) => {
-            const imageCount = (listing.listing_images ?? []).filter((image) => !image.deleted_at).length;
-
-            // Only meaningful where submission is the next step. An approved or
-            // archived listing has nothing outstanding.
-            const readiness =
-              listing.status === "draft" || listing.status === "rejected"
-                ? submitReadiness({
-                    activeImageCount: imageCount,
-                    area: listing.area,
-                    freeListingQuota: entitlement.freeListingQuota,
-                    hasActiveSubscription: Boolean(entitlement.activeSubscription),
-                    priceNaira: listing.price_naira,
-                    verificationStatus: entitlement.verificationStatus,
-                  })
-                : null;
-
-            return (
-              <article
-                key={listing.id}
-                className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6 shadow-[0_16px_40px_rgba(48,38,24,0.06)]"
-              >
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="max-w-2xl">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
-                      {formatListingStatus(listing.status)}
-                    </p>
-                    <h2 className="mt-2 text-2xl font-semibold">{listing.title}</h2>
-                    <p className="mt-2 text-sm leading-7 text-stone-700 line-clamp-3">
-                      {listing.description}
-                    </p>
-                    {/*
-                      A one-line trail of the rejection reason. The full text
-                      lives on the edit page next to the fields being fixed;
-                      this is here so an agent scanning the list can see which
-                      listing needs attention and why.
-                    */}
-                    {/*
-                      A removed listing is over. Saying so on the row stops an
-                      agent waiting for it to come back, and stops them looking
-                      for the action that would bring it back.
-                    */}
-                    {listing.status === "archived" ? (
-                      <p className="mt-3 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-6 text-stone-700">
-                        Removed. This listing is no longer visible to seekers and
-                        cannot be restored — list the property again to bring it
-                        back.
-                      </p>
-                    ) : null}
-
-                    {/*
-                      And the opposite case, which needs saying just as plainly
-                      because the two used to be the same thing. What an agent
-                      needs to know about a taken listing is that it is costing
-                      them nothing and is one click from being live.
-                    */}
-                    {listing.status === "rented" ? (
-                      <p className="mt-3 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-6 text-stone-700">
-                        Off the market. It is not in search and is not taking new
-                        requests, but you still have it and it is still using no
-                        submission slot. Mark it available when it frees up.
-                      </p>
-                    ) : null}
-
-                    {listing.status === "rejected" && listing.rejection_reason ? (
-                      <p className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-900">
-                        Rejected: {listing.rejection_reason}
-                      </p>
-                    ) : null}
-
-                    <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-600">
-                      <span>{listing.area}, {listing.city}</span>
-                      <span className="font-medium text-stone-900">{formatPriceNaira(listing.price_naira)}</span>
-                      <span>{imageCount} image{imageCount === 1 ? "" : "s"}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex min-w-[300px] flex-col gap-4">
-                    {/*
-                      Only offered where the write path will accept it. The link
-                      and the guard read the same predicate, so this cannot
-                      advertise an edit the server refuses.
-                    */}
-                    {/*
-                      A live listing gets the same link, to a different action:
-                      changes are proposed rather than applied. Offering it here
-                      is what makes edit-with-re-review discoverable at all.
-                    */}
-                    {isListingRevisable(listing.status) ? (
-                      <Link
-                        className="rounded-full border border-stone-900/15 bg-white px-5 py-3 text-center text-sm font-medium text-stone-900 transition-colors hover:bg-stone-50"
-                        href={`/agent/listings/${listing.id}/edit`}
-                      >
-                        Change details
-                      </Link>
-                    ) : null}
-                    {isListingEditable(listing.status) ? (
-                      <Link
-                        className="rounded-full border border-stone-900/15 bg-white px-5 py-3 text-center text-sm font-medium text-stone-900 transition-colors hover:bg-stone-50"
-                        href={`/agent/listings/${listing.id}/edit`}
-                      >
-                        {listing.status === "rejected"
-                          ? "Fix and edit"
-                          : "Edit listing"}
-                      </Link>
-                    ) : null}
-                    <ListingImagesForm listingId={listing.id} />
-                    {readiness ? (
-                      <SubmitReadinessChecklist items={readiness} />
-                    ) : null}
-                    <SubmitListingReviewButton listingId={listing.id} />
-                    {/*
-                      Both only on a live listing, because 'approved' is the
-                      only status either function accepts and offering them
-                      elsewhere would advertise a transition the database
-                      refuses.
-
-                      ORDER MATTERS HERE. "Mark as taken" comes first because
-                      it is the common case — student housing turns over every
-                      year — and because it is the one the old, mislabelled
-                      button trained agents to reach for. Removal sits below
-                      it, where a decision that cannot be undone belongs.
-                    */}
-                    {listing.status === "approved" ? (
-                      <>
-                        <MarkTakenButton
-                          listingId={listing.id}
-                          listingTitle={listing.title}
-                        />
-                        <RemoveListingButton
-                          listingId={listing.id}
-                          listingTitle={listing.title}
-                        />
-                      </>
-                    ) : null}
-
-                    {listing.status === "rented" ? (
-                      <MarkAvailableButton listingId={listing.id} />
-                    ) : null}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-        ))}
+        ) : (
+          <AgentListingsList
+            cards={cards}
+            entitlement={{
+              freeListingQuota: entitlement.freeListingQuota,
+              hasActiveSubscription: Boolean(entitlement.activeSubscription),
+              verificationStatus: entitlement.verificationStatus,
+            }}
+            focusId={focusId}
+            initial={initial}
+            windowDays={windowDays}
+          />
+        )}
       </div>
     </main>
   );

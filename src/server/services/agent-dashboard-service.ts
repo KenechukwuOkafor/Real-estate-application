@@ -14,6 +14,8 @@ import {
   sumViewers,
   type ViewCountRow,
 } from "@/features/agents/dashboard/metrics";
+import { lagosDay, lagosDayOf, lagosDayStart } from "@/features/agents/lagos-day";
+import { revisionSignals } from "@/features/agents/listing-revisions";
 import {
   isAwaitingCompletion,
   isAwaitingResponse,
@@ -28,25 +30,6 @@ import {
 } from "@/server/repositories/agents-repository";
 import { listAgentInspectionRequests } from "@/server/repositories/inspection-repository";
 import { getCurrentAgentContext } from "@/server/services/agent-service";
-
-/**
- * Africa/Lagos calendar days, because that is what 0033 buckets by.
- *
- * Computing the window in UTC and passing it to a function that groups in WAT
- * would put the boundary an hour out — an off-by-one that only appears in the
- * hour before midnight and only for the first and last bar of the chart, which
- * is the kind of bug that survives for months.
- */
-function lagosDay(offsetDays: number) {
-  const at = new Date(Date.now() - offsetDays * 24 * 60 * 60 * 1000);
-  return at.toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
-}
-
-function lagosDayStart(day: string) {
-  // Africa/Lagos is UTC+1 year round — no DST — so a fixed offset is correct
-  // rather than merely convenient.
-  return new Date(`${day}T00:00:00+01:00`);
-}
 
 export type ActionItem = {
   detail: string;
@@ -265,17 +248,28 @@ function buildActions(input: {
 
   // The channel the status band cannot see: the listing stays approved and
   // live while the correction to it was refused.
-  for (const revision of input.revisions) {
-    if (revision.status === "rejected") {
-      items.push({
-        detail: revision.rejection_reason ?? "A moderator refused this change.",
-        href: `/agent/listings/${revision.listing_id}/edit`,
-        hrefLabel: "Revise the change",
-        kind: "revision",
-        minutesLeft: null,
-        title: `Your edit to "${revision.listings?.title ?? "a listing"}" was refused`,
-      });
-    }
+  //
+  // Through revisionSignals rather than over the raw list, and that is a fix
+  // rather than a tidy-up. This loop used to run over EVERY revision the agent
+  // had ever submitted — listAgentListingRevisions is unbounded and unfiltered
+  // — and push an action item for each rejected one. A refusal from March was
+  // still in the queue in September, even after the agent proposed a better
+  // change and a moderator approved it. Undismissable, and one more row for
+  // every rejection they ever received.
+  //
+  // An action queue that cannot be emptied stops being read, and it takes the
+  // inspection deadlines beside it down with it.
+  for (const signal of revisionSignals(input.revisions).values()) {
+    if (signal.status !== "rejected") continue;
+
+    items.push({
+      detail: signal.reason ?? "A moderator refused this change.",
+      href: `/agent/listings/${signal.listingId}/edit`,
+      hrefLabel: "Revise the change",
+      kind: "revision",
+      minutesLeft: null,
+      title: `Your edit to "${signal.listingTitle ?? "a listing"}" was refused`,
+    });
   }
 
   // Derived from the entitlement, not scavenged out of the status band. The
@@ -319,7 +313,9 @@ function buildActivity(input: {
       items.push({
         at: listing.approved_at,
         detail: "It is live and can be found by seekers.",
-        href: `/agent/listings/${listing.id}`,
+        // Same correction as dashboard-listings-table: the per-listing route
+        // has never existed, so this row was a 404 for its whole life.
+        href: `/agent/listings?focus=${listing.id}`,
         kind: "approved",
         title: `"${listing.title}" was approved`,
       });
@@ -358,6 +354,12 @@ function buildActivity(input: {
     }
   }
 
+  // Unfiltered here, deliberately, and this is the one place the raw list is
+  // right. The activity feed is a HISTORY — a refusal that happened did happen,
+  // and a superseded one is still a thing that occurred on a date. It is capped
+  // at twelve items and ordered by time, so an old refusal falls off naturally
+  // rather than sitting at the top as work. That is the difference between this
+  // and the action queue above: one records, the other asks.
   for (const revision of input.revisions) {
     if (revision.status === "rejected" && revision.reviewed_at) {
       items.push({
@@ -396,9 +398,7 @@ function buildChart(input: {
 
   const requestsByDay = new Map<string, number>();
   for (const request of input.requests) {
-    const day = new Date(request.requested_at).toLocaleDateString("en-CA", {
-      timeZone: "Africa/Lagos",
-    });
+    const day = lagosDayOf(request.requested_at);
     requestsByDay.set(day, (requestsByDay.get(day) ?? 0) + 1);
   }
 
