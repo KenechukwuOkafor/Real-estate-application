@@ -439,6 +439,43 @@ export async function archiveOwnListing(client: DbClient, listingId: string) {
 }
 
 /**
+ * Take a live listing off the market, and put it back.
+ *
+ * Through the RPC for the reason archiveOwnListing is: listings.status is not
+ * granted to agents, because the privilege that writes 'rented' is the
+ * privilege that writes 'approved'. See migration 0036.
+ *
+ * The pair is deliberately two functions rather than one toggle. A toggle
+ * takes its destination from the row's current value, so a stale page — an
+ * agent with the listings screen open in two tabs, which is how they compare
+ * properties — would send "flip it" and get whichever state it was not in.
+ * Naming the destination makes that a refusal instead of a surprise.
+ */
+export async function markOwnListingRented(client: DbClient, listingId: string) {
+  const { data, error } = await client
+    .rpc("mark_own_listing_rented", { target_listing_id: listingId })
+    .single();
+
+  if (error) {
+    mapDatabaseSentinel(error);
+  }
+
+  return data as { listing_id: string; rented_at: string };
+}
+
+export async function markOwnListingAvailable(client: DbClient, listingId: string) {
+  const { data, error } = await client
+    .rpc("mark_own_listing_available", { target_listing_id: listingId })
+    .single();
+
+  if (error) {
+    mapDatabaseSentinel(error);
+  }
+
+  return data as { approved_at: string | null; listing_id: string };
+}
+
+/**
  * Queue a change to an approved listing.
  *
  * Through the RPC because neither listings.status nor this table's write path

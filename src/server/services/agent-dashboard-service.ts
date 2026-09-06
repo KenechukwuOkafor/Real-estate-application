@@ -3,6 +3,7 @@ import "server-only";
 import {
   DEFAULT_RANGE,
   dashboardState,
+  hasExhaustedSlots,
   deltaPercent,
   medianReplyMinutes,
   perListingRows,
@@ -13,7 +14,6 @@ import {
   sumViewers,
   type ViewCountRow,
 } from "@/features/agents/dashboard/metrics";
-import { agentStatusBand } from "@/features/agents/status-band";
 import {
   isAwaitingCompletion,
   isAwaitingResponse,
@@ -50,8 +50,17 @@ function lagosDayStart(day: string) {
 
 export type ActionItem = {
   detail: string;
-  href: string;
-  hrefLabel: string;
+  /**
+   * Optional, because one action currently has no destination.
+   *
+   * An agent out of submission slots has nowhere to go: there is no billing
+   * surface and no way to buy more. Linking them somewhere unhelpful to
+   * satisfy a type would be worse than saying so — the queue should be honest
+   * that this is a wall rather than sending them at one. It becomes a link
+   * the moment plans exist.
+   */
+  href?: string;
+  hrefLabel?: string;
   kind: "request" | "completion" | "rejection" | "revision" | "slots";
   minutesLeft: number | null;
   title: string;
@@ -126,20 +135,24 @@ export async function getAgentDashboard(range: RangeDays = DEFAULT_RANGE) {
       );
     }) ?? null;
 
-  const band = agentStatusBand({
-    activeSubscriptionPlan: activeSubscription?.plan ?? null,
-    freeListingQuota: profile?.free_listing_quota ?? 0,
-    incomingRequests: requestRows.filter((request) =>
-      isAwaitingResponse(request, now),
-    ).length,
-    listings,
-    verificationStatus: profile?.verification_status ?? "not_submitted",
-  });
-
   return {
-    actions: buildActions({ listings, now, requests, revisions, band }),
+    actions: buildActions({
+      listings,
+      now,
+      requests,
+      revisions,
+      slotsExhausted: hasExhaustedSlots({
+        freeListingQuota: profile?.free_listing_quota ?? 0,
+        hasActiveSubscription: Boolean(activeSubscription),
+        verificationStatus: profile?.verification_status ?? "not_submitted",
+      }),
+    }),
     activity: buildActivity({ listings, requests, revisions }),
     chart: buildChart({ range, requests: current, views }),
+    // Only consulted in the dormant state, where it decides between two ways
+    // out that are not interchangeable: a let property comes back for free,
+    // a removed one costs a submission slot. See Dormant in app/agent/page.
+    hasRentedListings: listings.some((listing) => listing.status === "rented"),
     entitlement: {
       activeSubscription,
       freeListingQuota: profile?.free_listing_quota ?? 0,
@@ -196,9 +209,9 @@ export async function getAgentDashboard(range: RangeDays = DEFAULT_RANGE) {
  * because inspections sort before listings alphabetically.
  */
 function buildActions(input: {
-  band: ReturnType<typeof agentStatusBand>;
   listings: Array<{ id: string; rejection_reason: string | null; status: string; title: string }>;
   now: Date;
+  slotsExhausted: boolean;
   requests: Awaited<ReturnType<typeof listAgentInspectionRequests>>;
   revisions: Awaited<ReturnType<typeof listAgentListingRevisions>>;
 }): ActionItem[] {
@@ -265,17 +278,17 @@ function buildActions(input: {
     }
   }
 
-  for (const attention of input.band.attention) {
-    if (attention.href.includes("subscription") || /slot/i.test(attention.title)) {
-      items.push({
-        detail: attention.detail,
-        href: attention.href,
-        hrefLabel: attention.hrefLabel,
-        kind: "slots",
-        minutesLeft: null,
-        title: attention.title,
-      });
-    }
+  // Derived from the entitlement, not scavenged out of the status band. The
+  // previous version scanned band.attention for a slots item and that list
+  // only ever holds rejected listings, so this never fired for anyone.
+  if (input.slotsExhausted) {
+    items.push({
+      detail:
+        "Drafts are still free and unlimited, and your live listings are not affected. Paid plans are not available yet.",
+      kind: "slots",
+      minutesLeft: null,
+      title: "You have used all your submission slots",
+    });
   }
 
   return items.sort((a, b) => {

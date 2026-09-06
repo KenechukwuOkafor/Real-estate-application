@@ -14,9 +14,10 @@
  * See test/helpers/rendered-page.ts for what this can and cannot prove.
  * LOCAL ONLY. Run with `npm run test:rendered` against `npm run dev`.
  */
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { assertCanRenderPages, renderAsPersona } from "../helpers/rendered-page";
+import { asServiceRole } from "../helpers/rls-clients";
 
 describe("agent dashboard", () => {
   it("renders for a verified agent", async () => {
@@ -91,6 +92,72 @@ describe("agent dashboard", () => {
     const page = await renderAsPersona("/agent?range=9999", "Agent (verified)");
 
     expect(page.text).toContain("Last 30 days");
+  });
+
+  /**
+   * The state nothing was ever in.
+   *
+   * The slots warning shipped as dead code: it was derived by scanning
+   * agentStatusBand().attention for an item mentioning slots, and that list
+   * only ever holds rejected listings, so the branch could not fire. Review
+   * and CI both passed it because the seeded verified agent has three slots —
+   * there was no fixture in the state being tested, which is the eighth time
+   * that has been the reason something survived.
+   *
+   * So this creates the state, asserts, and puts it back. The unit tests prove
+   * the predicate; only this proves the page reads it.
+   */
+  describe("when the agent has no submission slots left", () => {
+    const svc = asServiceRole();
+    let restoreQuota = 3;
+
+    beforeAll(async () => {
+      const { data, error } = await svc
+        .from("agent_profiles")
+        .select("id, free_listing_quota")
+        .eq("verification_status", "verified")
+        .limit(1)
+        .single();
+      if (error) throw error;
+
+      restoreQuota = data.free_listing_quota;
+      const spend = await svc
+        .from("agent_profiles")
+        .update({ free_listing_quota: 0 })
+        .eq("id", data.id);
+      if (spend.error) throw spend.error;
+    });
+
+    afterAll(async () => {
+      const { error } = await svc
+        .from("agent_profiles")
+        .update({ free_listing_quota: restoreQuota })
+        .eq("verification_status", "verified");
+      if (error) throw error;
+    });
+
+    it("says so in the action queue", async () => {
+      const page = await renderAsPersona("/agent", "Agent (verified)");
+
+      expect(page.text).toContain("You have used all your submission slots");
+    });
+
+    it("says what is NOT affected, because nothing they already have is", async () => {
+      const page = await renderAsPersona("/agent", "Agent (verified)");
+
+      expect(page.text).toContain("Drafts are still free");
+      expect(page.text).toContain("live listings are not affected");
+    });
+
+    it("offers no link, because there is nowhere to buy slots yet", async () => {
+      // Honest silence rather than a button that leads somewhere unhelpful.
+      // This assertion is the reminder: when billing lands, the row gains a
+      // destination and this is what should fail.
+      const page = await renderAsPersona("/agent", "Agent (verified)");
+
+      expect(page.text).not.toContain("Upgrade");
+      expect(page.text).not.toContain("Buy more slots");
+    });
   });
 
   it("shows the account strip", async () => {

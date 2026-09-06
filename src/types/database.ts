@@ -40,6 +40,7 @@ export type Database = {
         | "draft"
         | "pending_review"
         | "approved"
+        | "rented"
         | "rejected"
         | "archived"
         | "flagged"
@@ -126,6 +127,28 @@ export type Database = {
       archive_own_listing: {
         Args: { target_listing_id: string };
         Returns: Array<{ archived_at: string; listing_id: string }>;
+      };
+      mark_own_listing_rented: {
+        Args: { target_listing_id: string };
+        Returns: Array<{ listing_id: string; rented_at: string }>;
+      };
+      mark_own_listing_available: {
+        Args: { target_listing_id: string };
+        // approved_at comes back UNCHANGED, not restamped. It is returned so a
+        // caller can show when the listing was actually approved without a
+        // second read. See 0036.
+        Returns: Array<{ approved_at: string | null; listing_id: string }>;
+      };
+      listing_absence_notice: {
+        // Callable by anon: the seeker following a saved link has no session.
+        // Yields nothing for any status but 'rented' and 'archived'.
+        Args: { target_public_uuid: string };
+        Returns: Array<{
+          absence_status: string;
+          area: string;
+          city: string;
+          title: string;
+        }>;
       };
       respond_to_inspection_request: {
         Args: { decision: string; target_request_id: string };
@@ -558,6 +581,7 @@ export type Database = {
           approved_at?: string | null;
           approved_by?: string | null;
           archived_at?: string | null;
+          rented_at?: string | null;
           rejected_at?: string | null;
           area: string;
           bathrooms: number;
@@ -593,6 +617,7 @@ export type Database = {
             | "draft"
             | "pending_review"
             | "approved"
+            | "rented"
             | "rejected"
             | "archived"
             | "flagged"
@@ -610,6 +635,7 @@ export type Database = {
           rejected_at: string | null;
           approved_by: string | null;
           archived_at: string | null;
+          rented_at: string | null;
           area: string;
           bathrooms: number;
           bedrooms: number;
@@ -642,6 +668,7 @@ export type Database = {
             | "draft"
             | "pending_review"
             | "approved"
+            | "rented"
             | "rejected"
             | "archived"
             | "flagged"

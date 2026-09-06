@@ -90,7 +90,7 @@ export default async function AgentHomePage({
               {dashboard.actions.map((action) => (
                 <li
                   className={`rounded-2xl border p-4 ${ACTION_TONE[action.kind] ?? "border-stone-200 bg-white"}`}
-                  key={`${action.kind}-${action.href}-${action.title}`}
+                  key={`${action.kind}-${action.href ?? "none"}-${action.title}`}
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="font-medium">{action.title}</p>
@@ -101,12 +101,20 @@ export default async function AgentHomePage({
                     ) : null}
                   </div>
                   <p className="mt-1 text-sm leading-6 text-stone-700">{action.detail}</p>
-                  <Link
-                    className="mt-2 inline-block text-sm font-medium underline underline-offset-4"
-                    href={action.href}
-                  >
-                    {action.hrefLabel}
-                  </Link>
+                  {/*
+                    No link when there is nowhere to go. An agent out of
+                    submission slots has no destination — there is no billing
+                    surface yet — and a button leading somewhere unhelpful is
+                    worse than the sentence above it.
+                  */}
+                  {action.href && action.hrefLabel ? (
+                    <Link
+                      className="mt-2 inline-block text-sm font-medium underline underline-offset-4"
+                      href={action.href}
+                    >
+                      {action.hrefLabel}
+                    </Link>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -114,7 +122,7 @@ export default async function AgentHomePage({
         ) : null}
 
         {dashboard.state === "dormant" ? (
-          <Dormant />
+          <Dormant hasRented={dashboard.hasRentedListings} />
         ) : (
           <>
             <section className="flex flex-col gap-3">
@@ -221,20 +229,48 @@ export default async function AgentHomePage({
  * knowing how the archived one did is the most useful thing available before
  * writing the next.
  */
-function Dormant() {
+/**
+ * Dormant, and the branch is the point.
+ *
+ * A rented listing cannot receive a view or a request, so an agent whose whole
+ * portfolio is let is dormant by the only definition that matters here — the
+ * numbers going forward are structurally zero. That is why 0036 did NOT put
+ * rented into LIVE_OR_BECOMING_LIVE.
+ *
+ * But the WAY OUT is completely different, and the original copy asserted the
+ * harder one for everybody: "archived listings cannot be brought back". For an
+ * agent sitting on three let properties that is simply false, and it is false
+ * in the expensive direction — it reads as an instruction to spend three
+ * submission slots relisting things they already own. Turnover is the common
+ * case in student housing, so this is the branch most agents will meet.
+ */
+function Dormant({ hasRented }: { hasRented: boolean }) {
   return (
     <section className="rounded-[1.5rem] border border-stone-900/10 bg-white/85 p-6">
-      <h2 className="text-lg font-semibold">No live listings</h2>
+      <h2 className="text-lg font-semibold">
+        {hasRented ? "Everything you have is taken" : "No live listings"}
+      </h2>
       <p className="mt-2 text-sm leading-6 text-stone-700">
-        Nothing of yours can be found by seekers right now, so there are no
-        views or requests to report. Archived listings cannot be brought back —
-        putting a property up again means creating a new listing.
+        {hasRented ? (
+          <>
+            Nothing of yours can be found by seekers right now, so there are no
+            views or requests to report. That is expected while your properties
+            are let — mark one available the moment it frees up and it goes
+            straight back into search. It costs nothing and needs no review.
+          </>
+        ) : (
+          <>
+            Nothing of yours can be found by seekers right now, so there are no
+            views or requests to report. Removed listings cannot be brought back
+            — putting a property up again means creating a new listing.
+          </>
+        )}
       </p>
       <Link
         className="mt-3 inline-block rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
-        href="/agent/listings/new"
+        href={hasRented ? "/agent/listings" : "/agent/listings/new"}
       >
-        Start a new listing
+        {hasRented ? "Go to your listings" : "Start a new listing"}
       </Link>
     </section>
   );

@@ -9,6 +9,7 @@ import {
 } from "@/lib/db/supabase";
 import {
   createListingView,
+  getListingAbsenceNotice,
   getPublicListingByIdentifier,
   getPublicListingIdByUuid,
   getPublicListings,
@@ -68,6 +69,44 @@ export async function listPublicListings(filters: ListingListFilters) {
  */
 export async function listRecentPublicListings(limit: number) {
   return listPublicListings({ limit, sort: "newest" });
+}
+
+/**
+ * The page a seeker gets instead of a 404, when the listing they saved is gone.
+ *
+ * SEPARATE FROM getPublicListing RATHER THAN FOLDED INTO IT, deliberately. The
+ * hot path is a live listing, and it must not pay a second round trip on every
+ * request to answer a question that only matters when the first read came back
+ * empty. So the page asks for this only after getPublicListing returns null,
+ * and the cost lands on the rare case.
+ *
+ * Null here means genuinely absent — a bad URL, a draft, a deleted row — and
+ * the page 404s, which is still the honest answer for a listing that was never
+ * public.
+ */
+export async function getListingAbsence(slugOrPublicId: string) {
+  const identifier = parseListingIdentifier(slugOrPublicId);
+
+  if (!isUuid(identifier.publicId)) {
+    return null;
+  }
+
+  const client = await createSupabaseServerClient();
+  const notice = await getListingAbsenceNotice(client, identifier.publicId);
+
+  if (!notice) {
+    return null;
+  }
+
+  return {
+    area: notice.area,
+    city: notice.city,
+    // The two are not interchangeable and the page says different things for
+    // each: a taken property may come back and is worth asking about, a
+    // removed one is not.
+    reason: notice.absence_status === "rented" ? ("taken" as const) : ("removed" as const),
+    title: notice.title,
+  };
 }
 
 export async function getPublicListing(slugOrPublicId: string) {
