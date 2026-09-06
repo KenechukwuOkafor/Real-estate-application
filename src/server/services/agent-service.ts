@@ -41,6 +41,8 @@ import {
   markAgentVerificationPending,
   registerListingImages,
   archiveOwnListing,
+  markOwnListingAvailable,
+  markOwnListingRented,
   getPendingListingRevision,
   removeListingImage,
   submitListingRevision,
@@ -1009,6 +1011,112 @@ export async function archiveCurrentAgentListing(listingId: string) {
   });
 
   return { archivedAt: result.archived_at, listingId: result.listing_id };
+}
+
+/**
+ * Mark a listing taken, and put it back on the market.
+ *
+ * Both are audited, and the audit entry is the reason these are not thinner
+ * wrappers. A listing that leaves and re-enters search is a fact seekers
+ * experience — a saved listing goes quiet and comes back — and if an agent
+ * ever disputes that a property was off the market, or a moderator wants to
+ * know why a listing's views collapsed for six weeks, this is the only record.
+ * archiveCurrentAgentListing writes one for the same reason.
+ *
+ * NEITHER TOUCHES THE SUBMISSION QUOTA, in either direction. Slots are
+ * consumed at submission; this is turnover, not new inventory. That is the
+ * whole distinction between rented and archived and it is worth restating
+ * next to the code that could accidentally erase it.
+ */
+export async function markCurrentAgentListingRented(listingId: string) {
+  const context = await getCurrentAgentContext();
+
+  if (!context.agentProfile) {
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listings.",
+    );
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getOwnedListing(client, context.agentProfile.id, listingId);
+
+  if (!listing) {
+    throw new AppError("NOT_FOUND", "Listing not found.");
+  }
+
+  // Checked here as well as in the function, so the common refusal is a
+  // sentence rather than a decoded SQLSTATE. The function remains the
+  // boundary — this is the message, not the guard.
+  if (listing.status !== "approved") {
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      `A listing cannot be marked as taken from status ${listing.status}.`,
+      undefined,
+      stateTransitionDetails("mark_rented", listing.status),
+    );
+  }
+
+  const result = await markOwnListingRented(client, listingId);
+
+  await writeAuditLog({
+    action: "listing.marked_rented_by_agent",
+    actorUserId: context.user.id,
+    afterData: {
+      previous_status: listing.status,
+      rented_at: result.rented_at,
+      status: "rented",
+    },
+    entityId: listingId,
+    entityType: "listing",
+  });
+
+  return { listingId: result.listing_id, rentedAt: result.rented_at };
+}
+
+export async function markCurrentAgentListingAvailable(listingId: string) {
+  const context = await getCurrentAgentContext();
+
+  if (!context.agentProfile) {
+    throw new AppError(
+      "AGENT_PROFILE_REQUIRED",
+      "Create your agent profile before managing listings.",
+    );
+  }
+
+  const client = await createSupabaseAuthenticatedClient();
+  const listing = await getOwnedListing(client, context.agentProfile.id, listingId);
+
+  if (!listing) {
+    throw new AppError("NOT_FOUND", "Listing not found.");
+  }
+
+  if (listing.status !== "rented") {
+    throw new AppError(
+      "LISTING_STATE_TRANSITION_INVALID",
+      `A listing cannot go back on the market from status ${listing.status}.`,
+      undefined,
+      stateTransitionDetails("mark_available", listing.status),
+    );
+  }
+
+  const result = await markOwnListingAvailable(client, listingId);
+
+  await writeAuditLog({
+    action: "listing.marked_available_by_agent",
+    actorUserId: context.user.id,
+    afterData: {
+      // The approval instant this listing KEEPS, recorded so the audit trail
+      // shows plainly that nothing was re-approved here. See 0036.
+      approved_at: result.approved_at,
+      previous_status: listing.status,
+      status: "approved",
+    },
+    entityId: listingId,
+    entityType: "listing",
+  });
+
+  return { approvedAt: result.approved_at, listingId: result.listing_id };
 }
 
 export async function submitCurrentAgentListingForReview(listingId: string) {

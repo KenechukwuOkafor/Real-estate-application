@@ -149,6 +149,10 @@ export async function getAgentDashboard(range: RangeDays = DEFAULT_RANGE) {
     }),
     activity: buildActivity({ listings, requests, revisions }),
     chart: buildChart({ range, requests: current, views }),
+    // Only consulted in the dormant state, where it decides between two ways
+    // out that are not interchangeable: a let property comes back for free,
+    // a removed one costs a submission slot. See Dormant in app/agent/page.
+    hasRentedListings: listings.some((listing) => listing.status === "rented"),
     entitlement: {
       activeSubscription,
       freeListingQuota: profile?.free_listing_quota ?? 0,

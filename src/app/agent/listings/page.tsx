@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { ArchiveListingButton } from "@/features/agents/components/archive-listing-button";
+import {
+  MarkAvailableButton,
+  MarkTakenButton,
+} from "@/features/agents/components/listing-availability-buttons";
+import { RemoveListingButton } from "@/features/agents/components/remove-listing-button";
 import { SubmitReadinessChecklist } from "@/features/agents/components/submit-readiness-checklist";
 import { submitReadiness } from "@/features/agents/submit-readiness";
 import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
 import { SubmitListingReviewButton } from "@/features/agents/components/submit-listing-review-button";
 import { groupAgentListings } from "@/features/agents/listing-groups";
-import { isListingEditable } from "@/features/listings/editability";
+import {
+  isListingEditable,
+  isListingRevisable,
+} from "@/features/listings/editability";
 import { formatListingStatus, formatPriceNaira } from "@/features/listings/format";
 import { getCurrentAgentListingsOverview } from "@/server/services/agent-service";
 
@@ -148,15 +155,29 @@ export default async function AgentListingsPage() {
                       listing needs attention and why.
                     */}
                     {/*
-                      An archived listing is over. Saying so on the row stops an
+                      A removed listing is over. Saying so on the row stops an
                       agent waiting for it to come back, and stops them looking
                       for the action that would bring it back.
                     */}
                     {listing.status === "archived" ? (
                       <p className="mt-3 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-6 text-stone-700">
-                        Taken down. This listing is no longer visible to seekers
-                        and cannot be restored — list the property again to bring
-                        it back.
+                        Removed. This listing is no longer visible to seekers and
+                        cannot be restored — list the property again to bring it
+                        back.
+                      </p>
+                    ) : null}
+
+                    {/*
+                      And the opposite case, which needs saying just as plainly
+                      because the two used to be the same thing. What an agent
+                      needs to know about a taken listing is that it is costing
+                      them nothing and is one click from being live.
+                    */}
+                    {listing.status === "rented" ? (
+                      <p className="mt-3 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-6 text-stone-700">
+                        Off the market. It is not in search and is not taking new
+                        requests, but you still have it and it is still using no
+                        submission slot. Mark it available when it frees up.
                       </p>
                     ) : null}
 
@@ -184,7 +205,7 @@ export default async function AgentListingsPage() {
                       changes are proposed rather than applied. Offering it here
                       is what makes edit-with-re-review discoverable at all.
                     */}
-                    {listing.status === "approved" ? (
+                    {isListingRevisable(listing.status) ? (
                       <Link
                         className="rounded-full border border-stone-900/15 bg-white px-5 py-3 text-center text-sm font-medium text-stone-900 transition-colors hover:bg-stone-50"
                         href={`/agent/listings/${listing.id}/edit`}
@@ -208,15 +229,32 @@ export default async function AgentListingsPage() {
                     ) : null}
                     <SubmitListingReviewButton listingId={listing.id} />
                     {/*
-                      Only on a live listing. It is the only status this can act
-                      on, and offering it anywhere else would advertise a
-                      transition the function refuses.
+                      Both only on a live listing, because 'approved' is the
+                      only status either function accepts and offering them
+                      elsewhere would advertise a transition the database
+                      refuses.
+
+                      ORDER MATTERS HERE. "Mark as taken" comes first because
+                      it is the common case — student housing turns over every
+                      year — and because it is the one the old, mislabelled
+                      button trained agents to reach for. Removal sits below
+                      it, where a decision that cannot be undone belongs.
                     */}
                     {listing.status === "approved" ? (
-                      <ArchiveListingButton
-                        listingId={listing.id}
-                        listingTitle={listing.title}
-                      />
+                      <>
+                        <MarkTakenButton
+                          listingId={listing.id}
+                          listingTitle={listing.title}
+                        />
+                        <RemoveListingButton
+                          listingId={listing.id}
+                          listingTitle={listing.title}
+                        />
+                      </>
+                    ) : null}
+
+                    {listing.status === "rented" ? (
+                      <MarkAvailableButton listingId={listing.id} />
                     ) : null}
                   </div>
                 </div>

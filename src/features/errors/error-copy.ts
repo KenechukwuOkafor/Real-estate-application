@@ -310,8 +310,14 @@ export function fieldErrorsFrom(
 }
 
 const STATE_TRANSITION_COPY: Readonly<Record<string, string>> = {
-  archive: "Only a live listing can be taken down.",
+  archive: "Only a live listing can be removed.",
   edit: "This listing cannot be edited any more. Only drafts and rejected listings can be changed.",
+  // Said in terms of what is possible rather than what is not: a removed
+  // listing is the case an agent most often arrives here from, and "cannot be
+  // brought back" leaves them looking for the button that would do it.
+  mark_available:
+    "Only a listing you marked as taken can go back on the market. A removed listing cannot be brought back — list the property again to do that.",
+  mark_rented: "Only a live listing can be marked as taken.",
   remove_image: "Photos can only be changed while a listing is a draft or has been rejected.",
   submit: "This listing has already been submitted.",
 };

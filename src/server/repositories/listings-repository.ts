@@ -446,6 +446,34 @@ export async function getPublicListingIdByUuid(
  * (user_id, listing_id) unique constraint, and losing means the listing is
  * saved, which is what the caller wanted.
  */
+/**
+ * Why a listing a seeker holds a link to is no longer there.
+ *
+ * Via the RPC because the SELECT policy on listings is, and stays,
+ * `status = 'approved'`. Widening it so this page could read a row would put
+ * the predicate on the three query sites in this file instead of on the
+ * policy, which is the arrangement 0021 exists to refuse. See 0036.
+ *
+ * Returns null for everything except a rented or archived listing — including
+ * a live one, so a caller cannot use this to shortcut the real read.
+ */
+export async function getListingAbsenceNotice(client: DbClient, publicUuid: string) {
+  const { data, error } = await client
+    .rpc("listing_absence_notice", { target_public_uuid: publicUuid })
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as {
+    absence_status: string;
+    area: string;
+    city: string;
+    title: string;
+  } | null;
+}
+
 export async function saveListing(
   client: DbClient,
   userId: string,

@@ -416,6 +416,59 @@ values
     '["security","water","near_campus"]'::jsonb,
     now(),
     now()
+  ),
+  -- The one listing that is TAKEN.
+  --
+  -- Same reasoning as the pending_review row above, and the rejected one: a
+  -- state that exists in the schema and in no seeded database is a state whose
+  -- surfaces nobody has ever looked at. Without this the "Taken" group on the
+  -- agent listings page, the Mark available button, the branched dormant copy
+  -- and the seeker's honest-absence page are all unreachable locally and in
+  -- CI's populated replay — and every one of them would have to be exercised
+  -- by hand to be seen at all.
+  --
+  -- It also gives the replay something the fingerprint index now cares about:
+  -- a rented listing holds its property's identity, so a duplicate submission
+  -- against it is refused. That refusal has no fixture otherwise.
+  --
+  -- approved_at is set and stays set. It was approved, once, and marking it
+  -- taken did not un-approve it — which is the fact that lets it go back on
+  -- the market with no re-review.
+  --
+  -- INSERTED AS 'approved' AND PROMOTED BELOW, which is not squeamishness. CI's
+  -- upgrade job seeds a database built from the migrations that existed BEFORE
+  -- the current change and then applies the new ones on top, because that is
+  -- the order production is in. At that moment listing_status has no 'rented'
+  -- value and listings has no rented_at column, so a literal here fails the
+  -- whole seed with
+  --
+  --   ERROR: invalid input value for enum listing_status: "rented"  (22P02)
+  --
+  -- Seed data must therefore be insertable at every migration level CI seeds
+  -- at, not only at the newest one. See the guarded promotion further down.
+  (
+    '3c719a67-c526-44d2-b9f5-83042d03f006',
+    '20887cbf-53fc-4c45-adb2-c5d4d33cf006',
+    'fbbda28e-2358-49c2-ab0a-e472d7db6001',
+    'approved',
+    'Self Contain Off Ugwuoye Road',
+    'self-contain-off-ugwuoye-road',
+    'Compact self contain with its own bathroom, water storage, and a quiet compound set back from the road.',
+    'self_contain',
+    'yearly',
+    null,
+    310000,
+    1,
+    1,
+    'Ugwuoye',
+    'Nsukka',
+    'Enugu',
+    'Nigeria',
+    6.858200,
+    7.395400,
+    '["water","tiled_floor","gated"]'::jsonb,
+    now() - interval '60 days',
+    now() - interval '75 days'
   )
 on conflict (id) do update
 set
@@ -509,6 +562,18 @@ values
     176000,
     true
   ),
+  -- BR-MEDIA-006 applies to a rented listing too, as of 0036: the cover
+  -- triggers were widened so a listing cannot return to the market coverless.
+  -- Without this row the seed would fail at COMMIT, which is the check working.
+  (
+    '40fbc9b0-d821-42d7-bf6e-887a49b3a012',
+    '3c719a67-c526-44d2-b9f5-83042d03f006',
+    'listings/3c719a67-c526-44d2-b9f5-83042d03f006/01992a10-0012-7000-8000-0000000000b2.webp',
+    0,
+    'image/webp',
+    172000,
+    true
+  ),
   (
     '40fbc9b0-d821-42d7-bf6e-887a49b3a004',
     '3c719a67-c526-44d2-b9f5-83042d03f002',
@@ -577,14 +642,52 @@ set cover_image_id = case id
   when '3c719a67-c526-44d2-b9f5-83042d03f002' then '40fbc9b0-d821-42d7-bf6e-887a49b3a004'::uuid
   when '3c719a67-c526-44d2-b9f5-83042d03f003' then '40fbc9b0-d821-42d7-bf6e-887a49b3a007'::uuid
   when '3c719a67-c526-44d2-b9f5-83042d03f004' then '40fbc9b0-d821-42d7-bf6e-887a49b3a010'::uuid
+  when '3c719a67-c526-44d2-b9f5-83042d03f006' then '40fbc9b0-d821-42d7-bf6e-887a49b3a012'::uuid
   else cover_image_id
 end
 where id in (
   '3c719a67-c526-44d2-b9f5-83042d03f001',
   '3c719a67-c526-44d2-b9f5-83042d03f002',
   '3c719a67-c526-44d2-b9f5-83042d03f003',
-  '3c719a67-c526-44d2-b9f5-83042d03f004'
+  '3c719a67-c526-44d2-b9f5-83042d03f004',
+  '3c719a67-c526-44d2-b9f5-83042d03f006'
 );
+
+-- ---------------------------------------------------------------------------
+-- Promote the sixth listing to 'rented', where the schema knows what that is.
+--
+-- Guarded because this same file is seeded against a database built from the
+-- PREVIOUS set of migrations by CI's upgrade job — see the comment on the
+-- insert above. On that database the branch is not taken and the listing stays
+-- approved, which is exactly what production looked like before 0035.
+--
+-- EXECUTE rather than a plain statement inside the IF. A plpgsql body defers
+-- parsing until a statement actually runs, so a plain UPDATE would probably be
+-- fine — but "probably" is doing load-bearing work in that sentence, and the
+-- failure mode is a seed that breaks CI rather than anything a test would
+-- catch. Dynamic SQL is not parsed at all until the string is executed, which
+-- removes the question.
+--
+-- rented_at is checked rather than the enum value: it arrives in 0036, which
+-- cannot have run unless 0035 committed, so one check covers both.
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'listings'
+      and column_name = 'rented_at'
+  ) then
+    execute $q$
+      update public.listings
+         set status = 'rented',
+             rented_at = now() - interval '21 days'
+       where id = '3c719a67-c526-44d2-b9f5-83042d03f006'
+    $q$;
+  end if;
+end
+$$;
 
 -- ---------------------------------------------------------------------------
 -- An accepted inspection with a real conversation behind it.

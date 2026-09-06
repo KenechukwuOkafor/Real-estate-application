@@ -4,13 +4,19 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { errorCopyForResponse } from "@/features/errors/error-copy";
 
-type ArchiveListingButtonProps = {
+type RemoveListingButtonProps = {
   listingId: string;
   listingTitle: string;
 };
 
 /**
- * "Mark as rented" — the agent's way to take a live listing down.
+ * "Remove listing" — permanent, and now labelled as such.
+ *
+ * IT USED TO SAY "MARK AS RENTED", and it archived. Archived is terminal at
+ * the database, so an agent whose property was simply let destroyed the
+ * listing and spent another submission slot to put it back up. The button was
+ * the most expensive lie in the portal, and this file is half of the fix; the
+ * other half is MarkTakenButton, which does what this one claimed to.
  *
  * Two steps, and the second one is the point. This is irreversible, it does not
  * return the submission slot, and relisting means creating the listing again
@@ -19,21 +25,21 @@ type ArchiveListingButtonProps = {
  * after.
  *
  * The confirmation is rendered inline rather than through window.confirm: a
- * native dialog cannot say three sentences legibly, and it reads as a
+ * native dialog cannot say four sentences legibly, and it reads as a
  * formality — which is exactly the wrong register for something that cannot be
  * undone.
  */
-export function ArchiveListingButton({
+export function RemoveListingButton({
   listingId,
   listingTitle,
-}: ArchiveListingButtonProps) {
+}: RemoveListingButtonProps) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
-  const [isArchiving, setIsArchiving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function onConfirm() {
-    setIsArchiving(true);
+    setIsRemoving(true);
     setError(null);
 
     const response = await fetch(`/api/agent/listings/${listingId}/archive`, {
@@ -46,11 +52,11 @@ export function ArchiveListingButton({
         | null;
 
       setError(errorCopyForResponse(payload));
-      setIsArchiving(false);
+      setIsRemoving(false);
       return;
     }
 
-    setIsArchiving(false);
+    setIsRemoving(false);
     setConfirming(false);
     router.refresh();
   }
@@ -62,7 +68,7 @@ export function ArchiveListingButton({
         onClick={() => setConfirming(true)}
         type="button"
       >
-        Mark as rented
+        Remove listing
       </button>
     );
   }
@@ -70,7 +76,7 @@ export function ArchiveListingButton({
   return (
     <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
       <p className="text-sm font-semibold text-amber-950">
-        Take “{listingTitle}” down?
+        Remove “{listingTitle}” for good?
       </p>
 
       {/*
@@ -85,6 +91,17 @@ export function ArchiveListingButton({
           • To list this property again you will need to create a new listing,
           which uses another submission slot.
         </li>
+        {/*
+          The fourth bullet, and the one that exists because this button used
+          to be the only option. An agent whose property was merely let has a
+          free, reversible action available and should be sent to it rather
+          than talked out of this one in the abstract.
+        */}
+        <li>
+          • If the place is just let for now, use{" "}
+          <strong className="font-semibold">Mark as taken</strong> instead — it
+          is free, reversible, and keeps the listing.
+        </li>
       </ul>
 
       {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
@@ -92,22 +109,22 @@ export function ArchiveListingButton({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          disabled={isArchiving}
+          disabled={isRemoving}
           onClick={onConfirm}
           type="button"
         >
-          {isArchiving ? "Taking down..." : "Yes, take it down"}
+          {isRemoving ? "Removing..." : "Yes, remove it"}
         </button>
         <button
           className="rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-medium text-stone-700 disabled:opacity-60"
-          disabled={isArchiving}
+          disabled={isRemoving}
           onClick={() => {
             setConfirming(false);
             setError(null);
           }}
           type="button"
         >
-          Keep it live
+          Keep it
         </button>
       </div>
     </div>

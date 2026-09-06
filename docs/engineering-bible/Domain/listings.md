@@ -126,20 +126,33 @@ Under Review
 
 ↓
 
-Approved
-
-↓
-
-Published
-
-↓
-
-Unavailable / Archived
+Approved / Published
+│
+├──►  Rented  ──►  back to Approved
+│     turnover. reversible, free, no re-review
+│
+└──►  Archived
+      removal. terminal, and relisting costs a slot
 ```
+
+**Rented and Archived are not one state.** This section previously read
+"Unavailable / Archived", and the schema implemented only the second half — so
+the portal's "Mark as rented" button archived permanently and cost the agent a
+submission slot to undo. See **ADR-035**, which separates them.
+
+- **Rented** is turnover: the property is let for now. Free in both directions,
+  consumes no submission slot, keeps existing inspections, and returns to
+  Approved with no re-review — which is safe only because a rented listing's
+  content cannot be edited in place. It is corrected through the revision path,
+  exactly as an approved listing is.
+- **Archived** is removal, and is terminal for every caller. Listing the
+  property again means a new listing, and a submission slot.
 
 State transitions MUST follow the approved workflow.
 
-Direct state manipulation is prohibited.
+Direct state manipulation is prohibited. `listings.status` is not granted to
+agents; every transition available to an agent is a `SECURITY DEFINER` function
+that checks ownership and the current state for itself.
 
 ---
 
@@ -340,6 +353,7 @@ Listings may become unavailable because:
 
 - Property rented.
 - Agent archived listing.
+- Agent marked a listing taken, or put it back on the market.
 - Moderation action.
 - Subscription restriction.
 - Verification issue.

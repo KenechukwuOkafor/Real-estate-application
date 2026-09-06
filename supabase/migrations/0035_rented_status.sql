@@ -1,0 +1,46 @@
+-- ---------------------------------------------------------------------------
+-- A listing can be off the market without being over.
+--
+-- "Mark as rented" has existed in the portal since 0022 and has never meant
+-- what it says. The button in archive-listing-button.tsx reads "Mark as
+-- rented"; it POSTs to /archive, which calls archive_own_listing, which sets
+-- 'archived' — and 'archived' is terminal at the database, enforced by the
+-- listings_archived_is_terminal trigger. An agent whose property was let
+-- destroyed the listing and had to spend another submission slot to bring it
+-- back.
+--
+-- That conflates two different events. ARCHIVED is permanent removal: wrong
+-- listing, done with it, and costing a slot to relist is correct because a
+-- relisting is new inventory. RENTED is turnover. Student housing in Nsukka
+-- turns over annually, and charging a slot every year for a property that
+-- keeps coming back charges most the agents we most want to keep.
+--
+-- ===========================================================================
+-- WHY THIS MIGRATION CONTAINS ONE STATEMENT
+-- ===========================================================================
+--
+-- Postgres permits ALTER TYPE ... ADD VALUE inside a transaction block, but
+-- refuses to EVALUATE the new value in that same transaction:
+--
+--   ERROR: unsafe use of new value "rented" of enum type listing_status
+--   SQLSTATE 55P04
+--
+-- 0036 rebuilds listings_duplicate_fingerprint_active_idx with 'rented' in its
+-- WHERE clause. That is a directly evaluated enum literal — the index is built
+-- immediately, and the literal is cast to listing_status while it is built. It
+-- cannot share a transaction with the line below.
+--
+-- A plpgsql function body is the exception, because its literals are parsed
+-- when the function runs rather than when it is created. That is why
+-- submit_listing_revision can compare against 'rented' in 0036 without
+-- trouble, and it is also why the billing slice can add its 'pending'
+-- subscription status in a single migration: nothing there evaluates the value
+-- outside a function body. An index cannot make that promise, so this split is
+-- the price of the index.
+--
+-- The Supabase CLI applies each migration file in its own transaction, so this
+-- one commits before 0036 begins. That is load-bearing, not incidental: merge
+-- these two files and the replay from zero fails at the index.
+-- ---------------------------------------------------------------------------
+
+alter type public.listing_status add value 'rented' after 'approved';
