@@ -349,7 +349,7 @@ comment was the specification that had to be rewritten.
 
 ## The shape to watch for
 
-Four instances of the same failure are now recorded in this project:
+Six instances of the same failure are now recorded in this project:
 
 | Where | The measurement | Why it could not fail |
 |---|---|---|
@@ -357,6 +357,8 @@ Four instances of the same failure are now recorded in this project:
 | Privilege assertions | `information_schema` | does not report `MAINTAIN` at all |
 | The revision suite | an admin-only path | the test supplied a non-admin, and that passed |
 | The populated-database replay | a backfill's `WHERE` clause | no seeded row matched it |
+| The rented-listing PATCH probe | an UPDATE's error field | an RLS refusal is HTTP 200 with zero rows |
+| The same probe, per column | a write that violated a CHECK | the error read as a refusal |
 
 In each case the check ran, reported success, and was structurally incapable of reporting
 anything else.
@@ -380,6 +382,57 @@ migration's backfill, constraint or data change is conditional — and almost al
 the condition needs a matching row in the seed, added in the same change as the migration.
 Otherwise the reassurance is real and the coverage is not.
 
+## The fifth and sixth: an instrument that had never been observed to fail
+
+The last two rows come from one probe, written for migration 0036, and they are recorded
+together because the second was found only by attacking the first.
+
+`rented` is a listing status that returns to `approved` with no moderation, which is safe
+only because a rented listing's content cannot be edited. That is enforced by an ABSENCE —
+`rented` is in neither the `agents_update_own_listings` policy nor
+`EDITABLE_LISTING_STATUSES` — so the probe PATCHes every column `authenticated` holds UPDATE
+on and requires all of them to be refused.
+
+**Row five is the first row of this table again, in a new costume.** The probe's first
+version asked whether the UPDATE returned an error. It does not: PostgREST answers an
+UPDATE that no policy admits with HTTP 200 and zero affected rows, because "no rows matched"
+is indistinguishable from a filter that found nothing. The assertion would have passed
+against a completely open database. This is the same defect as the RLS denial tests in row
+one, arriving four amendments later in a different tool, which is the argument for the table
+existing at all — the lesson did not transfer on its own.
+
+**Row six is the one worth changing behaviour over, and it was not found by reading.**
+
+The corrected probe passed. It was then MUTATION-TESTED: the
+`agents_update_own_listings` policy was deliberately widened to admit `rented`, the probe
+was re-run, and it should have named all sixteen columns as breached. It named fifteen.
+
+`sublet_months` was invisible to it. The probe wrote one column at a time, and
+`sublet_months = 4` against a fixture whose `rental_duration` is `'yearly'` violates the
+pairing CHECK from 0019. The statement therefore came back as an ERROR — and the probe
+treated an error as a refusal. Under a wide-open policy, that column was wide open and the
+probe reported it closed.
+
+The fix is in two parts, and the second is the general one. Columns that constrain each
+other are now written as patches that move together, so the statement is legal. And an
+error is now classified as a PROBE DEFECT rather than as a pass: a refusal by policy is
+200-with-zero-rows and nothing else, so anything that fails differently means the probe is
+not measuring what it claims to.
+
+### A probe that has never been observed to fail has an unknown blind spot
+
+This is the rule to take from it. A green security probe carries two claims — that the
+thing is closed, and that the probe can tell. The first is what everyone reads. The second
+is unverified until the probe has been seen to go red for the right reason.
+
+Mutation testing is how you find out, and it is cheap: break the thing the probe guards,
+confirm it objects, put it back. Fifteen-of-sixteen is a result that no amount of reading
+the probe would have produced, because the missing column looked exactly like the others.
+
+The three earlier rows in this table were all found by an incident or by an audit. This one
+was found in ten minutes by deliberately making a passing test fail — which is available
+before shipping rather than after.
+
 ## What to do about it
 
 - A comment in a test explaining why a weaker input is acceptable is a claim about the
@@ -394,6 +447,23 @@ Otherwise the reassurance is real and the coverage is not.
 - Prefer assertions that fail closed on an unexpected environment. `expect(error).toBeNull()`
   cannot tell you the call was refused for a *different* reason than the one under test;
   assert the sentinel.
+- Before trusting a security probe, make it fail. Widen the policy it guards, re-run it, and
+  check it names everything it should — then put the policy back. A probe never observed
+  failing has an unknown blind spot, and this is the only way to measure it.
+- Never let a probe treat "errored" and "refused" as the same outcome. They are different
+  results with different causes, and collapsing them is how a wide-open column reads as
+  closed.
+- Enumerate what a probe covers from the database — `information_schema.column_privileges`,
+  not a hand-written list. A column granted in a later migration is otherwise a hole the
+  probe keeps passing beside.
+- Ask where a link you just wrote actually lands. Adding "Change details" to a rented
+  listing in the same slice that created the status looked complete; the edit page's `isLive`
+  was `approved`-only, so it landed on "this listing cannot be edited" — leaving a rented
+  listing uncorrectable by any route, since direct editing is refused by design. Nothing
+  errored, no test covered a route that had never existed, and the page rendered fine. The
+  same question is worth asking of links already in the tree: `dashboard-listings-table.tsx`
+  and the dashboard activity feed both pointed at `/agent/listings/[listingId]`, which has
+  never existed.
 
 ---
 
