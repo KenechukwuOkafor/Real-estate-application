@@ -363,6 +363,11 @@ Six instances of the same failure are now recorded in this project:
 In each case the check ran, reported success, and was structurally incapable of reporting
 anything else.
 
+A seventh instance is recorded below and is **not** a member of this set. Those six are
+instruments that could not see what they were pointed at. The seventh is an instrument
+pointed in the right place, working correctly, at a defect that landed somewhere else
+entirely.
+
 **The fourth is the sharpest, and it is different in kind.** The first three made a *defect*
 invisible. The fourth made a *check* meaningless — and it did so inside the instrument built
 specifically to catch this class of problem.
@@ -433,6 +438,70 @@ The three earlier rows in this table were all found by an incident or by an audi
 was found in ten minutes by deliberately making a passing test fail — which is available
 before shipping rather than after.
 
+## The seventh: a defect whose blast radius did not follow the change
+
+Migration 0039 added a storage read policy for the new agent-avatar bucket. It mirrored the
+row policy on the profile itself:
+
+```sql
+and ap.deleted_at is null
+and ap.verification_status = 'verified'
+```
+
+`anon` holds SELECT on `verification_status` and not on `deleted_at`. A policy body is not
+`SECURITY DEFINER` — its subqueries run with the caller's privileges — so for an anonymous
+caller this policy did not admit and did not deny. **It raised.**
+
+The rule was already written down. Migration 0040, one file later in the same slice, says it
+about this exact table:
+
+> Postgres refuses a `WHERE` on a column the caller cannot SELECT — so a defensive
+> `.is("deleted_at", null)` here would fail the query outright rather than being harmlessly
+> redundant.
+
+It was broken one migration *earlier*, in a policy body rather than an application query,
+where it did not look like the thing the rule was about.
+
+### Why this one is different in kind
+
+`SELECT` policies on a table are OR'd and Postgres evaluates them all. A policy that raises
+does not merely fail to admit its own rows — it fails the whole statement, including rows
+another policy would have admitted.
+
+`storage.objects` holds every bucket's policies together. So a broken policy about **avatars**
+denied anonymous reads of every **listing image** on the site: every photo on every public
+listing page, from a change to a bucket that had not existed an hour earlier.
+
+What caught it was `an anonymous visitor can read an approved listing's image` — a test
+about a bucket this slice never touched, in a suite nobody would have thought to run against
+an avatar change.
+
+The six rows above all share a mitigation: a better instrument, aimed more honestly at the
+thing it claims to measure. **That mitigation would not have helped here.** No avatar test
+would have found this, however well written — a policy that raises for everyone is
+indistinguishable from a policy that admits nobody, so a suite of avatar *denials* stays
+fully green through it, and even a positive avatar assertion only finds it if someone thinks
+to write one before knowing the failure exists.
+
+The defect landed where the author had no reason to look. The mitigation is therefore not a
+sharper instrument but a **broad enough suite that unrelated things break** — and, at
+review time, the question of where else a shared object's policies are evaluated together.
+
+### What follows from it
+
+- **Check every column in a policy body against the grant held by every role in its `to`
+  clause.** A policy body is not privileged. This is the same rule as "never filter on an
+  ungranted column", and it is easiest to miss precisely where it is written in SQL rather
+  than in a query builder.
+- **Treat `storage.objects` as one shared surface.** Its policies are not partitioned by
+  bucket; they are OR'd together per statement. A change scoped to one bucket is not scoped
+  to one bucket.
+- **Keep tests that assert unrelated things still work, and run the whole suite.** The value
+  of the broad suite is precisely that it covers what the author was not thinking about. A
+  targeted run of "the tests for the thing I changed" would have been green.
+- **Pair every new read policy with a positive assertion**, not only denials. A denial suite
+  cannot distinguish "correctly closed" from "raising for everyone".
+
 ## What to do about it
 
 - A comment in a test explaining why a weaker input is acceptable is a claim about the
@@ -456,6 +525,11 @@ before shipping rather than after.
 - Enumerate what a probe covers from the database — `information_schema.column_privileges`,
   not a hand-written list. A column granted in a later migration is otherwise a hole the
   probe keeps passing beside.
+- Check every column named in a policy body against the grant held by every role in the
+  policy's `to` clause. A policy body runs with the caller's privileges, so an ungranted
+  column makes the policy raise — and a raising policy fails the whole statement, not just
+  its own rows. On `storage.objects`, where every bucket's policies are evaluated together,
+  that reaches buckets the change never touched.
 - Ask where a link you just wrote actually lands. Adding "Change details" to a rented
   listing in the same slice that created the status looked complete; the edit page's `isLive`
   was `approved`-only, so it landed on "this listing cannot be edited" — leaving a rented
