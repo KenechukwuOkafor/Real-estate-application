@@ -135,7 +135,7 @@ An agent additionally owns:
 The following resources are publicly accessible:
 
 - Published listings
-- Public agent profile (future)
+- Public agent profile at `/a/<handle>` — verified agents only (ADR-036)
 - Cities
 - Areas
 
