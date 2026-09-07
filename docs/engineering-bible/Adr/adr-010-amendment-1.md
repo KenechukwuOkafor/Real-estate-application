@@ -303,6 +303,48 @@ The residual today: an admin can attribute a moderation decision to a *different
 Small, and the result is still a moderation record made by someone entitled to make one.
 Recorded rather than fixed; not in the stack that introduced the check.
 
+## Known residual — `agent_profiles.user_id` is readable across rows
+
+Migration 0037 closed `free_listing_quota`, which any signed-in caller could read for every
+verified agent. That was found by probe:
+
+```
+set local role authenticated;   -- no JWT claims at all
+select id, display_name, free_listing_quota from public.agent_profiles;
+--  fbbda28e-...-6001 | Prime Homes Nsukka | 47
+```
+
+`user_id` came back on the same row, under the same mechanism —
+`public_can_read_verified_agent_profiles` is `to anon, authenticated`, so the column grant
+answers every signed-in stranger, not only the row's owner. **It was deliberately not
+closed in that change.**
+
+The reason it is harder than its neighbour, and the reason it is its own decision:
+
+- **It has a genuine cross-row reader.** `inspection-service` reads the *listing agent's*
+  `user_id` to refuse a self-request. That is a legitimate read of somebody else's row.
+  (The rule is separately enforced inside `create_inspection_request_with_chat`, so the
+  application-side check is a UX pre-check — but it is a real call site.)
+- **Every own-row lookup FILTERS on it.** `getAgentProfileByUserId` and its siblings do
+  `.eq("user_id", <caller>)`, and Postgres refuses a `WHERE` on a column the caller cannot
+  SELECT. Revoking the column does not merely remove a read; it breaks the primary lookup
+  path that every authenticated agent page runs on every request.
+
+**The fully consistent shape** is to move those lookups onto `current_agent_profile_id()`
+and filter on `id`, at which point `user_id` has no reader outside `service_role` and can be
+revoked with the self-request pre-check restructured or dropped. That is a change to how
+every agent page resolves its own profile — the same class of change as the reviewer
+residual above, where the honest fix is to the caller's client strategy rather than to the
+column.
+
+The residual today: any signed-in user can read the internal `users` id of any verified
+agent. An opaque uuid for an agent who is already publicly listed, and materially smaller
+than remaining inventory, which is why the two were separated rather than bundled. 0026 made
+the same call in the other direction for the same reason — *"a larger change than this one
+and should be decided rather than smuggled in here"*.
+
+Recorded rather than fixed; not in the slice that introduced the probe.
+
 ## Requirements added
 
 6. **Default privileges are revoked as a default, not as a sweep.** `ALTER DEFAULT
@@ -349,28 +391,195 @@ comment was the specification that had to be rewritten.
 
 ## The shape to watch for
 
-This is the third form of the same failure recorded in this amendment:
+Six instances of the same failure are now recorded in this project:
 
 | Where | The measurement | Why it could not fail |
 |---|---|---|
 | RLS denial tests | HTTP status | denial and success both return 200 |
 | Privilege assertions | `information_schema` | does not report `MAINTAIN` at all |
 | The revision suite | an admin-only path | the test supplied a non-admin, and that passed |
+| The populated-database replay | a backfill's `WHERE` clause | no seeded row matched it |
+| The rented-listing PATCH probe | an UPDATE's error field | an RLS refusal is HTTP 200 with zero rows |
+| The same probe, per column | a write that violated a CHECK | the error read as a refusal |
 
 In each case the check ran, reported success, and was structurally incapable of reporting
 anything else.
+
+A seventh instance is recorded below and is **not** a member of this set. Those six are
+instruments that could not see what they were pointed at. The seventh is an instrument
+pointed in the right place, working correctly, at a defect that landed somewhere else
+entirely.
+
+**The fourth is the sharpest, and it is different in kind.** The first three made a *defect*
+invisible. The fourth made a *check* meaningless — and it did so inside the instrument built
+specifically to catch this class of problem.
+
+The populated-database job exists because the replay from zero cannot test an upgrade: on an
+empty database "a backfill matches nothing, a constraint is trivially satisfiable, and a
+statement whose cost scales with row count is instant". Migration 0034 added
+`listings.rejected_at` and backfilled `where status = 'rejected'`. The seed contained no
+rejected listing. So the job seeded, migrated, matched zero rows, and reported success —
+having verified exactly as much as the empty-database job it was built to compensate for.
+
+Nothing about the job was wrong. The job did what it says. What was missing was a row, and
+the absence of a row is not something a green check can express.
+
+**So: a job that tests an upgrade path is only as good as the fixture it upgrades.** When a
+migration's backfill, constraint or data change is conditional — and almost all of them are —
+the condition needs a matching row in the seed, added in the same change as the migration.
+Otherwise the reassurance is real and the coverage is not.
+
+## The fifth and sixth: an instrument that had never been observed to fail
+
+The last two rows come from one probe, written for migration 0036, and they are recorded
+together because the second was found only by attacking the first.
+
+`rented` is a listing status that returns to `approved` with no moderation, which is safe
+only because a rented listing's content cannot be edited. That is enforced by an ABSENCE —
+`rented` is in neither the `agents_update_own_listings` policy nor
+`EDITABLE_LISTING_STATUSES` — so the probe PATCHes every column `authenticated` holds UPDATE
+on and requires all of them to be refused.
+
+**Row five is the first row of this table again, in a new costume.** The probe's first
+version asked whether the UPDATE returned an error. It does not: PostgREST answers an
+UPDATE that no policy admits with HTTP 200 and zero affected rows, because "no rows matched"
+is indistinguishable from a filter that found nothing. The assertion would have passed
+against a completely open database. This is the same defect as the RLS denial tests in row
+one, arriving four amendments later in a different tool, which is the argument for the table
+existing at all — the lesson did not transfer on its own.
+
+**Row six is the one worth changing behaviour over, and it was not found by reading.**
+
+The corrected probe passed. It was then MUTATION-TESTED: the
+`agents_update_own_listings` policy was deliberately widened to admit `rented`, the probe
+was re-run, and it should have named all sixteen columns as breached. It named fifteen.
+
+`sublet_months` was invisible to it. The probe wrote one column at a time, and
+`sublet_months = 4` against a fixture whose `rental_duration` is `'yearly'` violates the
+pairing CHECK from 0019. The statement therefore came back as an ERROR — and the probe
+treated an error as a refusal. Under a wide-open policy, that column was wide open and the
+probe reported it closed.
+
+The fix is in two parts, and the second is the general one. Columns that constrain each
+other are now written as patches that move together, so the statement is legal. And an
+error is now classified as a PROBE DEFECT rather than as a pass: a refusal by policy is
+200-with-zero-rows and nothing else, so anything that fails differently means the probe is
+not measuring what it claims to.
+
+### A probe that has never been observed to fail has an unknown blind spot
+
+This is the rule to take from it. A green security probe carries two claims — that the
+thing is closed, and that the probe can tell. The first is what everyone reads. The second
+is unverified until the probe has been seen to go red for the right reason.
+
+Mutation testing is how you find out, and it is cheap: break the thing the probe guards,
+confirm it objects, put it back. Fifteen-of-sixteen is a result that no amount of reading
+the probe would have produced, because the missing column looked exactly like the others.
+
+The three earlier rows in this table were all found by an incident or by an audit. This one
+was found in ten minutes by deliberately making a passing test fail — which is available
+before shipping rather than after.
+
+## The seventh: a defect whose blast radius did not follow the change
+
+Migration 0039 added a storage read policy for the new agent-avatar bucket. It mirrored the
+row policy on the profile itself:
+
+```sql
+and ap.deleted_at is null
+and ap.verification_status = 'verified'
+```
+
+`anon` holds SELECT on `verification_status` and not on `deleted_at`. A policy body is not
+`SECURITY DEFINER` — its subqueries run with the caller's privileges — so for an anonymous
+caller this policy did not admit and did not deny. **It raised.**
+
+The rule was already written down. Migration 0040, one file later in the same slice, says it
+about this exact table:
+
+> Postgres refuses a `WHERE` on a column the caller cannot SELECT — so a defensive
+> `.is("deleted_at", null)` here would fail the query outright rather than being harmlessly
+> redundant.
+
+It was broken one migration *earlier*, in a policy body rather than an application query,
+where it did not look like the thing the rule was about.
+
+### Why this one is different in kind
+
+`SELECT` policies on a table are OR'd and Postgres evaluates them all. A policy that raises
+does not merely fail to admit its own rows — it fails the whole statement, including rows
+another policy would have admitted.
+
+`storage.objects` holds every bucket's policies together. So a broken policy about **avatars**
+denied anonymous reads of every **listing image** on the site: every photo on every public
+listing page, from a change to a bucket that had not existed an hour earlier.
+
+What caught it was `an anonymous visitor can read an approved listing's image` — a test
+about a bucket this slice never touched, in a suite nobody would have thought to run against
+an avatar change.
+
+The six rows above all share a mitigation: a better instrument, aimed more honestly at the
+thing it claims to measure. **That mitigation would not have helped here.** No avatar test
+would have found this, however well written — a policy that raises for everyone is
+indistinguishable from a policy that admits nobody, so a suite of avatar *denials* stays
+fully green through it, and even a positive avatar assertion only finds it if someone thinks
+to write one before knowing the failure exists.
+
+The defect landed where the author had no reason to look. The mitigation is therefore not a
+sharper instrument but a **broad enough suite that unrelated things break** — and, at
+review time, the question of where else a shared object's policies are evaluated together.
+
+### What follows from it
+
+- **Check every column in a policy body against the grant held by every role in its `to`
+  clause.** A policy body is not privileged. This is the same rule as "never filter on an
+  ungranted column", and it is easiest to miss precisely where it is written in SQL rather
+  than in a query builder.
+- **Treat `storage.objects` as one shared surface.** Its policies are not partitioned by
+  bucket; they are OR'd together per statement. A change scoped to one bucket is not scoped
+  to one bucket.
+- **Keep tests that assert unrelated things still work, and run the whole suite.** The value
+  of the broad suite is precisely that it covers what the author was not thinking about. A
+  targeted run of "the tests for the thing I changed" would have been green.
+- **Pair every new read policy with a positive assertion**, not only denials. A denial suite
+  cannot distinguish "correctly closed" from "raising for everyone".
 
 ## What to do about it
 
 - A comment in a test explaining why a weaker input is acceptable is a claim about the
   authorization model. Check it against the model, not against the code's current behaviour
   — the code's current behaviour is what you are trying to verify.
+- When a migration changes data conditionally, ask what row makes the condition true and
+  whether the seed has one. A passing upgrade job proves nothing about a `WHERE` that matched
+  nothing.
 - When a security fix makes tests fail, read the failures as specification changes before
   reaching for the tests. Four failures here were the suite correctly reporting that its
   assumption had been withdrawn.
 - Prefer assertions that fail closed on an unexpected environment. `expect(error).toBeNull()`
   cannot tell you the call was refused for a *different* reason than the one under test;
   assert the sentinel.
+- Before trusting a security probe, make it fail. Widen the policy it guards, re-run it, and
+  check it names everything it should — then put the policy back. A probe never observed
+  failing has an unknown blind spot, and this is the only way to measure it.
+- Never let a probe treat "errored" and "refused" as the same outcome. They are different
+  results with different causes, and collapsing them is how a wide-open column reads as
+  closed.
+- Enumerate what a probe covers from the database — `information_schema.column_privileges`,
+  not a hand-written list. A column granted in a later migration is otherwise a hole the
+  probe keeps passing beside.
+- Check every column named in a policy body against the grant held by every role in the
+  policy's `to` clause. A policy body runs with the caller's privileges, so an ungranted
+  column makes the policy raise — and a raising policy fails the whole statement, not just
+  its own rows. On `storage.objects`, where every bucket's policies are evaluated together,
+  that reaches buckets the change never touched.
+- Ask where a link you just wrote actually lands. Adding "Change details" to a rented
+  listing in the same slice that created the status looked complete; the edit page's `isLive`
+  was `approved`-only, so it landed on "this listing cannot be edited" — leaving a rented
+  listing uncorrectable by any route, since direct editing is refused by design. Nothing
+  errored, no test covered a route that had never existed, and the page rendered fine. The
+  same question is worth asking of links already in the tree: `dashboard-listings-table.tsx`
+  and the dashboard activity feed both pointed at `/agent/listings/[listingId]`, which has
+  never existed.
 
 ---
 
