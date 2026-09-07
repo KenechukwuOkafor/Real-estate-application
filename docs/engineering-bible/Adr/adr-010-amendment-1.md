@@ -303,6 +303,48 @@ The residual today: an admin can attribute a moderation decision to a *different
 Small, and the result is still a moderation record made by someone entitled to make one.
 Recorded rather than fixed; not in the stack that introduced the check.
 
+## Known residual — `agent_profiles.user_id` is readable across rows
+
+Migration 0037 closed `free_listing_quota`, which any signed-in caller could read for every
+verified agent. That was found by probe:
+
+```
+set local role authenticated;   -- no JWT claims at all
+select id, display_name, free_listing_quota from public.agent_profiles;
+--  fbbda28e-...-6001 | Prime Homes Nsukka | 47
+```
+
+`user_id` came back on the same row, under the same mechanism —
+`public_can_read_verified_agent_profiles` is `to anon, authenticated`, so the column grant
+answers every signed-in stranger, not only the row's owner. **It was deliberately not
+closed in that change.**
+
+The reason it is harder than its neighbour, and the reason it is its own decision:
+
+- **It has a genuine cross-row reader.** `inspection-service` reads the *listing agent's*
+  `user_id` to refuse a self-request. That is a legitimate read of somebody else's row.
+  (The rule is separately enforced inside `create_inspection_request_with_chat`, so the
+  application-side check is a UX pre-check — but it is a real call site.)
+- **Every own-row lookup FILTERS on it.** `getAgentProfileByUserId` and its siblings do
+  `.eq("user_id", <caller>)`, and Postgres refuses a `WHERE` on a column the caller cannot
+  SELECT. Revoking the column does not merely remove a read; it breaks the primary lookup
+  path that every authenticated agent page runs on every request.
+
+**The fully consistent shape** is to move those lookups onto `current_agent_profile_id()`
+and filter on `id`, at which point `user_id` has no reader outside `service_role` and can be
+revoked with the self-request pre-check restructured or dropped. That is a change to how
+every agent page resolves its own profile — the same class of change as the reviewer
+residual above, where the honest fix is to the caller's client strategy rather than to the
+column.
+
+The residual today: any signed-in user can read the internal `users` id of any verified
+agent. An opaque uuid for an agent who is already publicly listed, and materially smaller
+than remaining inventory, which is why the two were separated rather than bundled. 0026 made
+the same call in the other direction for the same reason — *"a larger change than this one
+and should be decided rather than smuggled in here"*.
+
+Recorded rather than fixed; not in the slice that introduced the probe.
+
 ## Requirements added
 
 6. **Default privileges are revoked as a default, not as a sweep.** `ALTER DEFAULT
