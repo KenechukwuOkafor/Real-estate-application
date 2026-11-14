@@ -20,7 +20,9 @@ const SOURCE_ROOT = join(process.cwd(), "src");
 
 const SELF = `src${sep}lib${sep}no-unbacked-support-promise.test.ts`;
 
-const FORBIDDEN = /contact\s+(support|us)\b/i;
+// "Let us know" is the same promise in other words. The generic fallback said it
+// on every unmapped error, agent and seeker alike, with no way to reach anyone.
+const FORBIDDEN = /contact\s+(support|us)\b|let\s+us\s+know/i;
 
 function collectSourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -42,7 +44,7 @@ describe("no unbacked promise of support", () => {
     expect(files.length).toBeGreaterThan(100);
   });
 
-  it('never tells anyone to "contact support" or "contact us"', () => {
+  it('never tells anyone to "contact support", "contact us" or "let us know"', () => {
     const offenders = files
       .map((file) => relative(process.cwd(), file))
       .filter((file) => file !== SELF)
@@ -56,6 +58,9 @@ describe("no unbacked promise of support", () => {
     // exact strings this slice removed.
     expect(FORBIDDEN.test("Your account cannot submit listings. Contact support.")).toBe(true);
     expect(FORBIDDEN.test("Contact us and we will sort it out.")).toBe(true);
+    expect(FORBIDDEN.test("Please try again — if it keeps happening, let us know.")).toBe(true);
+    // Not the same thing: a promise we make, not one we ask them to keep.
+    expect(FORBIDDEN.test("We will let you know as soon as it is reviewed.")).toBe(false);
     expect(FORBIDDEN.test("Message us on WhatsApp")).toBe(false);
   });
 

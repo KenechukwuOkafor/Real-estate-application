@@ -9,9 +9,9 @@ import type { SupportTopic } from "@/lib/support-contact";
  * (editability.ts, 0022) — and the one sentence that explained why sat in the
  * database unread. Rejections were fixed for exactly this; these two were not.
  *
- * Pure and in one place because four surfaces show it — the dashboard queue,
- * the listing card, the editor and the status band — and the wording has three
- * jobs that must not drift between them:
+ * Pure and in one place because three surfaces show it — the dashboard queue,
+ * the listing card and the editor — and the wording has three jobs that must
+ * not drift between them:
  *
  *  1. A FLAG IS A QUESTION, NOT A VERDICT. Nothing here says the agent did
  *     anything wrong, because they may not have.
@@ -76,7 +76,7 @@ export function moderationHold(listing: ModerationHoldInput): ModerationHold | n
   return null;
 }
 
-/** The one-line form, for the dashboard queue and the status band. */
+/** The one-line form, for the dashboard queue. */
 export function moderationHoldTitle(hold: ModerationHold, listingTitle: string): string {
   return hold.kind === "flagged"
     ? `A moderator has a question about "${listingTitle}"`

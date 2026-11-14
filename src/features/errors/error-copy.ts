@@ -140,9 +140,16 @@ export const ERROR_COPY: Readonly<Record<string, string>> = {
  * blame the reader, and it says the one true actionable thing. Deliberately not
  * the raw code, and deliberately not "an unexpected error occurred", which
  * tells the reader only that we were surprised.
+ *
+ * It used to end by asking the reader to tell us if it kept happening — on every unmapped error,
+ * for agents and seekers alike, with no way to reach anyone. Removed rather than
+ * linked: the WhatsApp route is for agents, and whether a seeker gets one is an
+ * open product question (see the 2026-11-14 billing-scan report). An unmapped
+ * code is reported to us on its own (reportUnmappedCode), so the reader does not
+ * need to tell us for us to know.
  */
 export const FALLBACK_ERROR_COPY =
-  "Something went wrong on our side. Please try again — if it keeps happening, let us know.";
+  "Something went wrong on our side. Please try again in a moment.";
 
 const reportedCodes = new Set<string>();
 

@@ -852,6 +852,66 @@ diff to review.
 
 ---
 
+# A Fixture Must Leave the Database as It Found It
+
+> A suite never runs once. It runs on every CI run and every local run, and
+> every other suite reads the rows it touched. A fixture that doesn't clean up
+> becomes the seed.
+
+## The rule
+
+A test that mutates rows it didn't create (seeded rows, or rows another suite
+owns) **captures their values in `beforeAll` and restores them in `afterAll`,
+with errors checked.** A test that creates rows deletes exactly what it created,
+in an order the constraints accept, and fails loudly if a delete fails. "It only
+ran once" is not something you can assume about a suite.
+
+## Evidence
+
+Four instances, each found only because something unrelated broke:
+
+1. **A restore written as a test** (`03d8d97`, written up in `a61b615`).
+   Vitest runs tests in file order, so the restore ran *before* the denials it
+   protected. It emptied the values they existed to prove were withheld, and
+   every denial passed against a null column. A mutation written as a test has
+   no declared position; `beforeAll` and `afterAll` do.
+2. **A teardown that made the next suite skip** (`77557f7`). Eight suites insert
+   an agent profile for the same cast users against a UNIQUE `user_id`. One
+   imperfect teardown made the next suite's `beforeAll` throw. Its tests were
+   reported as *skipped*, not failed, and it skipped its own cleanup too. The fix
+   reuses a profile when present and deletes it only when the suite created it.
+3. **A teardown that swallowed its errors** (`8d643a8`). Neither delete could
+   succeed: an approved listing refuses a null cover image, and the listing
+   still referenced its image. Three fixtures survived into the seeded feed and
+   broke an unrelated duration suite two files later.
+4. **Seeded rows never restored** (`4969dab`, found 2026-11-14).
+   `agent-profiles-column-grants.test.ts` wrote PROBE strings into the seed's
+   Prime Homes Nsukka on every full run and never removed them. A second suite
+   that *did* restore "originals" captured the PROBE values as the originals
+   and faithfully put them back. A verified agent carried a suspension reason in
+   every database the suite had touched, until a manual reset.
+
+## The tell
+
+The fourth instance shows the trap in the correct pattern: **restore-to-captured
+preserves whatever an earlier broken run left behind.** It keeps a clean
+database clean; it does not clean a dirty one. When a suite's teardown is fixed,
+reset the database once, and check that the rows are clean after a full run,
+not just after one suite.
+
+## Applying it
+
+- `beforeAll` captures, `afterAll` restores, and every write in both is
+  error-checked. Never a test.
+- Delete in dependency order: break references first (`cover_image_id` to null,
+  a status that permits it), then children, then the row.
+- Reuse shared rows (cast profiles) when present, and delete them only when this
+  suite created them.
+- After changing a fixture, run the **full** suite and check the seeded rows it
+  touches. A suite that passes alone can still corrupt the next one.
+
+---
+
 # Common Quality Issues
 
 Avoid:
