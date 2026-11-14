@@ -5,7 +5,10 @@ import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { assertSupportContactConfigured } from "./src/lib/support-contact";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Off so it never sits on top of the agent portal's Home tab in a screenshot.
+  // Every visual check of the portal is a headless capture now, and a badge
+  // covering part of the bottom bar at 360px is noise in every pixel diff.
+  devIndicators: false,
 };
 
 /**
