@@ -3,10 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { SupportWhatsAppLink } from "@/components/support-whatsapp-link";
 import {
   errorCopyForResponse,
   fieldErrorsFrom,
+  supportTopicForResponse,
 } from "@/features/errors/error-copy";
+import type { SupportTopic } from "@/lib/support-contact";
 import { listingRentalDurationOptions } from "@/features/listings/options";
 import { subletLengthWarning } from "@/features/listings/rental-duration";
 
@@ -53,6 +56,7 @@ export function ProposeListingChangeForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [supportTopic, setSupportTopic] = useState<SupportTopic | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const subletWarning =
@@ -83,6 +87,7 @@ export function ProposeListingChangeForm({
     setIsSubmitting(true);
     setMessage(null);
     setError(null);
+    setSupportTopic(null);
     setFieldErrors({});
 
     const response = await fetch(
@@ -112,6 +117,9 @@ export function ProposeListingChangeForm({
       const fields = fieldErrorsFrom(payload);
       setFieldErrors(fields);
       setError(Object.keys(fields).length > 0 ? null : errorCopyForResponse(payload));
+      // 0044: a suspended agent's revision is refused with a sentence that
+      // sends them to a person, so the link travels with it.
+      setSupportTopic(supportTopicForResponse(payload));
       setIsSubmitting(false);
       return;
     }
@@ -253,6 +261,12 @@ export function ProposeListingChangeForm({
       </p>
 
       {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+      {error && supportTopic ? (
+        <SupportWhatsAppLink
+          className="text-sm font-medium text-rose-800 underline underline-offset-4"
+          topic={supportTopic}
+        />
+      ) : null}
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
 
       <div className="flex justify-end">
