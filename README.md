@@ -94,10 +94,9 @@ npm run build
 
 ## Project Docs
 
-- `ARCHITECTURE.md` — system rules, RBAC, state machines, listing constraints
-- `SCHEMA.md` — database schema, enums, table definitions, RLS expectations
-- `API_CONTRACTS.md` — endpoint contracts, request/response shapes, pagination format
-- `AGENT_RULES.md` — engineering rules, coding standards, migration rules
+`docs/engineering-bible/` is the single source of truth: the ADR register
+(`Adr/adr-000.md`), architecture, domain specifications and engineering
+standards. `CLAUDE.md` is a short orientation that points into it.
 
 ## Folder Structure
 

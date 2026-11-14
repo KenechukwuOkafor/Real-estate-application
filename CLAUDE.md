@@ -66,10 +66,6 @@ populated database.
 the bible, it's binding, whatever any session remembers. A decision made in
 conversation isn't real until it's written into the bible.
 
-The root-level `ARCHITECTURE.md`, `SCHEMA.md`, `API_CONTRACTS.md`,
-`AGENT_RULES.md` and `MEMORY.md` come from before the bible. Where they
-conflict with it, the bible wins.
-
 ## How we work
 
 - **One slice per PR.** Make commits atomic, and make each one typecheck on its
