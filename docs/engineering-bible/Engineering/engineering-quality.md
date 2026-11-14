@@ -789,6 +789,64 @@ A slice that changes what a page says has to look at the page.
 
 ---
 
+# Anything Not in Git Is Not in the System
+
+> If a fresh clone cannot reproduce it, it is not part of the system — it is
+> state on one machine that the system happens to depend on.
+
+## The rule
+
+Configuration, schema changes, documentation and the list of what an
+environment needs all live in the repository, or they are recorded there as
+the one thing that cannot be. A working local stack proves nothing about the
+repository: it proves the machine.
+
+## Evidence
+
+Four instances, found in one sweep in August 2026 (`779d4cd`, `88d9c5e`,
+`9a7da2f`):
+
+1. **`supabase/config.toml` had never been tracked.** The local stack ran on
+   CLI defaults. Whether RLS recognised Clerk-issued JWTs depended on
+   undeclared local state — and when it doesn't, every ownership predicate is
+   false and every query returns an empty array that looks exactly like a
+   correct denial.
+2. **Migrations 0008–0013 were applied by hand and unrecorded.** The schema on
+   the machine and the schema the repository could replay were not known to be
+   the same. A fresh replay is the only proof they are; CI now replays every
+   migration from zero on every run, which is the check that catches this.
+3. **The entire documentation set sat outside version control**, in a
+   directory under the home folder. Five ADRs were added and eleven documents
+   amended with no reviewable diff and no undo — while ADR-029 required docs to
+   live beside the code.
+4. **`.env.example` was swallowed by the `.env*` gitignore rule.** It holds no
+   values, only the names of the variables a new environment must provide.
+
+## The fourth is different in kind
+
+The first three were omissions: nobody added the file. The fourth was a
+**rule actively hiding** the only record of what a new environment needs. An
+omission shows up the first time anyone looks for the file. A gitignore rule
+makes the file look present on every machine that already has it, and absent
+only on the clone that needed it. Review cannot catch it, because there is no
+diff to review.
+
+## Applying it
+
+- After any setup step, ask: would a fresh clone get this? If not, commit it,
+  or record why it can't be committed and how to reproduce it.
+- What genuinely cannot live in git — a dashboard setting, a third-party
+  console toggle — is still written down in the repository, step by step. The
+  Clerk `role` claim and the Sentry alert rules in
+  `docs/operations/observability-runbook.md` are the pattern.
+- A broad ignore rule (`.env*`, `*.local`, a whole directory) is checked for
+  what it catches, not just what it was written for. `git check-ignore -v
+  <path>` says which rule hides a file.
+- A decision made in conversation is the same class of thing. It is not
+  decided until it is in the bible.
+
+---
+
 # Common Quality Issues
 
 Avoid:

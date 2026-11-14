@@ -225,6 +225,7 @@ Audit records are read-only.
 | BR-ADM-004 | Audit logs are immutable. | Critical |
 | BR-ADM-005 | Reports must remain traceable until resolved. | High |
 | BR-ADM-006 | Suspended users lose access immediately. | Critical |
+| BR-ADM-007 | A report never enforces by itself. No automatic suspension or removal on any report count; escalation may reorder the review queue, but every enforcement action is an admin's decision. | Critical |
 
 ---
 
