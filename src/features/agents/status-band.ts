@@ -1,3 +1,9 @@
+import {
+  moderationHold,
+  moderationHoldDetail,
+  moderationHoldTitle,
+} from "@/features/agents/moderation-hold";
+
 /**
  * What an agent can do today, as data.
  *
@@ -35,6 +41,8 @@ export type StatusBandInput = {
   freeListingQuota: number;
   incomingRequests: number;
   listings: Array<{
+    dispute_reason?: string | null;
+    flag_reason?: string | null;
     id: string;
     rejection_reason: string | null;
     status: string;
@@ -162,6 +170,22 @@ export function agentStatusBand(input: StatusBandInput): StatusBand {
   const attention: AttentionItem[] = [];
 
   for (const listing of input.listings) {
+    const hold = moderationHold({
+      dispute_reason: listing.dispute_reason ?? null,
+      flag_reason: listing.flag_reason ?? null,
+      status: listing.status,
+    });
+
+    if (hold) {
+      attention.push({
+        detail: moderationHoldDetail(hold),
+        href: `/agent/listings?focus=${listing.id}`,
+        hrefLabel: "See the listing",
+        title: moderationHoldTitle(hold, listing.title),
+      });
+      continue;
+    }
+
     if (listing.status !== "rejected") {
       continue;
     }
