@@ -365,8 +365,32 @@ export async function approveListingAsAdmin(listingId: string) {
   return listing;
 }
 
+/**
+ * The sentence an agent will read, required and never substituted.
+ *
+ * Reject, flag and dispute each used to fall back to a stock phrase when the
+ * reason was blank — "Rejected by admin review.", "Listing flagged for manual
+ * review.", "Ownership dispute requires manual resolution." Each told the agent
+ * nothing, and each is exactly the placeholder a moderator in a hurry accepts.
+ * The agent now reads this text verbatim on their dashboard and on the listing,
+ * so an empty one is refused rather than papered over.
+ */
+function requireModerationReason(reason: string | null | undefined): string {
+  const trimmed = (reason ?? "").trim();
+
+  if (!trimmed) {
+    throw new AppError(
+      "MODERATION_REASON_REQUIRED",
+      "A reason is required: the agent reads it as written.",
+    );
+  }
+
+  return trimmed;
+}
+
 export async function rejectListingAsAdmin(listingId: string, reason: string) {
   const appUser = await requireAdminContext();
+  const agentFacingReason = requireModerationReason(reason);
 
   const adminClient = getSupabaseAdminClient();
   const currentListing = await getListingById(adminClient, listingId);
@@ -389,7 +413,7 @@ export async function rejectListingAsAdmin(listingId: string, reason: string) {
     // which is why the activity feed could not order rejections at all before
     // 0034. The backfill there is an approximation; from now on this is exact.
     rejected_at: new Date().toISOString(),
-    rejection_reason: reason.trim() || "Rejected by admin review.",
+    rejection_reason: agentFacingReason,
   });
 
   await writeAuditLog({
@@ -408,6 +432,7 @@ export async function rejectListingAsAdmin(listingId: string, reason: string) {
 
 export async function flagListingAsAdmin(listingId: string, reason: string) {
   const appUser = await requireAdminContext();
+  const agentFacingReason = requireModerationReason(reason);
 
   const adminClient = getSupabaseAdminClient();
   const currentListing = await getListingById(adminClient, listingId);
@@ -424,7 +449,7 @@ export async function flagListingAsAdmin(listingId: string, reason: string) {
 
   const listing = await updateListingStatus(adminClient, listingId, "flagged", currentListing.status, {
     dispute_reason: null,
-    flag_reason: reason.trim() || "Listing flagged for manual review.",
+    flag_reason: agentFacingReason,
   });
 
   await writeAuditLog({
@@ -443,6 +468,7 @@ export async function flagListingAsAdmin(listingId: string, reason: string) {
 
 export async function disputeListingAsAdmin(listingId: string, reason: string) {
   const appUser = await requireAdminContext();
+  const agentFacingReason = requireModerationReason(reason);
 
   const adminClient = getSupabaseAdminClient();
   const currentListing = await getListingById(adminClient, listingId);
@@ -458,7 +484,7 @@ export async function disputeListingAsAdmin(listingId: string, reason: string) {
   );
 
   const listing = await updateListingStatus(adminClient, listingId, "under_dispute", currentListing.status, {
-    dispute_reason: reason.trim() || "Ownership dispute requires manual resolution.",
+    dispute_reason: agentFacingReason,
   });
 
   await writeAuditLog({

@@ -66,6 +66,7 @@ type ErrorDefinition = {
 export const ERROR_CODES = {
   // ---------------------------------------------------------- validation
   VALIDATION_ERROR: { category: "validation", httpStatus: 422 },
+  MODERATION_REASON_REQUIRED: { category: "validation", httpStatus: 422 },
   JOB_PAYLOAD_INVALID: { category: "validation", httpStatus: 422 },
 
   // ------------------------------------------------------ authentication

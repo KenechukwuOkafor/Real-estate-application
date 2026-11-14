@@ -54,9 +54,13 @@ vi.mock("@/server/services/user-sync-service", () => ({
   })),
 }));
 
-const { approveAgentVerificationAsAdmin } = await import(
-  "@/server/services/admin-service"
-);
+const {
+  approveAgentVerificationAsAdmin,
+  disputeListingAsAdmin,
+  flagListingAsAdmin,
+  rejectListingAsAdmin,
+} = await import("@/server/services/admin-service");
+const agentsRepository = await import("@/server/repositories/agents-repository");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -180,4 +184,56 @@ describe("approveAgentVerificationAsAdmin", () => {
 
     expect(ensureUserRoles).not.toHaveBeenCalled();
   });
+});
+
+describe("the reason an agent reads is required, never substituted", () => {
+  // Each of these used to fall back to a stock phrase on a blank reason —
+  // "Rejected by admin review.", "Listing flagged for manual review.",
+  // "Ownership dispute requires manual resolution." — which the agent then read
+  // as the explanation. The agent sees this text verbatim, so blank is refused.
+  const cases = [
+    { action: rejectListingAsAdmin, column: "rejection_reason", from: "pending_review", name: "reject" },
+    { action: flagListingAsAdmin, column: "flag_reason", from: "approved", name: "flag" },
+    { action: disputeListingAsAdmin, column: "dispute_reason", from: "approved", name: "dispute" },
+  ] as const;
+
+  function arrange(status: string) {
+    vi.mocked(agentsRepository.getListingById).mockResolvedValue({
+      id: "listing_1",
+      status,
+    } as never);
+    vi.mocked(agentsRepository.updateListingStatus).mockImplementation(
+      async (_client, id, next, _previous, fields) =>
+        ({ id, status: next, ...(fields as object) }) as never,
+    );
+  }
+
+  for (const { action, column, from, name } of cases) {
+    it(`${name}: refuses a blank or whitespace reason and writes nothing`, async () => {
+      arrange(from);
+
+      for (const blank of ["", "   ", "\n\t"]) {
+        await expect(action("listing_1", blank)).rejects.toMatchObject({
+          code: "MODERATION_REASON_REQUIRED",
+        });
+      }
+
+      expect(agentsRepository.updateListingStatus).not.toHaveBeenCalled();
+      expect(writeAuditLog).not.toHaveBeenCalled();
+    });
+
+    it(`${name}: stores the moderator's words exactly, trimmed`, async () => {
+      // The positive control. Without it the refusal above could be any
+      // failure at all, including one that refuses every reason.
+      arrange(from);
+
+      await action("listing_1", "  The photos show a different building.  ");
+
+      const fields = vi.mocked(agentsRepository.updateListingStatus).mock.calls[0][4] as Record<
+        string,
+        unknown
+      >;
+      expect(fields[column]).toBe("The photos show a different building.");
+    });
+  }
 });

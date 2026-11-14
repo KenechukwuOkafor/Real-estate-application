@@ -21,13 +21,12 @@ export function ListingModerationActions({
   listingStatus,
 }: ListingModerationActionsProps) {
   const router = useRouter();
-  const [moderationReason, setModerationReason] = useState(
-    listingStatus === "approved"
-      ? "Ownership mismatch."
-      : listingStatus === "flagged"
-        ? "Competing ownership claim received."
-        : "Duplicate or invalid listing.",
-  );
+  // Starts empty, deliberately. It used to start with a stock sentence per
+  // status ("Ownership mismatch.", "Duplicate or invalid listing."), and the
+  // agent reads this text verbatim — so a hurried click sent them a canned
+  // phrase that explained nothing, and a required-reason check on the server
+  // would have passed it. The placeholder says what to write instead.
+  const [moderationReason, setModerationReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,11 +114,17 @@ export function ListingModerationActions({
         ) : null}
       </div>
 
-      <textarea
-        className="min-h-24 rounded-2xl border border-stone-900/10 bg-white px-4 py-3 text-sm"
-        onChange={(event) => setModerationReason(event.target.value)}
-        value={moderationReason}
-      />
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="font-medium text-stone-800">
+          Reason the agent will read
+        </span>
+        <textarea
+          className="min-h-24 rounded-2xl border border-stone-900/10 bg-white px-4 py-3 text-sm"
+          onChange={(event) => setModerationReason(event.target.value)}
+          placeholder="Required for reject, flag and dispute. Say what you saw and what would resolve it — the agent sees exactly this."
+          value={moderationReason}
+        />
+      </label>
 
       {error ? <p className="text-xs text-rose-700">{error}</p> : null}
       {message ? <p className="text-xs text-emerald-700">{message}</p> : null}

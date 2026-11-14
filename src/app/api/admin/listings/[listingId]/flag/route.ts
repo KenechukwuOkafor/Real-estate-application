@@ -19,7 +19,7 @@ export async function POST(request: Request, context: RouteContext) {
     requireUuid(listingId, "Listing");
     const listing = await flagListingAsAdmin(
       listingId,
-      body.reason ?? "Listing flagged for manual review.",
+      body.reason ?? "",
     );
 
     return NextResponse.json({

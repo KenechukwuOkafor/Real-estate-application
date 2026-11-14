@@ -19,7 +19,7 @@ export async function POST(request: Request, context: RouteContext) {
     requireUuid(listingId, "Listing");
     const listing = await disputeListingAsAdmin(
       listingId,
-      body.reason ?? "Ownership dispute requires manual resolution.",
+      body.reason ?? "",
     );
 
     return NextResponse.json({

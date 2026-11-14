@@ -126,6 +126,8 @@ export const ERROR_COPY: Readonly<Record<string, string>> = {
   CHAT_NOT_FOUND: "We could not find that conversation.",
   CONFLICT: "Something changed while you were working. Reload the page and try again.",
   VALIDATION_ERROR: "Some details are missing or do not look right. Check the form and try again.",
+  MODERATION_REASON_REQUIRED:
+    "Write the reason the agent will read. It is shown to them exactly as you write it.",
   RATE_LIMITED: "That is a lot of requests at once. Wait a moment and try again.",
 };
 
