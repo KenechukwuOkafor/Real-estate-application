@@ -30,6 +30,11 @@ export type SubmitReadinessInput = {
   freeListingQuota: number;
   hasActiveSubscription: boolean;
   priceNaira: number;
+  /**
+   * The route to a person, for the one item that cannot be resolved inside
+   * the product. Passed in rather than built here so this stays pure.
+   */
+  supportHref?: string | null;
   verificationStatus: VerificationStatus;
 };
 
@@ -39,6 +44,8 @@ export type ReadinessItem = {
   met: boolean;
   /** Shown when not met. Says what to do, never what is wrong with them. */
   hint?: string;
+  /** Somewhere to go to do it, when the hint names a place. */
+  action?: { href: string; label: string };
 };
 
 export const MINIMUM_LISTING_IMAGES = 3;
@@ -49,7 +56,10 @@ export const MINIMUM_LISTING_IMAGES = 3;
  * A pending review is not a failure by the agent and must not read like one —
  * they are waiting on us, and there is nothing for them to do.
  */
-function verificationItem(status: VerificationStatus): ReadinessItem {
+function verificationItem(
+  status: VerificationStatus,
+  supportHref?: string | null,
+): ReadinessItem {
   if (status === "verified") {
     return { label: "Identity verified", met: true };
   }
@@ -72,7 +82,10 @@ function verificationItem(status: VerificationStatus): ReadinessItem {
 
   if (status === "suspended") {
     return {
-      hint: "Your account is on hold. Contact us and we will sort it out.",
+      ...(supportHref
+        ? { action: { href: supportHref, label: "Message us on WhatsApp" } }
+        : {}),
+      hint: "Your account is on hold. Message us on WhatsApp and we will sort it out.",
       label: "Account on hold",
       met: false,
     };
@@ -121,7 +134,7 @@ export function submitReadiness(input: SubmitReadinessInput): ReadinessItem[] {
         }),
   };
 
-  return [photos, details, verificationItem(input.verificationStatus), entitlement];
+  return [photos, details, verificationItem(input.verificationStatus, input.supportHref), entitlement];
 }
 
 /** True when nothing is outstanding. The server still decides. */

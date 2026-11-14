@@ -33,6 +33,8 @@ import type { SubmitReadinessInput } from "@/features/agents/submit-readiness";
 type Entitlement = {
   freeListingQuota: number;
   hasActiveSubscription: boolean;
+  /** Built on the server, and only for a suspended agent. */
+  supportHref?: string | null;
   verificationStatus: SubmitReadinessInput["verificationStatus"];
 };
 
@@ -99,6 +101,7 @@ export function AgentListingCard({
           freeListingQuota: entitlement.freeListingQuota,
           hasActiveSubscription: entitlement.hasActiveSubscription,
           priceNaira: card.priceNaira,
+          supportHref: entitlement.supportHref,
           verificationStatus: entitlement.verificationStatus,
         })
       : null;

@@ -57,12 +57,31 @@ describe("agentStatusBand", () => {
       expect(rejected.detail).toMatch(/again/i);
     });
 
-    it("offers no action on a suspended account", () => {
-      // There is nothing an agent can do here, and a "fix this" link would
-      // send them to a page that cannot help.
-      expect(
-        fact(agentStatusBand(input({ verificationStatus: "suspended" })), "Verification").href,
-      ).toBeUndefined();
+    it("offers a person, not a page, on a suspended account", () => {
+      // Nothing inside the product resolves a suspension, and a "fix this"
+      // link would send them to a page that cannot help. What helps is a
+      // human, so the only action offered is the support link.
+      const suspended = fact(
+        agentStatusBand(
+          input({ supportHref: "https://wa.me/2348030000000?text=x", verificationStatus: "suspended" }),
+        ),
+        "Verification",
+      );
+
+      expect(suspended.href).toBe("https://wa.me/2348030000000?text=x");
+      expect(suspended.hrefLabel).toBe("Message us on WhatsApp");
+      expect(suspended.href).not.toContain("/agent/");
+    });
+
+    it("never offers an action it cannot back with a link", () => {
+      // The defect this replaced: a promise of support with nothing behind it.
+      const suspended = fact(
+        agentStatusBand(input({ verificationStatus: "suspended" })),
+        "Verification",
+      );
+
+      expect(suspended.href).toBeUndefined();
+      expect(suspended.detail).not.toMatch(/contact\s+support/i);
     });
 
     it("treats an unrecognised status as not started rather than crashing", () => {

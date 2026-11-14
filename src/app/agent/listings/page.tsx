@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { AgentListingsList } from "@/features/agents/components/agent-listings-list";
 import { parseListingFilters } from "@/features/agents/listing-cards";
 import { LISTING_GROUPS } from "@/features/agents/listing-groups";
-import { getCurrentAgentListingCards } from "@/server/services/agent-service";
+import { supportWhatsappUrl } from "@/lib/support-contact";
+import {
+  getAgentOnboardingContext,
+  getCurrentAgentListingCards,
+} from "@/server/services/agent-service";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +26,23 @@ export default async function AgentListingsPage({
   }
 
   const { cards, entitlement, windowDays } = overview;
+
+  // The one checklist item that cannot be resolved inside the product. Built
+  // only when it can appear, so an agent in good standing pays nothing for it.
+  const supportHref =
+    entitlement.verificationStatus === "suspended"
+      ? await getAgentOnboardingContext()
+          .then(({ agentProfile }) =>
+            supportWhatsappUrl({
+              agent: {
+                displayName: agentProfile?.display_name ?? null,
+                handle: agentProfile?.handle ?? null,
+              },
+              topic: "account_suspended",
+            }),
+          )
+          .catch(() => supportWhatsappUrl({ topic: "account_suspended" }))
+      : null;
 
   /*
     A query parameter rather than a hash fragment, and the difference matters.
@@ -125,6 +146,7 @@ export default async function AgentListingsPage({
             entitlement={{
               freeListingQuota: entitlement.freeListingQuota,
               hasActiveSubscription: Boolean(entitlement.activeSubscription),
+              supportHref,
               verificationStatus: entitlement.verificationStatus,
             }}
             focusId={focusId}

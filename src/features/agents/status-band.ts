@@ -40,6 +40,8 @@ export type StatusBandInput = {
     status: string;
     title: string;
   }>;
+  /** The route to a person, offered where the product cannot resolve it. */
+  supportHref?: string | null;
   verificationStatus: string;
 };
 
@@ -48,7 +50,7 @@ export type StatusBand = {
   facts: StatusFact[];
 };
 
-function verificationFact(status: string): StatusFact {
+function verificationFact(status: string, supportHref?: string | null): StatusFact {
   switch (status) {
     case "verified":
       return {
@@ -79,7 +81,9 @@ function verificationFact(status: string): StatusFact {
       };
     case "suspended":
       return {
-        detail: "Your account cannot submit listings. Contact support.",
+        detail:
+          "Your account cannot submit listings right now. Message us on WhatsApp and we will tell you why.",
+        ...(supportHref ? { href: supportHref, hrefLabel: "Message us on WhatsApp" } : {}),
         label: "Verification",
         tone: "blocked",
         value: "Suspended",
@@ -175,7 +179,7 @@ export function agentStatusBand(input: StatusBandInput): StatusBand {
   return {
     attention,
     facts: [
-      verificationFact(input.verificationStatus),
+      verificationFact(input.verificationStatus, input.supportHref),
       slotsFact(input),
       requestsFact(input.incomingRequests),
     ],
