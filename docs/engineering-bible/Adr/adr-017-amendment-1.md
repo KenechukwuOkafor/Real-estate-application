@@ -60,7 +60,7 @@ so.
 |---|---|
 | **Be seen by seekers.** Their listings leave every public surface, and `/a/<handle>` stops resolving. | Already true: `public_can_read_verified_agent_profiles` admits only `verified`, and public listing reads inner-join it. |
 | **Submit a listing for review.** | Already true: entitlement requires `verified`. |
-| **Submit a revision to a listing.** | **New.** `submit_listing_revision` refuses a caller who is not `verified`. This closes the gap above: a hidden agent must not keep feeding the moderation queue. |
+| **Submit a revision to a listing.** | **New.** `submit_listing_revision` refuses a `suspended` caller (0044). This closes the gap above: a hidden agent must not keep feeding the moderation queue. It checks `suspended` specifically, not "anything but verified", because a verified agent can only move to suspended, so suspended is the only non-verified status that can hold an approved or rented listing. The broader test would also have refused fixtures modelling an unverified owner, a state production can't reach. |
 | **Resubmit verification.** | Already true: `suspended` is not a resubmittable status. |
 
 ## What a suspended agent can still do, deliberately
@@ -101,6 +101,11 @@ From the agent shown on each row of `/admin/listings`. That page gains a small
 admin navigation linking it and `/admin/verification`. Until now nothing linked
 to the moderation queue at all, and adding a suspension surface behind an
 unreachable page would make a second unreachable admin page.
+
+The same page lists **every suspended agent**, with their reason and a
+Reinstate button, whether or not they still have a listing in the queue.
+Without that, suspending from a queue row would be a one-way door: once the
+agent's listings left the queue, there would be no Reinstate button anywhere.
 
 ---
 
