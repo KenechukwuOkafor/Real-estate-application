@@ -296,7 +296,7 @@ export function formatReplyTime(minutes: number | null) {
  * Whether the agent has run out of submission slots.
  *
  * EXTRACTED BECAUSE THE FIRST VERSION WAS DEAD CODE. The dashboard derived
- * this by scanning agentStatusBand().attention for an item whose title
+ * this by scanning the old status band's attention list for an item whose title
  * mentioned slots — and that list only ever contains rejected listings. The
  * branch could not fire, so the slots warning never rendered for anybody, and
  * nothing failed: the seeded verified agent has three slots, so no test and no

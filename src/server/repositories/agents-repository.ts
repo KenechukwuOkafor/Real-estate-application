@@ -675,8 +675,8 @@ export async function getPendingListingRevision(
  * Every revision this agent has proposed that a moderator has since acted on
  * or is still holding, newest first.
  *
- * THE SECOND REJECTION CHANNEL. agentStatusBand only knows about
- * listings.rejection_reason, so a rejected REVISION on an approved listing was
+ * THE SECOND REJECTION CHANNEL. The status band this replaced (deleted
+ * 2026-11-14) only knew listings.rejection_reason, so a rejected REVISION on an approved listing was
  * surfaced nowhere at all: the listing stays approved and live, the correction
  * the agent made was refused, and nothing on any screen said so. They found
  * out by opening the listing and noticing their edit had not taken.
