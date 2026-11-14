@@ -181,6 +181,13 @@ Expansion should occur incrementally based on operational maturity rather than m
 
 Each new city should inherit mature operational processes before launch.
 
+## Who is on the other end
+
+Most seekers and agents in Nsukka reach Ruvo on a phone, on metered data. Every
+page weight, image and round trip is paid for by the person using it, in money.
+That is the reason ADR-008 makes Ruvo mobile-first; desktop is the extension,
+not the baseline.
+
 ---
 
 # Growth Philosophy
