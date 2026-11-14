@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { SupportWhatsAppLink } from "@/components/support-whatsapp-link";
 import { ListingForm } from "@/features/agents/components/listing-form";
 import { ListingImageManager } from "@/features/agents/components/listing-image-manager";
 import { ProposeListingChangeForm } from "@/features/agents/components/propose-listing-change-form";
@@ -13,6 +14,7 @@ import { formatListingStatus } from "@/features/listings/format";
 import { isUuid } from "@/lib/api/identifiers";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import {
+  getAgentOnboardingContext,
   getCurrentAgentListingForEdit,
   getCurrentAgentPendingRevision,
 } from "@/server/services/agent-service";
@@ -51,6 +53,17 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
   const isLive = isListingRevisable(listing.status);
   const pendingRevision = isLive
     ? await getCurrentAgentPendingRevision(listing.id).catch(() => null)
+    : null;
+  // Only on the one branch that offers a route to a person, so every other
+  // render of this page pays nothing for it.
+  const missingReason = listing.status === "rejected" && !listing.rejection_reason;
+  const supportAgent = missingReason
+    ? await getAgentOnboardingContext()
+        .then(({ agentProfile }) => ({
+          displayName: agentProfile?.display_name ?? null,
+          handle: agentProfile?.handle ?? null,
+        }))
+        .catch(() => null)
     : null;
   const images = (listing.listing_images ?? [])
     .filter((image) => !image.deleted_at)
@@ -111,14 +124,21 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
           that the explanation is missing, rather than wondering whether they
           missed it.
         */}
-        {listing.status === "rejected" && !listing.rejection_reason ? (
+        {missingReason ? (
           <section className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-6">
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-900">
               Why this was rejected
             </h2>
             <p className="mt-3 text-base leading-7 text-rose-900">
-              No reason was recorded. Contact support before resubmitting.
+              No reason was recorded. Message us on WhatsApp before resubmitting, so
+              you know what to change.
             </p>
+            <SupportWhatsAppLink
+              agent={supportAgent}
+              className="mt-3 inline-block text-sm font-medium text-rose-900 underline underline-offset-4"
+              listing={{ title: listing.title }}
+              topic="listing_rejected_without_reason"
+            />
           </section>
         ) : null}
 
