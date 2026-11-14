@@ -29,9 +29,7 @@ behind, the answer is no, however convenient the change is.
 - Supabase Postgres. Authorization is enforced in the database (RLS policies
   plus column grants), not only in application code.
 - Clerk for auth and Sentry for observability. Paystack and Vercel are planned.
-- Vitest for tests. `npm run test` is the main suite. `npm run test:rendered`
-  needs a running app, is local-only and is deliberately left out of CI (see
-  "The Rendered Suites Are Local-Only" in `engineering-quality.md`).
+- Vitest for tests.
 - The job queue is a Postgres table drained on a schedule by
   `.github/workflows/scheduled-jobs.yml` (ADR-032).
 - Migrations are in `supabase/migrations/` and numbered in sequence.
@@ -45,6 +43,26 @@ production. `docs/operations/observability-runbook.md` has the current status.
 CI has three jobs, and all three must pass: typecheck and lint; replay every
 migration from zero and run the full suite; replay migrations against a
 populated database.
+
+## Commands
+
+```bash
+npx supabase start      # local stack; applies every migration, then seed.sql
+npx supabase db reset   # wipe and replay migrations and seed from zero
+npm run dev             # app on http://localhost:3001
+npm run typecheck       # next typegen && tsc --noEmit
+npm run lint            # zero warnings allowed
+npm run test            # the suite CI runs
+npm run test:rendered   # needs the app running; never runs in CI
+```
+
+**The rendered suites are left out of CI on purpose.** They need a running
+app, and building and starting one in CI adds about 90 seconds to every run.
+That cost was weighed against a class of bug that hadn't escaped yet. Don't
+"fix" this by adding a CI job. The bet has a written trigger and a ledger of
+instances, and the decision to add the job belongs there. Until then, run
+`npm run test:rendered` yourself before opening a PR that touches a rendered
+page. See "The Rendered Suites Are Local-Only" in `engineering-quality.md`.
 
 ## Where the real memory lives
 
@@ -112,9 +130,10 @@ line below is a summary; the full write-ups explain why and are worth reading.
   diff shows it. Test it by attempting the forbidden action and requiring a
   refusal. See "Absence of Assertion Is Absence of Test" in
   `engineering-quality.md`, and ADR-035.
-- **Anything not in git is not in the system.** That includes dashboard
-  settings, manual database changes, local config and decisions made in chat.
-  If you can't replay it from the repo, it doesn't exist.
+- **Anything not in git is not in the system.** If a fresh clone can't
+  reproduce something, it's state on one machine. The sharpest instance was a
+  gitignore rule hiding `.env.example`, the only record of what a new
+  environment needs. See the section of that name in `engineering-quality.md`.
 
 ## Authorization, condensed
 
@@ -145,7 +164,8 @@ ADR-010-A1 has the reasoning. Read it, not just this list.
 - **Error codes are a registry** (`src/lib/api/error-codes.ts`). Nothing
   classifies an error by matching its message text.
 - **Copy tells the person what to do next and never blames them.**
-- **Mobile-first.**
+- **Mobile-first.** The reason is in the product vision ("Who is on the other
+  end") and ADR-008.
 
 ## Known residuals: decided, and deliberately not fixed
 
@@ -155,6 +175,7 @@ Don't "fix" these without a bible change that reverses the decision.
   ADR-010-A1 has the known-residual note.
 - `apply_listing_revision` takes `reviewer_user_id` from the caller.
   ADR-010-A1 has the known-residual note.
-- Areas are still free text, not a reference table.
+- Areas are still free text, not a reference table. ADR-037 records the cost
+  and the constraint on the fix. A second town can't launch until it's fixed.
 - `expired` is still in the inspection enum as a leftover value. It is derived
   and can never be written. See ADR-019-A1.
