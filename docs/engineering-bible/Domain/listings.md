@@ -187,6 +187,19 @@ Every published listing MUST include:
 
 Optional fields are defined separately.
 
+## Price must be a stated amount
+
+A listing carries a number. "Call for price", "DM for price" and any other
+placeholder are forbidden: a hidden price is the first step of the bait the
+platform exists to remove, and it moves the negotiation off-platform before a
+seeker has seen anything reviewed.
+
+## Property type constrains the room count
+
+`self_contain` means one bedroom and one bathroom. The database enforces it
+(`check (property_type <> 'self_contain' or (bedrooms = 1 and bathrooms = 1))`,
+migration 0001), so a form that offers other values for a self-contain is wrong.
+
 ---
 
 # Images
