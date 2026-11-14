@@ -23,6 +23,15 @@ import { AppError } from "@/lib/api/errors";
  */
 const SENTINELS: Array<[string, string, string]> = [
   ["LISTING_IMAGE_NOT_FOUND", "LISTING_IMAGE_NOT_FOUND", "Image not found on this listing."],
+  // 0044. Suspension. None is a substring of another entry.
+  ["AGENT_SUSPENDED", "AGENT_SUSPENDED", "A suspended agent cannot submit changes for review."],
+  ["MODERATION_REASON_REQUIRED", "MODERATION_REASON_REQUIRED", "A reason is required: the agent reads it as written."],
+  ["AGENT_PROFILE_NOT_FOUND", "AGENT_PROFILE_NOT_FOUND", "Agent profile not found."],
+  [
+    "VERIFICATION_STATE_TRANSITION_INVALID",
+    "VERIFICATION_STATE_TRANSITION_INVALID",
+    "The agent's status changed before this could be applied.",
+  ],
   ["LISTING_NOT_FOUND", "LISTING_NOT_FOUND", "Listing not found."],
   [
     "LISTING_STATE_TRANSITION_INVALID",

@@ -75,6 +75,7 @@ export const ERROR_CODES = {
   // ------------------------------------------------------- authorization
   UNAUTHORIZED: { category: "authorization", httpStatus: 403 },
   AGENT_NOT_VERIFIED: { category: "authorization", httpStatus: 403 },
+  AGENT_SUSPENDED: { category: "authorization", httpStatus: 403 },
   SUBSCRIPTION_REQUIRED: { category: "authorization", httpStatus: 403 },
 
   // ------------------------------------------------------- business rule

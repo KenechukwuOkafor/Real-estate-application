@@ -24,7 +24,10 @@ import { AppError } from "@/lib/api/errors";
 import {
   applyListingRevision,
   listPendingListingRevisions,
+  listSuspendedAgents,
+  reinstateAgent,
   rejectListingRevision,
+  suspendAgent,
 } from "@/server/repositories/agents-repository";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { VERIFIED_AGENT_LISTING_QUOTA } from "@/server/policies/listing-entitlement";
@@ -499,4 +502,73 @@ export async function disputeListingAsAdmin(listingId: string, reason: string) {
   });
 
   return listing;
+}
+
+// ---------------------------------------------------------------- suspension
+//
+// ADR-017-A1. Suspension hides an agent from seekers and stops them submitting
+// listings or changes; their conversations and inspections continue. Applied
+// and lifted only here, through the 0044 functions, with an audit row each way.
+
+/**
+ * Suspend a verified agent. The reason is required and never substituted: the
+ * agent reads it as written, on their account and verification pages.
+ */
+export async function suspendAgentAsAdmin(agentProfileId: string, reason: string) {
+  const appUser = await requireAdminContext();
+  const agentFacingReason = requireModerationReason(reason);
+
+  const result = await suspendAgent(
+    getSupabaseAdminClient(),
+    agentProfileId,
+    appUser.user.id,
+    agentFacingReason,
+  );
+
+  if (!result) {
+    throw new AppError("AGENT_PROFILE_NOT_FOUND", "Agent profile not found.");
+  }
+
+  await writeAuditLog({
+    action: "agent.suspended",
+    actorUserId: appUser.user.id,
+    afterData: {
+      suspension_reason: result.suspension_reason,
+      verification_status: "suspended",
+    },
+    beforeData: { verification_status: "verified" },
+    entityId: agentProfileId,
+    entityType: "agent_profile",
+  });
+
+  return result;
+}
+
+/** Lift a suspension: back to verified, and the reason cleared. */
+export async function reinstateAgentAsAdmin(agentProfileId: string) {
+  const appUser = await requireAdminContext();
+
+  const result = await reinstateAgent(getSupabaseAdminClient(), agentProfileId, appUser.user.id);
+
+  if (!result) {
+    throw new AppError("AGENT_PROFILE_NOT_FOUND", "Agent profile not found.");
+  }
+
+  await writeAuditLog({
+    action: "agent.reinstated",
+    actorUserId: appUser.user.id,
+    afterData: { verification_status: "verified" },
+    beforeData: { verification_status: "suspended" },
+    entityId: agentProfileId,
+    entityType: "agent_profile",
+  });
+
+  return result;
+}
+
+/** Every suspended agent, so a suspension is never a one-way door. */
+export async function listSuspendedAgentsForAdmin() {
+  await requireAdminContext();
+
+  return listSuspendedAgents(getSupabaseAdminClient());
 }

@@ -15,6 +15,7 @@ const getOwnAgentFreeListingQuota = vi.fn();
 // the resubmission test reaches it. Defaults to null: the reason is rendered
 // on /agent/verification, not consulted by any decision here.
 const getOwnAgentRejectionReason = vi.fn().mockResolvedValue(null);
+const getOwnAgentSuspensionReason = vi.fn().mockResolvedValue(null);
 const getCurrentAppUser = vi.fn();
 const getCurrentListingEntitlementSubscription = vi.fn();
 const getOwnedListing = vi.fn();
@@ -35,6 +36,7 @@ vi.mock("@/server/repositories/agents-repository", () => ({
   getAgentProfileByUserId,
   getOwnAgentFreeListingQuota,
   getOwnAgentRejectionReason,
+  getOwnAgentSuspensionReason,
   getAgentProfileWithSubscriptionsByUserId: vi.fn(),
   getOwnedListing,
   listAgentListings: vi.fn(),
