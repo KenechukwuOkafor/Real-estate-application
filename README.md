@@ -1,5 +1,13 @@
 # Ruvo
 
+> **Parts of this README are stale** (recorded 2026-11-14, not yet fixed):
+> the migration list stops at 0007 while `supabase/migrations/` holds 43 files;
+> the seeded-users table lists `*@ruvo.local` addresses, but dev auth uses the four
+> `+clerk_test@example.com` personas in `src/lib/auth/dev-auth.ts`; "What Is
+> Built" and "Next Priority" predate most of the agent portal, and "Next
+> Priority" lists an inspection expiry job that ADR-019-A1 replaced with
+> read-time expiry. `docs/engineering-bible/` is authoritative.
+
 Trust-first real estate marketplace infrastructure for verified listings, starting in Nsukka.
 
 ## Stack
