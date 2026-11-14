@@ -336,7 +336,10 @@ jobs:
               and p.proname in (
                 'enqueue_job','claim_jobs','complete_job','fail_job',
                 'job_queue_health','apply_listing_revision',
-                'reject_listing_revision','assert_caller_moderates')
+                'reject_listing_revision','assert_caller_moderates',
+                -- 0044. SECURITY DEFINER governance writes: suspending an
+                -- agent from a client role would be the whole exposure.
+                'suspend_agent','reinstate_agent')
               and has_function_privilege(r.role, p.oid, 'EXECUTE');")
           echo "client-role EXECUTE on service-role functions: $fnexec"
           test "$fnexec" = "0"
@@ -364,7 +367,9 @@ jobs:
                 -- Reads listing_views, which no client role may select at all
                 -- (0014). If anon ever holds EXECUTE on this, per-listing view
                 -- counts for every agent are readable with the public key.
-                'agent_listing_view_counts')
+                'agent_listing_view_counts',
+                -- 0044. Answers for the caller only, and anon is no caller.
+                'own_agent_suspension_reason')
               and has_function_privilege('anon', p.oid, 'EXECUTE');")
           echo "anon EXECUTE on authenticated-caller functions: $anonfn"
           test "$anonfn" = "0"

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { SupportWhatsAppLink } from "@/components/support-whatsapp-link";
 import { PortalSignOutButton } from "@/features/agents/components/sign-out-button";
+import { SuspensionNoticePanel } from "@/features/agents/components/suspension-notice-panel";
 import {
   getAgentOnboardingContext,
   getCurrentAgentListingsOverview,
@@ -72,6 +73,14 @@ export default async function AgentAccountPage() {
           </h1>
         </header>
 
+        {/*
+          SUSPENDED: the whole explanation, in place of the verification card.
+          "Suspended" and a link used to be all an agent got, and the reason —
+          the one thing that would tell them what happened — sat unread.
+        */}
+        {status === "suspended" ? (
+          <SuspensionNoticePanel agent={supportAgent} reason={context.suspensionReason} />
+        ) : (
         <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -84,7 +93,7 @@ export default async function AgentAccountPage() {
               className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                 isVerified
                   ? "bg-emerald-50 text-emerald-900"
-                  : status === "rejected" || status === "suspended"
+                  : status === "rejected"
                     ? "bg-rose-50 text-rose-800"
                     : "bg-amber-50 text-amber-900"
               }`}
@@ -92,21 +101,14 @@ export default async function AgentAccountPage() {
               {verification.label}
             </span>
           </div>
-          {status !== "suspended" ? (
-            <Link
-              className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
-              href="/agent/verification"
-            >
-              {isVerified ? "View your verification" : "Go to verification"}
-            </Link>
-          ) : (
-            <SupportWhatsAppLink
-              agent={supportAgent}
-              className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
-              topic="account_suspended"
-            />
-          )}
+          <Link
+            className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
+            href="/agent/verification"
+          >
+            {isVerified ? "View your verification" : "Go to verification"}
+          </Link>
         </section>
+        )}
 
         {/*
           THE LINK GOES TO THE PAGE, NOT THE FORM.
@@ -126,9 +128,11 @@ export default async function AgentAccountPage() {
         <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
           <h2 className="text-lg font-semibold">Public profile</h2>
           <p className="mt-1.5 text-sm leading-6 text-stone-700">
-            {handle
-              ? "One link with your photo, your verified mark and everything you have available. Made to paste into WhatsApp."
-              : "Create your profile to get a link you can share."}
+            {status === "suspended"
+              ? "Hidden from seekers while your account is suspended. You can still see it yourself."
+              : handle
+                ? "One link with your photo, your verified mark and everything you have available. Made to paste into WhatsApp."
+                : "Create your profile to get a link you can share."}
           </p>
           <div className="mt-3 flex flex-wrap gap-4">
             {handle ? (

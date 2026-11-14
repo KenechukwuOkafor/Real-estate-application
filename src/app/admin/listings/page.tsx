@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { redirect } from "next/navigation";
 
+import { AgentSuspensionControl } from "@/features/admin/components/agent-suspension-control";
 import {
   ListingModerationActions,
   type ModerationListingStatus,
@@ -12,6 +13,7 @@ import { listingRevisionDiff } from "@/features/admin/listing-revision-diff";
 import {
   listAdminListingRevisionQueue,
   listAdminModerationQueue,
+  listSuspendedAgentsForAdmin,
 } from "@/server/services/admin-service";
 import { getSupabaseAdminClient } from "@/lib/db/supabase";
 import { signListingImagePaths } from "@/server/services/listing-media-service";
@@ -52,6 +54,11 @@ export default async function AdminListingsPage() {
   // listings they already approved to find the line that moved.
   const pendingRevisions = await listAdminListingRevisionQueue().catch(() => []);
 
+  // Every suspended agent, whether or not they still have a listing here. Without
+  // this, Suspend on a queue row would be a one-way door: once the agent's
+  // listings left the queue there would be no Reinstate button anywhere.
+  const suspendedAgents = await listSuspendedAgentsForAdmin().catch(() => []);
+
   const signedImages = await signListingImagePaths(
     getSupabaseAdminClient(),
     listings.flatMap((listing) =>
@@ -83,6 +90,30 @@ export default async function AdminListingsPage() {
             Pending review queue.
           </h1>
         </section>
+
+        {suspendedAgents.length > 0 ? (
+          <section className="rounded-[1.75rem] border border-rose-200 bg-white/85 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-900">
+              Suspended agents
+            </p>
+            <p className="mt-2 text-sm leading-6 text-stone-700">
+              Hidden from seekers and unable to submit. Their conversations and
+              inspections continue. Reinstating returns them to verified.
+            </p>
+            <ul className="mt-4 flex flex-col gap-3">
+              {suspendedAgents.map((agent) => (
+                <li key={agent.id}>
+                  <AgentSuspensionControl
+                    agentName={agent.display_name}
+                    agentProfileId={agent.id}
+                    suspensionReason={agent.suspension_reason}
+                    verificationStatus="suspended"
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {listings.length === 0 ? (
           <div className="rounded-[1.75rem] border border-dashed border-stone-900/15 bg-white/75 p-8 text-stone-600">
@@ -313,11 +344,19 @@ export default async function AdminListingsPage() {
                         ) : null}
                       </div>
 
-                      <div className="min-w-[320px] lg:max-w-sm">
+                      <div className="flex min-w-[320px] flex-col gap-4 lg:max-w-sm">
                         <ListingModerationActions
                           listingId={listing.id}
                           listingStatus={listing.status as ModerationListingStatus}
                         />
+                        {listing.agent_profiles ? (
+                          <AgentSuspensionControl
+                            agentName={listing.agent_profiles.display_name}
+                            agentProfileId={listing.agent_profiles.id}
+                            suspensionReason={listing.agent_profiles.suspension_reason}
+                            verificationStatus={listing.agent_profiles.verification_status}
+                          />
+                        ) : null}
                       </div>
                     </div>
                   </article>

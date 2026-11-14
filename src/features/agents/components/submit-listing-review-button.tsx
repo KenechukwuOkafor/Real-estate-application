@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { errorCopyForResponse } from "@/features/errors/error-copy";
+
+import { SupportWhatsAppLink } from "@/components/support-whatsapp-link";
+import {
+  errorCopyForResponse,
+  supportTopicForResponse,
+} from "@/features/errors/error-copy";
+import type { SupportTopic } from "@/lib/support-contact";
 
 type SubmitListingReviewButtonProps = {
   listingId: string;
@@ -12,12 +18,14 @@ export function SubmitListingReviewButton({
 }: SubmitListingReviewButtonProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [supportTopic, setSupportTopic] = useState<SupportTopic | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function onClick() {
     setIsSubmitting(true);
     setMessage(null);
     setError(null);
+    setSupportTopic(null);
 
     const response = await fetch(`/api/agent/listings/${listingId}/submit`, {
       method: "POST",
@@ -32,6 +40,9 @@ export function SubmitListingReviewButton({
       // state, photo count and entitlement — and each has its own code, so the
       // copy names the one that actually fired instead of a generic refusal.
       setError(errorCopyForResponse(payload));
+      // A suspended agent's refusal says "message us on WhatsApp"; this is the
+      // link that makes that sentence true.
+      setSupportTopic(supportTopicForResponse(payload));
       setIsSubmitting(false);
       return;
     }
@@ -51,6 +62,12 @@ export function SubmitListingReviewButton({
         {isSubmitting ? "Submitting..." : "Submit for review"}
       </button>
       {error ? <p className="text-xs text-rose-700">{error}</p> : null}
+      {error && supportTopic ? (
+        <SupportWhatsAppLink
+          className="text-xs font-medium text-rose-800 underline underline-offset-4"
+          topic={supportTopic}
+        />
+      ) : null}
       {message ? <p className="text-xs text-emerald-700">{message}</p> : null}
     </div>
   );

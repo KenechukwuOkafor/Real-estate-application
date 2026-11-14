@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { SupportWhatsAppLink } from "@/components/support-whatsapp-link";
+import { SuspensionNoticePanel } from "@/features/agents/components/suspension-notice-panel";
 import { VerificationSubmissionForm } from "@/features/agents/components/verification-submission-form";
 import { getAgentOnboardingContext } from "@/server/services/agent-service";
 import type { Database } from "@/types/database";
@@ -23,7 +23,7 @@ const statusCopy: Record<VerificationStatus, string> = {
   rejected:
     "Your last submission was not approved. You can correct it and submit again below.",
   suspended:
-    "This account is suspended, so verification cannot be sent again for now. Message us on WhatsApp and we will tell you why and what happens next.",
+    "Verification cannot be sent again while your account is suspended.",
   verified:
     "You are verified. You can submit listings for review from your listings workspace.",
 };
@@ -65,14 +65,15 @@ export default async function AgentVerificationPage() {
         ) : null}
 
         {status === "suspended" ? (
-          <SupportWhatsAppLink
-            agent={{
-              displayName: context.agentProfile?.display_name ?? null,
-              handle: context.agentProfile?.handle ?? null,
-            }}
-            className="mt-4 inline-block text-base font-medium underline underline-offset-4"
-            topic="account_suspended"
-          />
+          <div className="mt-6">
+            <SuspensionNoticePanel
+              agent={{
+                displayName: context.agentProfile?.display_name ?? null,
+                handle: context.agentProfile?.handle ?? null,
+              }}
+              reason={context.suspensionReason}
+            />
+          </div>
         ) : null}
 
         {canSubmit ? (

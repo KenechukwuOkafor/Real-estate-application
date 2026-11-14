@@ -83,6 +83,14 @@ export type Database = {
         Returns: string | null;
       };
       /**
+       * The calling agent's own suspension reason, while suspended (0044).
+       * A function rather than a column grant, for the same reason as above.
+       */
+      own_agent_suspension_reason: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
+      /**
        * The calling agent's own remaining quota (migration 0037). A function
        * rather than a column grant, for the same reason as the line above:
        * authenticated also reads agent_profiles through the public policy, so
@@ -135,6 +143,16 @@ export type Database = {
       reject_listing_revision: {
         Args: { reason: string; reviewer_user_id: string; target_revision_id: string };
         Returns: Array<{ listing_id: string; revision_id: string }>;
+      };
+      /** 0044. Service role only; the moderator is checked to be an admin. */
+      reinstate_agent: {
+        Args: { moderator_user_id: string; target_agent_profile_id: string };
+        Returns: Array<{ agent_profile_id: string }>;
+      };
+      /** 0044. Service role only; the reason is required and shown to the agent. */
+      suspend_agent: {
+        Args: { moderator_user_id: string; reason: string; target_agent_profile_id: string };
+        Returns: Array<{ agent_profile_id: string; suspension_reason: string }>;
       };
       submit_listing_revision: {
         Args: {

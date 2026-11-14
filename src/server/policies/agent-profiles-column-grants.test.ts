@@ -11,7 +11,7 @@
  * Every denial below pairs with a service-role control proving the column
  * exists and holds a value, per ADR-010-A1: an empty result is not a denial.
  */
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   asAnon,
@@ -71,6 +71,8 @@ const UNRENDERED_COLUMNS = [
 suite("agent_profiles column grants", () => {
   let svc: ReturnType<typeof asServiceRole>;
   let verifiedProfileId: string;
+  let original: { rejection_reason: string | null; suspension_reason: string | null } | null =
+    null;
 
   beforeAll(async () => {
     svc = asServiceRole();
@@ -85,6 +87,20 @@ suite("agent_profiles column grants", () => {
 
     verifiedProfileId = data!.id;
 
+    // What was there before, so afterAll can put it back. This suite used to
+    // write the PROBE strings below onto the first verified profile — the
+    // seed's Prime Homes Nsukka, locally and in CI — and never remove them. The
+    // next suite to "restore originals" then restored the PROBE values, and a
+    // verified agent carried a suspension reason in every database this suite
+    // had touched. A fixture that does not clean up becomes the seed.
+    const before = await svc
+      .from("agent_profiles")
+      .select("rejection_reason, suspension_reason")
+      .eq("id", verifiedProfileId)
+      .single();
+    if (before.error) throw before.error;
+    original = before.data;
+
     // The control the denials lean on. A moderator has not written one of
     // these in the seed, so put a value there: proving a column is withheld
     // requires it to hold something to withhold.
@@ -95,6 +111,21 @@ suite("agent_profiles column grants", () => {
         suspension_reason: "PROBE suspension note",
       })
       .eq("id", verifiedProfileId);
+  });
+
+  afterAll(async () => {
+    // In afterAll, not a test: the denials below need the values present while
+    // they run, and vitest runs tests in file order.
+    if (!original) return;
+
+    const { error } = await svc
+      .from("agent_profiles")
+      .update(original)
+      .eq("id", verifiedProfileId);
+
+    if (error) {
+      throw new Error(`restore moderation columns: ${JSON.stringify(error)}`);
+    }
   });
 
   it("has a verified profile anon is allowed to see at row level", async () => {

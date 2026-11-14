@@ -216,6 +216,81 @@ export async function getOwnAgentRejectionReason(client: DbClient) {
   return data ?? null;
 }
 
+/** The calling agent's own suspension reason, while suspended. See 0044. */
+export async function getOwnAgentSuspensionReason(client: DbClient) {
+  const { data, error } = await client.rpc("own_agent_suspension_reason");
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
+}
+
+/**
+ * Suspend and reinstate (0044). Called with the service-role client after
+ * admin-service has established the caller is an admin; the functions check
+ * again, and check that the moderator named for the record holds the admin role.
+ */
+export async function suspendAgent(
+  client: DbClient,
+  agentProfileId: string,
+  moderatorUserId: string,
+  reason: string,
+) {
+  const { data, error } = await client.rpc("suspend_agent", {
+    moderator_user_id: moderatorUserId,
+    reason,
+    target_agent_profile_id: agentProfileId,
+  });
+
+  if (error) {
+    mapDatabaseSentinel(error);
+  }
+
+  return (data ?? [])[0] ?? null;
+}
+
+export async function reinstateAgent(
+  client: DbClient,
+  agentProfileId: string,
+  moderatorUserId: string,
+) {
+  const { data, error } = await client.rpc("reinstate_agent", {
+    moderator_user_id: moderatorUserId,
+    target_agent_profile_id: agentProfileId,
+  });
+
+  if (error) {
+    mapDatabaseSentinel(error);
+  }
+
+  return (data ?? [])[0] ?? null;
+}
+
+/**
+ * Every suspended agent, for the admin queue page.
+ *
+ * Without this a suspension is a one-way door: Suspend sits on a row of the
+ * listing queue, and an agent whose listings have all left the queue would have
+ * no Reinstate button anywhere. Service-role only — suspension_reason is not a
+ * client-readable column.
+ */
+export async function listSuspendedAgents(client: DbClient) {
+  const { data, error } = await client
+    .from("agent_profiles")
+    .select("id, display_name, handle, suspension_reason, updated_at")
+    .eq("verification_status", "suspended")
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? [];
+}
+
 /**
  * The calling agent's own remaining free listing quota.
  *

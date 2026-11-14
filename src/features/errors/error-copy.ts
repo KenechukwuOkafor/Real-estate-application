@@ -48,6 +48,8 @@ export const ERROR_COPY: Readonly<Record<string, string>> = {
   // ----------------------------------------------------------- entitlement
   AGENT_NOT_VERIFIED:
     "Your identity check needs to finish before you can submit a listing. We will let you know as soon as it is reviewed.",
+  AGENT_SUSPENDED:
+    "Your account is suspended, so listings and changes cannot be sent for review right now. Message us on WhatsApp and we will tell you why.",
   AGENT_PROFILE_REQUIRED:
     "Set up your agent profile first — it only takes a moment, and your listings are attached to it.",
   SUBSCRIPTION_REQUIRED:
@@ -206,6 +208,7 @@ export function errorCopyFor(code: string | null | undefined): string {
  * here with copy that does not say so is caught by the test beside this file.
  */
 export const ERROR_SUPPORT_TOPICS: Readonly<Record<string, SupportTopic>> = {
+  AGENT_SUSPENDED: "account_suspended",
   ROLE_NOT_SELF_SERVICE: "role_not_self_service",
 };
 

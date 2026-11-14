@@ -48,6 +48,7 @@ import {
   getAgentProfileByUserId,
   getOwnAgentFreeListingQuota,
   getOwnAgentRejectionReason,
+  getOwnAgentSuspensionReason,
   getAgentProfileWithSubscriptionsByUserId,
   getOwnedListing,
   updateAgentAvatarPath,
@@ -144,9 +145,18 @@ export async function getAgentOnboardingContext() {
       ? await getOwnAgentRejectionReason(client)
       : null;
 
+  // The same shape for the same reason: suspension_reason is not a column
+  // `authenticated` may read, and own_agent_suspension_reason() (0044) answers
+  // for the caller only. Called only when there is a suspension to explain.
+  const suspensionReason =
+    agentProfile?.verification_status === "suspended"
+      ? await getOwnAgentSuspensionReason(client)
+      : null;
+
   return {
     agentProfile,
     rejectionReason,
+    suspensionReason,
     roles: appUser.roles,
     user: appUser.user,
   };
@@ -1353,6 +1363,16 @@ export async function submitCurrentAgentListingForReview(listingId: string) {
     throw new AppError(
       "AGENT_PROFILE_REQUIRED",
       "Create your agent profile before submitting listings.",
+    );
+  }
+
+  // Suspended gets its own code. AGENT_NOT_VERIFIED's copy tells the agent their
+  // identity check needs to finish, which is untrue for an agent who passed it
+  // and was then suspended — and it would send them to wait rather than to ask.
+  if (context.agentProfile.verification_status === "suspended") {
+    throw new AppError(
+      "AGENT_SUSPENDED",
+      "A suspended agent cannot submit a listing for review.",
     );
   }
 
