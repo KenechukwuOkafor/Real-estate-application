@@ -813,7 +813,12 @@ Four instances, found in one sweep in August 2026 (`779d4cd`, `88d9c5e`,
    correct denial.
 2. **Migrations 0008–0013 were applied by hand and unrecorded.** The schema on
    the machine and the schema the repository could replay were not known to be
-   the same. A fresh replay is the only proof they are; CI now replays every
+   the same. *Evidence:* two commit messages from the same day, not a primary
+   record. `205b1c8` reports it alongside a concrete consequence (0007 was never
+   applied, so `public.reports` did not exist while code referenced it).
+   `88d9c5e` repeats it. The local migration table can't corroborate it now: it
+   has rows for all 43 migrations and doesn't timestamp them. The pattern
+   doesn't depend on this instance; the other three are documented in full. A fresh replay is the only proof they are; CI now replays every
    migration from zero on every run, which is the check that catches this.
 3. **The entire documentation set sat outside version control**, in a
    directory under the home folder. Five ADRs were added and eleven documents
