@@ -202,4 +202,56 @@ describe("agentStatusBand", () => {
       expect(band.attention).toEqual([]);
     });
   });
+
+  describe("flagged and disputed listings", () => {
+    it("surfaces the moderator's reason, the cost, and where to look", () => {
+      const band = agentStatusBand(
+        input({
+          listings: [
+            {
+              flag_reason: "Is this still available?",
+              id: "l1",
+              rejection_reason: null,
+              status: "flagged",
+              title: "Lodge Room",
+            },
+            {
+              dispute_reason: "Another agent holds a mandate.",
+              id: "l2",
+              rejection_reason: null,
+              status: "under_dispute",
+              title: "Two Bedroom Flat",
+            },
+          ],
+        }),
+      );
+
+      expect(band.attention).toEqual([
+        {
+          detail: "Is this still available? Hidden from seekers until this is resolved.",
+          href: "/agent/listings?focus=l1",
+          hrefLabel: "See the listing",
+          title: 'A moderator has a question about "Lodge Room"',
+        },
+        {
+          detail: "Another agent holds a mandate. Hidden from seekers until this is resolved.",
+          href: "/agent/listings?focus=l2",
+          hrefLabel: "See the listing",
+          title: 'Ownership of "Two Bedroom Flat" is being checked',
+        },
+      ]);
+    });
+
+    it("never sends a held listing to the editor, which is locked", () => {
+      const band = agentStatusBand(
+        input({
+          listings: [
+            { flag_reason: "x", id: "l1", rejection_reason: null, status: "flagged", title: "T" },
+          ],
+        }),
+      );
+
+      expect(band.attention[0].href).not.toContain("/edit");
+    });
+  });
 });

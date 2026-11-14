@@ -30,6 +30,8 @@ export type SupportTopic =
   | "general"
   | "account_suspended"
   | "listing_rejected_without_reason"
+  | "listing_flagged"
+  | "listing_disputed"
   | "role_not_self_service";
 
 export type SupportContext = {
@@ -158,6 +160,16 @@ export function supportMessage(context: SupportContext): string {
       return context.listing
         ? `${opener} My listing "${context.listing.title}" was rejected, but no reason was recorded. What should I change before I resubmit?`
         : `${opener} One of my listings was rejected, but no reason was recorded. What should I change before I resubmit?`;
+    case "listing_flagged":
+      // An answer, not an appeal. A flag is a moderator's question, and the
+      // agent is the one person who can answer it.
+      return context.listing
+        ? `${opener} A moderator flagged my listing "${context.listing.title}" and I'd like to answer their question.`
+        : `${opener} A moderator flagged one of my listings and I'd like to answer their question.`;
+    case "listing_disputed":
+      return context.listing
+        ? `${opener} My listing "${context.listing.title}" is on hold over an ownership question. I'd like to help resolve it.`
+        : `${opener} One of my listings is on hold over an ownership question. I'd like to help resolve it.`;
     case "role_not_self_service":
       // Before a profile exists there is nobody to name, so this one does not
       // pretend to know who is writing.

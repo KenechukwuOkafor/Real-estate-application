@@ -101,6 +101,8 @@ describe("the prefilled message", () => {
       "general",
       "account_suspended",
       "listing_rejected_without_reason",
+      "listing_flagged",
+      "listing_disputed",
       "role_not_self_service",
     ] as const;
     const messages = topics.map((topic) => supportMessage({ agent, topic }));

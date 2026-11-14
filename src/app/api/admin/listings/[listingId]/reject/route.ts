@@ -19,7 +19,7 @@ export async function POST(request: Request, context: RouteContext) {
     requireUuid(listingId, "Listing");
     const listing = await rejectListingAsAdmin(
       listingId,
-      body.reason ?? "Rejected by admin review.",
+      body.reason ?? "",
     );
 
     return NextResponse.json({

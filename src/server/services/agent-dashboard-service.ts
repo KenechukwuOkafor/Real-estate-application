@@ -15,6 +15,11 @@ import {
   type ViewCountRow,
 } from "@/features/agents/dashboard/metrics";
 import { lagosDay, lagosDayOf, lagosDayStart } from "@/features/agents/lagos-day";
+import {
+  moderationHold,
+  moderationHoldDetail,
+  moderationHoldTitle,
+} from "@/features/agents/moderation-hold";
 import { revisionSignals } from "@/features/agents/listing-revisions";
 import {
   isAwaitingCompletion,
@@ -44,7 +49,7 @@ export type ActionItem = {
    */
   href?: string;
   hrefLabel?: string;
-  kind: "request" | "completion" | "rejection" | "revision" | "slots";
+  kind: "request" | "completion" | "rejection" | "revision" | "hold" | "slots";
   minutesLeft: number | null;
   title: string;
 };
@@ -194,7 +199,14 @@ export async function getAgentDashboard(range: RangeDays = DEFAULT_RANGE) {
  * because inspections sort before listings alphabetically.
  */
 function buildActions(input: {
-  listings: Array<{ id: string; rejection_reason: string | null; status: string; title: string }>;
+  listings: Array<{
+    dispute_reason: string | null;
+    flag_reason: string | null;
+    id: string;
+    rejection_reason: string | null;
+    status: string;
+    title: string;
+  }>;
   now: Date;
   slotsExhausted: boolean;
   requests: Awaited<ReturnType<typeof listAgentInspectionRequests>>;
@@ -244,6 +256,25 @@ function buildActions(input: {
         kind: "rejection",
         minutesLeft: null,
         title: `"${listing.title}" was rejected`,
+      });
+      continue;
+    }
+
+    // Flagged and disputed: the same defect rejections had, for two more
+    // statuses. The listing has left public view and locked, and the reason
+    // was written for the agent and never shown to them. It links to the card
+    // rather than the editor because there is nothing to edit — the card is
+    // where the reason and the route to a person sit together.
+    const hold = moderationHold(listing);
+
+    if (hold) {
+      items.push({
+        detail: moderationHoldDetail(hold),
+        href: `/agent/listings?focus=${listing.id}`,
+        hrefLabel: "See the listing",
+        kind: "hold",
+        minutesLeft: null,
+        title: moderationHoldTitle(hold, listing.title),
       });
     }
   }

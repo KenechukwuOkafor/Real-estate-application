@@ -27,22 +27,25 @@ export default async function AgentListingsPage({
 
   const { cards, entitlement, windowDays } = overview;
 
-  // The one checklist item that cannot be resolved inside the product. Built
-  // only when it can appear, so an agent in good standing pays nothing for it.
-  const supportHref =
-    entitlement.verificationStatus === "suspended"
+  // Who is writing, for the routes to a person on this page: the suspended
+  // checklist item and a held listing's card. Loaded only when one of those
+  // can appear, so an agent in good standing pays nothing for it.
+  const isSuspended = entitlement.verificationStatus === "suspended";
+  const hasHold = cards.some(
+    (card) => card.status === "flagged" || card.status === "under_dispute",
+  );
+  const supportAgent =
+    isSuspended || hasHold
       ? await getAgentOnboardingContext()
-          .then(({ agentProfile }) =>
-            supportWhatsappUrl({
-              agent: {
-                displayName: agentProfile?.display_name ?? null,
-                handle: agentProfile?.handle ?? null,
-              },
-              topic: "account_suspended",
-            }),
-          )
-          .catch(() => supportWhatsappUrl({ topic: "account_suspended" }))
+          .then(({ agentProfile }) => ({
+            displayName: agentProfile?.display_name ?? null,
+            handle: agentProfile?.handle ?? null,
+          }))
+          .catch(() => null)
       : null;
+  const supportHref = isSuspended
+    ? supportWhatsappUrl({ agent: supportAgent, topic: "account_suspended" })
+    : null;
 
   /*
     A query parameter rather than a hash fragment, and the difference matters.
@@ -146,6 +149,7 @@ export default async function AgentListingsPage({
             entitlement={{
               freeListingQuota: entitlement.freeListingQuota,
               hasActiveSubscription: Boolean(entitlement.activeSubscription),
+              supportAgent,
               supportHref,
               verificationStatus: entitlement.verificationStatus,
             }}

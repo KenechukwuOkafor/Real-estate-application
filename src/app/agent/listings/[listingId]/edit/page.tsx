@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { SupportWhatsAppLink } from "@/components/support-whatsapp-link";
 import { ListingForm } from "@/features/agents/components/listing-form";
+import { moderationHold } from "@/features/agents/moderation-hold";
 import { ListingImageManager } from "@/features/agents/components/listing-image-manager";
 import { ProposeListingChangeForm } from "@/features/agents/components/propose-listing-change-form";
 import { ListingImagesForm } from "@/features/agents/components/listing-images-form";
@@ -54,10 +55,12 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
   const pendingRevision = isLive
     ? await getCurrentAgentPendingRevision(listing.id).catch(() => null)
     : null;
-  // Only on the one branch that offers a route to a person, so every other
-  // render of this page pays nothing for it.
+  const hold = moderationHold(listing);
+
+  // Only on the branches that offer a route to a person, so every other render
+  // of this page pays nothing for it.
   const missingReason = listing.status === "rejected" && !listing.rejection_reason;
-  const supportAgent = missingReason
+  const supportAgent = missingReason || hold
     ? await getAgentOnboardingContext()
         .then(({ agentProfile }) => ({
           displayName: agentProfile?.display_name ?? null,
@@ -115,6 +118,28 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
             <p className="mt-3 text-sm text-rose-800/80">
               Make the changes below, then submit it for review again.
             </p>
+          </section>
+        ) : null}
+
+        {/*
+          FLAGGED OR DISPUTED. The listing is locked, so this page has no form
+          to offer — which is exactly why the reason belongs here: an agent who
+          opens their listing to find out what happened should find out.
+        */}
+        {hold ? (
+          <section className="rounded-[1.75rem] border border-stone-300 bg-white/85 p-6">
+            <h2 className="text-lg font-semibold">{hold.heading}</h2>
+            <p className="mt-3 text-sm font-medium uppercase tracking-[0.18em] text-stone-500">
+              {hold.reasonLabel}
+            </p>
+            <p className="mt-1 text-base leading-7 text-stone-900">{hold.reason}</p>
+            <p className="mt-3 text-sm leading-6 text-stone-700">{hold.consequence}</p>
+            <SupportWhatsAppLink
+              agent={supportAgent}
+              className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
+              listing={{ title: listing.title }}
+              topic={hold.supportTopic}
+            />
           </section>
         ) : null}
 

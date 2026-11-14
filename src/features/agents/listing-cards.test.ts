@@ -16,6 +16,8 @@ function card(overrides: Partial<AgentListingCard> = {}): AgentListingCard {
     approvedAt: "2026-01-01T00:00:00Z",
     area: "Odenigbo",
     city: "Nsukka",
+    disputeReason: null,
+    flagReason: null,
     id: "listing-1",
     imageCount: 3,
     priceNaira: 250000,

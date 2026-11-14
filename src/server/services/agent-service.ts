@@ -773,6 +773,8 @@ export async function getCurrentAgentListingCards() {
     approvedAt: listing.approved_at,
     area: listing.area,
     city: listing.city,
+    disputeReason: listing.dispute_reason,
+    flagReason: listing.flag_reason,
     id: listing.id,
     imageCount: (listing.listing_images ?? []).filter(
       (image) => !image.deleted_at,

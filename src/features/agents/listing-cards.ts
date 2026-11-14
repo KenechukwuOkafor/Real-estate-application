@@ -19,6 +19,10 @@ export type AgentListingCard = {
   area: string;
   city: string;
   id: string;
+  /** The dispute reason, written for the agent. Shown only while under_dispute. */
+  disputeReason: string | null;
+  /** The flag reason, written for the agent. Shown only while flagged. */
+  flagReason: string | null;
   imageCount: number;
   priceNaira: number;
   publicUuid: string;
