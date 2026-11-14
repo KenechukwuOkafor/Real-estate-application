@@ -22,6 +22,9 @@ function parseRange(value: string | undefined): RangeDays {
 
 const ACTION_TONE: Record<string, string> = {
   completion: "border-amber-200 bg-amber-50/70",
+  // Not rose: a flag is a question, not something the agent must fix, and red
+  // is reserved for that. Not amber either: there is no clock on it.
+  hold: "border-stone-300 bg-white",
   rejection: "border-rose-200 bg-rose-50/60",
   request: "border-emerald-200 bg-emerald-50/60",
   revision: "border-rose-200 bg-rose-50/60",
