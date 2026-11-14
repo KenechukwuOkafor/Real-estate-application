@@ -4,6 +4,7 @@ import {
   type ValidationRule,
 } from "@/lib/api/error-details";
 import { captureMessage } from "@/lib/observability/sentry";
+import type { SupportTopic } from "@/lib/support-contact";
 
 /**
  * What a person reads when something goes wrong.
@@ -112,7 +113,7 @@ export const ERROR_COPY: Readonly<Record<string, string>> = {
   // ----------------------------------------------------------------- roles
   ROLE_REQUIRED: "Choose whether you are looking for a home or listing one.",
   ROLE_NOT_SELF_SERVICE:
-    "That role cannot be chosen here. Contact us if you think you need it.",
+    "That account type cannot be chosen here. Message us on WhatsApp if you think you need it.",
 
   // ------------------------------------------------------------- identity
   UNAUTHENTICATED: "Please sign in to continue.",
@@ -193,6 +194,19 @@ export function errorCopyFor(code: string | null | undefined): string {
   return FALLBACK_ERROR_COPY;
 }
 
+/**
+ * Codes whose copy sends the reader to a person, and what the message to that
+ * person should be about.
+ *
+ * Keyed on `code` like everything else here. A sentence that says "message
+ * us" is only true if the component rendering it also renders the link, so the
+ * component asks this map rather than deciding for itself — and a code listed
+ * here with copy that does not say so is caught by the test beside this file.
+ */
+export const ERROR_SUPPORT_TOPICS: Readonly<Record<string, SupportTopic>> = {
+  ROLE_NOT_SELF_SERVICE: "role_not_self_service",
+};
+
 type ApiErrorPayload = {
   error?: { code?: string | null; message?: string | null } | null;
 } | null;
@@ -210,6 +224,13 @@ export function errorCopyForResponse(payload: ApiErrorPayload): string {
   const specific = stateTransitionCopy(payload as never);
 
   return specific ?? errorCopyFor(payload?.error?.code);
+}
+
+/** The support topic for a failed response, when its copy offers a person. */
+export function supportTopicForResponse(payload: ApiErrorPayload): SupportTopic | null {
+  const code = payload?.error?.code;
+
+  return code ? (ERROR_SUPPORT_TOPICS[code] ?? null) : null;
 }
 
 

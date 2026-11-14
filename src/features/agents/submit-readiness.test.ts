@@ -94,7 +94,19 @@ describe("submitReadiness", () => {
     it("treats a suspended account as ours to resolve, not theirs", () => {
       const [item] = unmet(input({ verificationStatus: "suspended" }));
 
-      expect(item.hint?.toLowerCase()).toContain("contact us");
+      expect(item.hint?.toLowerCase()).toContain("message us on whatsapp");
+    });
+
+    it("puts the route to a person on the suspended item, and only there", () => {
+      const href = "https://wa.me/2348030000000?text=x";
+      const [suspended] = unmet(input({ supportHref: href, verificationStatus: "suspended" }));
+
+      expect(suspended.action).toEqual({ href, label: "Message us on WhatsApp" });
+
+      // A rejected verification is fixed on the verification page, not by
+      // messaging us, so it must not borrow the support link.
+      const [rejected] = unmet(input({ supportHref: href, verificationStatus: "rejected" }));
+      expect(rejected.action).toBeUndefined();
     });
   });
 

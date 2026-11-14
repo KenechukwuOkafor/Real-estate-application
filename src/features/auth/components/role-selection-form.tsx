@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { errorCopyForResponse } from "@/features/errors/error-copy";
+import { SupportWhatsAppLink } from "@/components/support-whatsapp-link";
+import {
+  errorCopyForResponse,
+  supportTopicForResponse,
+} from "@/features/errors/error-copy";
+import type { SupportTopic } from "@/lib/support-contact";
 
 const roleOptions = [
   {
@@ -23,6 +28,7 @@ export function RoleSelectionForm() {
   const [selectedRoles, setSelectedRoles] = useState<string[]>(["student"]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supportTopic, setSupportTopic] = useState<SupportTopic | null>(null);
 
   function toggleRole(role: string) {
     setSelectedRoles((current) => {
@@ -44,6 +50,7 @@ export function RoleSelectionForm() {
 
     setIsSubmitting(true);
     setError(null);
+    setSupportTopic(null);
 
     const response = await fetch("/api/me/bootstrap", {
       body: JSON.stringify({
@@ -57,10 +64,11 @@ export function RoleSelectionForm() {
 
     if (!response.ok) {
       const payload = (await response.json().catch(() => null)) as
-        | { error?: { message?: string } }
+        | { error?: { code?: string; message?: string } }
         | null;
 
       setError(errorCopyForResponse(payload));
+      setSupportTopic(supportTopicForResponse(payload));
       setIsSubmitting(false);
       return;
     }
@@ -99,6 +107,12 @@ export function RoleSelectionForm() {
       {error ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
+          {supportTopic ? (
+            <SupportWhatsAppLink
+              className="mt-2 block font-medium text-rose-800 underline underline-offset-4"
+              topic={supportTopic}
+            />
+          ) : null}
         </div>
       ) : null}
 

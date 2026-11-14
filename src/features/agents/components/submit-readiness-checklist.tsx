@@ -58,6 +58,16 @@ export function SubmitReadinessChecklist({ items }: SubmitReadinessChecklistProp
               {!item.met && item.hint ? (
                 <span className="text-stone-600">{item.hint}</span>
               ) : null}
+              {!item.met && item.action ? (
+                <a
+                  className="font-medium text-stone-900 underline underline-offset-4"
+                  href={item.action.href}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {item.action.label}
+                </a>
+              ) : null}
             </span>
           </li>
         ))}

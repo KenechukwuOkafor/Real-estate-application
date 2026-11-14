@@ -328,3 +328,39 @@ This is gated on `NEXT_PUBLIC_APP_ENV` rather than `NODE_ENV` deliberately.
 `NODE_ENV` is `test` under vitest, and an earlier gate of
 `NODE_ENV !== "development"` meant a DSN in `.env.local` would have shipped every
 local test run into the production issue stream.
+
+---
+
+## Support contact: `NEXT_PUBLIC_SUPPORT_WHATSAPP`
+
+Not an observability setting. It lives here because this is the runbook a deploy
+is configured from.
+
+**What it is.** The WhatsApp number behind every "Message us on WhatsApp" link:
+the Account page, a suspended agent's verification page and submit checklist, a
+rejection with no recorded reason, and the role-selection error. Each link opens
+WhatsApp with a message already saying who is writing and what about, so
+whoever answers can act on the first message. See `src/lib/support-contact.ts`.
+
+**It is required, and the build enforces that.** `next build` fails with
+`Build refused: NEXT_PUBLIC_SUPPORT_WHATSAPP is not set` when it is missing, and
+refuses a malformed value as well. This is deliberate. A "message us" link with
+no number behind it is the defect this setting closed, and a value that quietly
+defaulted to empty would bring it back. In `next dev` the app still starts, and
+any page offering the link throws `CONFIG_ENV_VAR_MISSING` until the number is
+set.
+
+**Format.** International, with the country code: `+234 803 000 0000`, or
+`2348030000000`. Spaces, dashes and brackets are fine. A local-format number
+(`0803...`) is refused rather than guessed at, because wa.me needs the country
+and a link that opens WhatsApp and then fails is worse than no link.
+
+**Where to set it.**
+- Vercel: Project → Settings → Environment Variables, for Production and Preview.
+  It is a `NEXT_PUBLIC_` variable, so it is baked into the build: **changing the
+  number needs a redeploy**, not just a restart.
+- Locally: `.env.local`.
+
+**Before changing it,** make sure someone is actually reading the new number.
+Every suspended agent and every agent with an unexplained rejection is sent
+there.

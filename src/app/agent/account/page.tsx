@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SupportWhatsAppLink } from "@/components/support-whatsapp-link";
 import { PortalSignOutButton } from "@/features/agents/components/sign-out-button";
 import {
   getAgentOnboardingContext,
@@ -22,7 +23,8 @@ const VERIFICATION_COPY: Record<string, { detail: string; label: string }> = {
     label: "Not accepted",
   },
   suspended: {
-    detail: "Your account cannot submit listings. Contact support.",
+    detail:
+      "Your account cannot submit listings right now. Message us on WhatsApp and we will tell you why and what happens next.",
     label: "Suspended",
   },
   verified: {
@@ -51,6 +53,10 @@ export default async function AgentAccountPage() {
   ]);
   const status = overview.entitlement.verificationStatus;
   const handle = context.agentProfile?.handle ?? null;
+  const supportAgent = {
+    displayName: context.agentProfile?.display_name ?? null,
+    handle,
+  };
   const verification = VERIFICATION_COPY[status] ?? VERIFICATION_COPY.not_submitted;
   const isVerified = status === "verified";
 
@@ -93,7 +99,13 @@ export default async function AgentAccountPage() {
             >
               {isVerified ? "View your verification" : "Go to verification"}
             </Link>
-          ) : null}
+          ) : (
+            <SupportWhatsAppLink
+              agent={supportAgent}
+              className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
+              topic="account_suspended"
+            />
+          )}
         </section>
 
         {/*
@@ -134,6 +146,24 @@ export default async function AgentAccountPage() {
               {handle ? "Edit photo, name and bio" : "Create your profile"}
             </Link>
           </div>
+        </section>
+
+        {/*
+          THE ROUTE TO A HUMAN. Verification and reviews are done by people,
+          so a question has somewhere to go. The message arrives already saying
+          who is writing; the agent only has to add the question.
+        */}
+        <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+          <h2 className="text-lg font-semibold">Talk to a person</h2>
+          <p className="mt-1.5 text-sm leading-6 text-stone-700">
+            Verification and listing reviews are done by people. If something is
+            unclear, ask one of them.
+          </p>
+          <SupportWhatsAppLink
+            agent={supportAgent}
+            className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
+            topic="general"
+          />
         </section>
 
         <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
