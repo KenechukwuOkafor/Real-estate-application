@@ -23,6 +23,8 @@ import type { SubmitReadinessInput } from "@/features/agents/submit-readiness";
 type Entitlement = {
   freeListingQuota: number;
   hasActiveSubscription: boolean;
+  /** Who is writing, for the routes to a person. Loaded only when one can show. */
+  supportAgent?: { displayName: string | null; handle: string | null } | null;
   /** Built on the server, and only for a suspended agent. */
   supportHref?: string | null;
   verificationStatus: SubmitReadinessInput["verificationStatus"];

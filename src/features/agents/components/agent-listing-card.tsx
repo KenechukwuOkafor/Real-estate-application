@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 
+import { SupportWhatsAppLink } from "@/components/support-whatsapp-link";
+import { moderationHold } from "@/features/agents/moderation-hold";
+
 import type { AgentListingCard as CardModel } from "@/features/agents/listing-cards";
 import { needsAttention } from "@/features/agents/listing-cards";
 import {
@@ -33,6 +36,8 @@ import type { SubmitReadinessInput } from "@/features/agents/submit-readiness";
 type Entitlement = {
   freeListingQuota: number;
   hasActiveSubscription: boolean;
+  /** Who is writing, for the routes to a person. Loaded only when one can show. */
+  supportAgent?: { displayName: string | null; handle: string | null } | null;
   /** Built on the server, and only for a suspended agent. */
   supportHref?: string | null;
   verificationStatus: SubmitReadinessInput["verificationStatus"];
@@ -90,6 +95,11 @@ export function AgentListingCard({
 }) {
   const read = reading(card);
   const attention = needsAttention(card);
+  const hold = moderationHold({
+    dispute_reason: card.disputeReason,
+    flag_reason: card.flagReason,
+    status: card.status,
+  });
 
   // Only where submission is the next step. An approved, taken or removed
   // listing has nothing outstanding.
@@ -189,6 +199,27 @@ export function AgentListingCard({
             <p className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-900">
               Rejected: {card.rejectionReason}
             </p>
+          ) : null}
+
+          {/*
+            FLAGGED OR DISPUTED: the reason a moderator wrote for the agent,
+            beside what it costs and the one thing they can do about it. Not
+            rose — a flag is a question, not something they must fix.
+          */}
+          {hold ? (
+            <div className="mt-3 rounded-2xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-800">
+              <p className="font-medium text-stone-900">{hold.heading}</p>
+              <p className="mt-1">
+                <span className="text-stone-600">{hold.reasonLabel}:</span> {hold.reason}
+              </p>
+              <p className="mt-1 text-stone-700">{hold.consequence}</p>
+              <SupportWhatsAppLink
+                agent={entitlement.supportAgent}
+                className="mt-2 inline-block font-medium text-stone-900 underline underline-offset-4"
+                listing={{ title: card.title }}
+                topic={hold.supportTopic}
+              />
+            </div>
           ) : null}
 
           {/*
