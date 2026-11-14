@@ -224,7 +224,7 @@ Audit records are read-only.
 | BR-ADM-003 | Verification cannot be self-approved. | Critical |
 | BR-ADM-004 | Audit logs are immutable. | Critical |
 | BR-ADM-005 | Reports must remain traceable until resolved. | High |
-| BR-ADM-006 | Suspended users lose access immediately. | Critical |
+| BR-ADM-006 | A suspended agent is hidden from seekers and cannot submit listings or changes for review. Their existing conversations and inspections continue. Applied and lifted only through audited functions, with a required reason the agent can read. See ADR-017-A1. | Critical |
 | BR-ADM-007 | A report never enforces by itself. No automatic suspension or removal on any report count; escalation may reorder the review queue, but every enforcement action is an admin's decision. | Critical |
 
 ---
