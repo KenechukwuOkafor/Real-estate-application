@@ -21,14 +21,14 @@ function parseRange(value: string | undefined): RangeDays {
 }
 
 const ACTION_TONE: Record<string, string> = {
-  completion: "border-amber-200 bg-amber-50/70",
+  completion: "border-attention-line bg-attention-surface/70",
   // Not rose: a flag is a question, not something the agent must fix, and red
   // is reserved for that. Not amber either: there is no clock on it.
-  hold: "border-stone-300 bg-white",
-  rejection: "border-rose-200 bg-rose-50/60",
-  request: "border-emerald-200 bg-emerald-50/60",
-  revision: "border-rose-200 bg-rose-50/60",
-  slots: "border-stone-200 bg-stone-50",
+  hold: "border-line-bold bg-paper",
+  rejection: "border-fix-line bg-fix-surface/60",
+  request: "border-verified-line bg-verified-surface/60",
+  revision: "border-fix-line bg-fix-surface/60",
+  slots: "border-line-soft bg-sunken",
 };
 
 /**
@@ -71,10 +71,10 @@ export default async function AgentHomePage({
   const rangeLabel = `${dashboard.range} days`;
 
   return (
-    <main className="px-5 py-8 text-stone-900 md:px-8 md:py-10">
+    <main className="px-5 py-8 text-ink md:px-8 md:py-10">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
         <header>
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-sm font-medium uppercase tracking-[0.24em] text-subtle">
             Your workspace
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
@@ -92,18 +92,18 @@ export default async function AgentHomePage({
             <ul className="flex flex-col gap-3">
               {dashboard.actions.map((action) => (
                 <li
-                  className={`rounded-2xl border p-4 ${ACTION_TONE[action.kind] ?? "border-stone-200 bg-white"}`}
+                  className={`rounded-tile border p-4 ${ACTION_TONE[action.kind] ?? "border-line-soft bg-paper"}`}
                   key={`${action.kind}-${action.href ?? "none"}-${action.title}`}
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="font-medium">{action.title}</p>
                     {action.minutesLeft !== null ? (
-                      <span className="text-sm font-medium text-stone-700">
+                      <span className="text-sm font-medium text-body">
                         {formatTimeRemaining(action.minutesLeft)}
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-stone-700">{action.detail}</p>
+                  <p className="mt-1 text-sm leading-6 text-body">{action.detail}</p>
                   {/*
                     No link when there is nowhere to go. An agent out of
                     submission slots has no destination — there is no billing
@@ -142,8 +142,8 @@ export default async function AgentHomePage({
                       aria-current={option === dashboard.range ? "true" : undefined}
                       className={`rounded-full px-3 py-1 text-sm ${
                         option === dashboard.range
-                          ? "bg-stone-900 text-white"
-                          : "border border-stone-300 text-stone-700"
+                          ? "bg-action text-on-action"
+                          : "border border-line-bold text-body"
                       }`}
                       href={`/agent?range=${option}`}
                       key={option}
@@ -161,7 +161,7 @@ export default async function AgentHomePage({
               <DashboardKpis kpis={dashboard.kpis} />
             </section>
 
-            <section aria-label="Over time" className="rounded-[1.5rem] border border-stone-900/10 bg-white/85 p-5">
+            <section aria-label="Over time" className="rounded-inset border border-line bg-card p-5">
               <h2 className="text-lg font-semibold">Views and requests</h2>
               <div className="mt-4">
                 <DashboardChart points={dashboard.chart} />
@@ -170,11 +170,11 @@ export default async function AgentHomePage({
           </>
         )}
 
-        <section aria-label="Per listing" className="rounded-[1.5rem] border border-stone-900/10 bg-white/85 p-5">
+        <section aria-label="Per listing" className="rounded-inset border border-line bg-card p-5">
           <h2 className="text-lg font-semibold">
             {dashboard.state === "dormant" ? "How they did" : "Each listing"}
           </h2>
-          <p className="mt-1 text-sm leading-6 text-stone-600">
+          <p className="mt-1 text-sm leading-6 text-muted">
             Views with no requests is a price or a photo problem. No views at
             all is a visibility problem. They are not the same fix.
           </p>
@@ -184,7 +184,7 @@ export default async function AgentHomePage({
         </section>
 
         {dashboard.activity.length > 0 ? (
-          <section aria-label="Recent activity" className="rounded-[1.5rem] border border-stone-900/10 bg-white/85 p-5">
+          <section aria-label="Recent activity" className="rounded-inset border border-line bg-card p-5">
             <h2 className="text-lg font-semibold">Recently</h2>
             <ul className="mt-4 flex flex-col gap-3">
               {dashboard.activity.map((item) => (
@@ -193,14 +193,14 @@ export default async function AgentHomePage({
                     <Link className="font-medium underline underline-offset-4" href={item.href}>
                       {item.title}
                     </Link>
-                    <time className="text-xs text-stone-500" dateTime={item.at}>
+                    <time className="text-xs text-subtle" dateTime={item.at}>
                       {new Date(item.at).toLocaleDateString("en-NG", {
                         day: "numeric",
                         month: "short",
                       })}
                     </time>
                   </div>
-                  <p className="text-sm leading-6 text-stone-600">{item.detail}</p>
+                  <p className="text-sm leading-6 text-muted">{item.detail}</p>
                 </li>
               ))}
             </ul>
@@ -249,11 +249,11 @@ export default async function AgentHomePage({
  */
 function Dormant({ hasRented }: { hasRented: boolean }) {
   return (
-    <section className="rounded-[1.5rem] border border-stone-900/10 bg-white/85 p-6">
+    <section className="rounded-inset border border-line bg-card p-6">
       <h2 className="text-lg font-semibold">
         {hasRented ? "Everything you have is taken" : "No live listings"}
       </h2>
-      <p className="mt-2 text-sm leading-6 text-stone-700">
+      <p className="mt-2 text-sm leading-6 text-body">
         {hasRented ? (
           <>
             Nothing of yours can be found by seekers right now, so there are no
@@ -270,7 +270,7 @@ function Dormant({ hasRented }: { hasRented: boolean }) {
         )}
       </p>
       <Link
-        className="mt-3 inline-block rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
+        className="mt-3 inline-block rounded-full bg-action px-4 py-2 text-sm font-medium text-on-action"
         href={hasRented ? "/agent/listings" : "/agent/listings/new"}
       >
         {hasRented ? "Go to your listings" : "Start a new listing"}
@@ -305,16 +305,16 @@ function FirstRun({ verificationStatus }: { verificationStatus: string }) {
   ];
 
   return (
-    <main className="px-5 py-8 text-stone-900 md:px-8 md:py-10">
+    <main className="px-5 py-8 text-ink md:px-8 md:py-10">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
         <header>
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-sm font-medium uppercase tracking-[0.24em] text-subtle">
             Your workspace
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
             Let&apos;s get your first listing up.
           </h1>
-          <p className="mt-3 text-sm leading-6 text-stone-700">
+          <p className="mt-3 text-sm leading-6 text-body">
             Numbers appear here once you have a listing people can find. Three
             steps, in this order.
           </p>
@@ -323,13 +323,13 @@ function FirstRun({ verificationStatus }: { verificationStatus: string }) {
         <ol className="flex flex-col gap-3">
           {steps.map((step, index) => (
             <li
-              className="flex items-start gap-3 rounded-2xl border border-stone-900/10 bg-white/85 p-4"
+              className="flex items-start gap-3 rounded-tile border border-line bg-card p-4"
               key={step.href}
             >
               <span
                 aria-hidden
                 className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                  step.done ? "bg-emerald-600 text-white" : "bg-stone-200 text-stone-700"
+                  step.done ? "bg-verified-fill text-on-action" : "bg-track text-body"
                 }`}
               >
                 {step.done ? "✓" : index + 1}
@@ -357,13 +357,13 @@ function AccountStrip({
   return (
     <section
       aria-label="Account"
-      className="grid gap-3 rounded-[1.5rem] border border-stone-900/10 bg-white/85 p-5 sm:grid-cols-3"
+      className="grid gap-3 rounded-inset border border-line bg-card p-5 sm:grid-cols-3"
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-subtle">
           Verification
         </p>
-        <p className="mt-1 text-sm text-stone-800">
+        <p className="mt-1 text-sm text-ink-soft">
           {verificationStatus === "verified" ? "Verified" : verificationStatus.replace(/_/g, " ")}
         </p>
         {verificationStatus !== "verified" ? (
@@ -373,15 +373,15 @@ function AccountStrip({
         ) : null}
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-subtle">
           Submission slots
         </p>
-        <p className="mt-1 text-sm text-stone-800">
+        <p className="mt-1 text-sm text-ink-soft">
           {hasSubscription ? "Included with your plan" : `${freeListingQuota} left`}
         </p>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-subtle">
           Public profile
         </p>
         <Link className="mt-1 inline-block text-sm underline underline-offset-4" href="/agent/profile">

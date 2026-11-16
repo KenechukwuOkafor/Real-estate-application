@@ -83,10 +83,10 @@ export default async function AgentInspectionsPage() {
   );
 
   return (
-    <main className="px-5 py-8 md:px-8 md:py-10 text-stone-900">
+    <main className="px-5 py-8 md:px-8 md:py-10 text-ink">
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
-        <section className="rounded-[2rem] border border-stone-900/10 bg-white/85 p-8 shadow-[0_20px_80px_rgba(48,38,24,0.08)]">
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
+        <section className="rounded-hero border border-line bg-card p-8 shadow-raised">
+          <p className="text-sm font-medium uppercase tracking-[0.24em] text-subtle">
             Inspection requests
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight">
@@ -94,7 +94,7 @@ export default async function AgentInspectionsPage() {
               ? "Nothing waiting on you."
               : `${awaiting.length} ${awaiting.length === 1 ? "request needs" : "requests need"} an answer.`}
           </h1>
-          <p className="mt-3 text-sm leading-6 text-stone-600">
+          <p className="mt-3 text-sm leading-6 text-muted">
             Seekers have 48 hours to hear back from you. After that the request
             closes on its own and they have to start again. Once you accept, you
             have four days to mark the inspection complete.
@@ -102,8 +102,8 @@ export default async function AgentInspectionsPage() {
         </section>
 
         {requests.length === 0 ? (
-          <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/80 p-8">
-            <p className="text-sm leading-6 text-stone-600">
+          <section className="rounded-card border border-line bg-paper/80 p-8">
+            <p className="text-sm leading-6 text-muted">
               No one has asked to see your properties yet. Requests appear here
               as soon as they do.
             </p>
@@ -119,17 +119,17 @@ export default async function AgentInspectionsPage() {
 
             return (
               <li
-                className={`rounded-[1.75rem] border border-stone-900/10 p-6 ${
+                className={`rounded-card border border-line p-6 ${
                   isExpired || isLapsed
-                    ? "bg-white/50 text-stone-500"
-                    : "bg-white/85"
+                    ? "bg-paper/50 text-subtle"
+                    : "bg-card"
                 }`}
                 key={request.id}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p
-                      className={`text-lg font-semibold ${isExpired ? "text-stone-600" : "text-stone-900"}`}
+                      className={`text-lg font-semibold ${isExpired ? "text-muted" : "text-ink"}`}
                     >
                       {request.requesterName}
                     </p>
@@ -146,7 +146,7 @@ export default async function AgentInspectionsPage() {
                         <span className="font-medium">{request.listingTitle}</span>
                       )}
                     </p>
-                    <p className="mt-1 text-xs text-stone-500">
+                    <p className="mt-1 text-xs text-subtle">
                       {formatRequestedAt(request.requestedAt)}
                     </p>
                   </div>
@@ -155,10 +155,10 @@ export default async function AgentInspectionsPage() {
                     <span
                       className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                         isAwaiting
-                          ? "bg-amber-50 text-amber-900"
+                          ? "bg-attention-surface text-attention-ink"
                           : request.effectiveStatus === "accepted"
-                            ? "bg-emerald-50 text-emerald-900"
-                            : "bg-stone-100 text-stone-600"
+                            ? "bg-verified-surface text-verified-ink"
+                            : "bg-sunken-strong text-muted"
                       }`}
                     >
                       {STATUS_LABEL[request.effectiveStatus] ??
@@ -185,7 +185,7 @@ export default async function AgentInspectionsPage() {
                 </div>
 
                 {request.message ? (
-                  <p className="mt-4 rounded-2xl bg-stone-50 p-4 text-sm leading-6 text-stone-700">
+                  <p className="mt-4 rounded-tile bg-sunken p-4 text-sm leading-6 text-body">
                     {request.message}
                   </p>
                 ) : null}
@@ -216,12 +216,12 @@ export default async function AgentInspectionsPage() {
                     isLapsed ||
                     request.effectiveStatus === "completed") ? (
                     <Link
-                      className="inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white"
+                      className="inline-flex items-center gap-2 rounded-full bg-action px-5 py-2.5 text-sm font-medium text-on-action"
                       href={`/chats/${request.chatId}`}
                     >
                       Open chat
                       {request.unreadMessageCount > 0 ? (
-                        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-stone-900">
+                        <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-semibold text-ink">
                           {request.unreadMessageCount} unread
                         </span>
                       ) : null}

@@ -19,8 +19,8 @@ type ListingCardProps = {
 
 export function ListingCard({ listing }: ListingCardProps) {
   return (
-    <article className="group relative overflow-hidden rounded-[1.5rem] border border-stone-900/10 bg-white shadow-[0_18px_50px_rgba(48,38,24,0.08)] transition-transform duration-200 hover:-translate-y-1">
-      <div className="relative aspect-[2/1] bg-stone-200 md:aspect-[4/3]">
+    <article className="group relative overflow-hidden rounded-inset border border-line bg-paper shadow-raised-soft transition-transform duration-200 hover:-translate-y-1">
+      <div className="relative aspect-[2/1] bg-track md:aspect-[4/3]">
         {listing.coverImageUrl ? (
           <img
             alt=""
@@ -31,7 +31,7 @@ export function ListingCard({ listing }: ListingCardProps) {
         ) : (
           <div
             aria-hidden="true"
-            className="flex h-full items-center justify-center bg-[linear-gradient(135deg,_#d9d2c4,_#ece6d8)] text-sm uppercase tracking-[0.25em] text-stone-600"
+            className="flex h-full items-center justify-center bg-(image:--gradient-placeholder) text-sm uppercase tracking-[0.25em] text-muted"
           >
             Ruvo
           </div>
@@ -47,15 +47,15 @@ export function ListingCard({ listing }: ListingCardProps) {
 
       <div className="flex flex-col gap-2 p-4">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="text-xl font-semibold tracking-tight text-stone-900">
+          <p className="text-xl font-semibold tracking-tight text-ink">
             {formatPriceNaira(listing.priceNaira)}
           </p>
-          <span className="text-xs text-stone-500">
+          <span className="text-xs text-subtle">
             {formatRentalDuration(listing.rentalDuration, listing.subletMonths)}
           </span>
         </div>
 
-        <p className="text-sm uppercase tracking-[0.18em] text-stone-500">
+        <p className="text-sm uppercase tracking-[0.18em] text-subtle">
           {formatListingTypeLine(
             formatPropertyType(listing.propertyType),
             listing.rentalDuration,
@@ -85,7 +85,7 @@ export function ListingCard({ listing }: ListingCardProps) {
           can currently read nothing about it.
         */}
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm text-stone-700">{listing.area}</span>
+          <span className="text-sm text-body">{listing.area}</span>
         </div>
       </div>
 

@@ -54,21 +54,21 @@ export function SubmitListingReviewButton({
   return (
     <div className="flex flex-col gap-2">
       <button
-        className="self-start rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+        className="self-start rounded-full bg-action px-4 py-2 text-sm font-medium text-on-action disabled:opacity-60"
         disabled={isSubmitting}
         onClick={onClick}
         type="button"
       >
         {isSubmitting ? "Submitting..." : "Submit for review"}
       </button>
-      {error ? <p className="text-xs text-rose-700">{error}</p> : null}
+      {error ? <p className="text-xs text-fix">{error}</p> : null}
       {error && supportTopic ? (
         <SupportWhatsAppLink
-          className="text-xs font-medium text-rose-800 underline underline-offset-4"
+          className="text-xs font-medium text-fix-strong underline underline-offset-4"
           topic={supportTopic}
         />
       ) : null}
-      {message ? <p className="text-xs text-emerald-700">{message}</p> : null}
+      {message ? <p className="text-xs text-verified">{message}</p> : null}
     </div>
   );
 }

@@ -70,11 +70,11 @@ export function ProposeListingChangeForm({
    */
   if (hasPendingRevision) {
     return (
-      <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5">
-        <p className="text-sm font-semibold text-amber-950">
+      <div className="rounded-tile border border-attention-line-strong bg-attention-surface p-5">
+        <p className="text-sm font-semibold text-attention-deep">
           A change is waiting for review
         </p>
-        <p className="mt-2 text-sm leading-6 text-amber-900">
+        <p className="mt-2 text-sm leading-6 text-attention-ink">
           Your listing is still live with its current details. Once a moderator
           has looked at your change you will be able to make another.
         </p>
@@ -139,70 +139,70 @@ export function ProposeListingChangeForm({
         live has been misled by us — and the person who finds out is a seeker
         who was quoted the old figure.
       */}
-      <div className="rounded-2xl border border-stone-900/10 bg-stone-50 p-4">
-        <p className="text-sm font-semibold text-stone-900">
+      <div className="rounded-tile border border-line bg-sunken p-4">
+        <p className="text-sm font-semibold text-ink">
           Changes are reviewed before they go live
         </p>
-        <ul className="mt-2 flex flex-col gap-1 text-sm leading-6 text-stone-700">
+        <ul className="mt-2 flex flex-col gap-1 text-sm leading-6 text-body">
           <li>• Your listing stays live and searchable while we review.</li>
           <li>• Seekers keep seeing the current details until the change is approved.</li>
           <li>• This does not use a submission slot.</li>
         </ul>
       </div>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Title</span>
         <input
           aria-describedby={fieldErrors.title ? "title-error" : undefined}
           aria-invalid={Boolean(fieldErrors.title)}
-          className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+          className="h-12 rounded-field border border-line bg-paper px-4"
           onChange={(e) => setTitle(e.target.value)}
           value={title}
         />
         {fieldErrors.title ? (
-          <span className="text-sm text-rose-700" id="title-error">
+          <span className="text-sm text-fix" id="title-error">
             {fieldErrors.title}
           </span>
         ) : null}
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Description</span>
         <textarea
           aria-describedby={fieldErrors.description ? "description-error" : undefined}
           aria-invalid={Boolean(fieldErrors.description)}
-          className="min-h-32 rounded-2xl border border-stone-900/10 bg-white px-4 py-3"
+          className="min-h-32 rounded-field border border-line bg-paper px-4 py-3"
           onChange={(e) => setDescription(e.target.value)}
           value={description}
         />
         {fieldErrors.description ? (
-          <span className="text-sm text-rose-700" id="description-error">
+          <span className="text-sm text-fix" id="description-error">
             {fieldErrors.description}
           </span>
         ) : null}
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Price (NGN)</span>
         <input
           aria-describedby={fieldErrors.priceNaira ? "priceNaira-error" : undefined}
           aria-invalid={Boolean(fieldErrors.priceNaira)}
-          className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+          className="h-12 rounded-field border border-line bg-paper px-4"
           onChange={(e) => setPriceNaira(e.target.value)}
           type="number"
           value={priceNaira}
         />
         {fieldErrors.priceNaira ? (
-          <span className="text-sm text-rose-700" id="priceNaira-error">
+          <span className="text-sm text-fix" id="priceNaira-error">
             {fieldErrors.priceNaira}
           </span>
         ) : null}
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Duration</span>
         <select
-          className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+          className="h-12 rounded-field border border-line bg-paper px-4"
           onChange={(e) => setRentalDuration(e.target.value as never)}
           value={rentalDuration}
         >
@@ -217,12 +217,12 @@ export function ProposeListingChangeForm({
       </label>
 
       {rentalDuration === "sublet" ? (
-        <label className="flex flex-col gap-2 text-sm text-stone-700">
+        <label className="flex flex-col gap-2 text-sm text-body">
           <span>Sublet length (months)</span>
           <input
             aria-describedby={fieldErrors.subletMonths ? "subletMonths-error" : undefined}
             aria-invalid={Boolean(fieldErrors.subletMonths)}
-            className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+            className="h-12 rounded-field border border-line bg-paper px-4"
             min={1}
             onChange={(e) => setSubletMonths(e.target.value)}
             step={1}
@@ -230,20 +230,20 @@ export function ProposeListingChangeForm({
             value={subletMonths}
           />
           {fieldErrors.subletMonths ? (
-            <span className="text-sm text-rose-700" id="subletMonths-error">
+            <span className="text-sm text-fix" id="subletMonths-error">
               {fieldErrors.subletMonths}
             </span>
           ) : null}
           {subletWarning ? (
-            <span className="text-sm text-amber-800">{subletWarning}</span>
+            <span className="text-sm text-attention">{subletWarning}</span>
           ) : null}
         </label>
       ) : null}
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Amenities</span>
         <input
-          className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+          className="h-12 rounded-field border border-line bg-paper px-4"
           onChange={(e) => setAmenities(e.target.value)}
           value={amenities}
         />
@@ -254,24 +254,24 @@ export function ProposeListingChangeForm({
         An agent hunting for the bedroom count should find out why it is absent,
         not conclude the form is broken.
       */}
-      <p className="text-sm leading-6 text-stone-600">
+      <p className="text-sm leading-6 text-muted">
         The property type, room counts and area cannot be changed on a live
         listing — seekers searched and filtered on those. If those are wrong,
         take this listing down and create a new one.
       </p>
 
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="text-sm text-fix">{error}</p> : null}
       {error && supportTopic ? (
         <SupportWhatsAppLink
-          className="text-sm font-medium text-rose-800 underline underline-offset-4"
+          className="text-sm font-medium text-fix-strong underline underline-offset-4"
           topic={supportTopic}
         />
       ) : null}
-      {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
+      {message ? <p className="text-sm text-verified">{message}</p> : null}
 
       <div className="flex justify-end">
         <button
-          className="rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-full bg-action px-5 py-3 text-sm font-medium text-on-action disabled:opacity-60"
           disabled={isSubmitting}
           type="submit"
         >

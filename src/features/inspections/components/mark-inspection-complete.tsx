@@ -63,11 +63,11 @@ export function MarkInspectionComplete({
 
   if (isConfirming) {
     return (
-      <div className="rounded-2xl border border-stone-900/15 bg-stone-50 p-4">
-        <p className="text-sm font-semibold text-stone-900">
+      <div className="rounded-tile border border-line-strong bg-sunken p-4">
+        <p className="text-sm font-semibold text-ink">
           Mark the visit to {listingTitle} as complete?
         </p>
-        <ul className="mt-2 flex flex-col gap-1 text-sm leading-6 text-stone-700">
+        <ul className="mt-2 flex flex-col gap-1 text-sm leading-6 text-body">
           <li>• You are recording that you showed {requesterName} the property.</li>
           <li>
             • They will see this. They are not asked to confirm it — it is your
@@ -75,10 +75,10 @@ export function MarkInspectionComplete({
           </li>
           <li>• It cannot be undone.</li>
         </ul>
-        {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-fix">{error}</p> : null}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
-            className="rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-full bg-action px-5 py-2.5 text-sm font-medium text-on-action disabled:opacity-60"
             disabled={isSubmitting}
             onClick={() => confirm()}
             type="button"
@@ -86,7 +86,7 @@ export function MarkInspectionComplete({
             {isSubmitting ? "Marking..." : "Yes, mark it complete"}
           </button>
           <button
-            className="rounded-full border border-stone-900/15 px-5 py-2.5 text-sm font-medium text-stone-700 disabled:opacity-60"
+            className="rounded-full border border-line-strong px-5 py-2.5 text-sm font-medium text-body disabled:opacity-60"
             disabled={isSubmitting}
             onClick={() => setIsConfirming(false)}
             type="button"
@@ -100,10 +100,10 @@ export function MarkInspectionComplete({
 
   return (
     <div className="flex flex-col gap-2">
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="text-sm text-fix">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
         <button
-          className="rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white"
+          className="rounded-full bg-action px-5 py-2.5 text-sm font-medium text-on-action"
           onClick={() => setIsConfirming(true)}
           type="button"
         >

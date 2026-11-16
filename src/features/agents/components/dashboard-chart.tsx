@@ -48,7 +48,7 @@ export function DashboardChart({ points }: { points: ChartPoint[] }) {
 
   if (totalViewers === 0 && maxRequests === 0) {
     return (
-      <p className="text-sm leading-6 text-stone-600">
+      <p className="text-sm leading-6 text-muted">
         Nothing to plot for this period yet. Views and requests will appear here
         as they arrive.
       </p>
@@ -69,26 +69,26 @@ export function DashboardChart({ points }: { points: ChartPoint[] }) {
             d={path(points, (point) => point.viewers)}
             fill="none"
             stroke="currentColor"
-            className="text-stone-400"
+            className="text-faint"
             strokeWidth={2}
           />
           <path
             d={path(points, (point) => point.requests)}
             fill="none"
             stroke="currentColor"
-            className="text-emerald-600"
+            className="text-verified-fill"
             strokeWidth={2}
           />
         </svg>
       </div>
-      <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-600">
+      <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
         <span className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span aria-hidden className="inline-block h-0.5 w-4 bg-stone-400" />
+            <span aria-hidden className="inline-block h-0.5 w-4 bg-track-strong" />
             Viewers (peak {maxViewers})
           </span>
           <span className="flex items-center gap-1.5">
-            <span aria-hidden className="inline-block h-0.5 w-4 bg-emerald-600" />
+            <span aria-hidden className="inline-block h-0.5 w-4 bg-verified-fill" />
             Requests (peak {maxRequests})
           </span>
         </span>

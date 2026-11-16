@@ -62,10 +62,10 @@ export default async function AgentAccountPage() {
   const isVerified = status === "verified";
 
   return (
-    <main className="px-5 py-8 text-stone-900 md:px-8 md:py-10">
+    <main className="px-5 py-8 text-ink md:px-8 md:py-10">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
         <header>
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-sm font-medium uppercase tracking-[0.24em] text-subtle">
             Account
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
@@ -81,21 +81,21 @@ export default async function AgentAccountPage() {
         {status === "suspended" ? (
           <SuspensionNoticePanel agent={supportAgent} reason={context.suspensionReason} />
         ) : (
-        <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+        <section className="rounded-card border border-line bg-card p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Verification</h2>
-              <p className="mt-1.5 text-sm leading-6 text-stone-700">
+              <p className="mt-1.5 text-sm leading-6 text-body">
                 {verification.detail}
               </p>
             </div>
             <span
               className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                 isVerified
-                  ? "bg-emerald-50 text-emerald-900"
+                  ? "bg-verified-surface text-verified-ink"
                   : status === "rejected"
-                    ? "bg-rose-50 text-rose-800"
-                    : "bg-amber-50 text-amber-900"
+                    ? "bg-fix-surface text-fix-strong"
+                    : "bg-attention-surface text-attention-ink"
               }`}
             >
               {verification.label}
@@ -125,9 +125,9 @@ export default async function AgentAccountPage() {
           they are being asked to share, and they will not share what they have
           not seen.
         */}
-        <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+        <section className="rounded-card border border-line bg-card p-6">
           <h2 className="text-lg font-semibold">Public profile</h2>
-          <p className="mt-1.5 text-sm leading-6 text-stone-700">
+          <p className="mt-1.5 text-sm leading-6 text-body">
             {status === "suspended"
               ? "Hidden from seekers while your account is suspended. You can still see it yourself."
               : handle
@@ -157,9 +157,9 @@ export default async function AgentAccountPage() {
           so a question has somewhere to go. The message arrives already saying
           who is writing; the agent only has to add the question.
         */}
-        <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+        <section className="rounded-card border border-line bg-card p-6">
           <h2 className="text-lg font-semibold">Talk to a person</h2>
-          <p className="mt-1.5 text-sm leading-6 text-stone-700">
+          <p className="mt-1.5 text-sm leading-6 text-body">
             Verification and listing reviews are done by people. If something is
             unclear, ask one of them.
           </p>
@@ -170,9 +170,9 @@ export default async function AgentAccountPage() {
           />
         </section>
 
-        <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+        <section className="rounded-card border border-line bg-card p-6">
           <h2 className="text-lg font-semibold">Session</h2>
-          <p className="mt-1.5 mb-4 text-sm leading-6 text-stone-700">
+          <p className="mt-1.5 mb-4 text-sm leading-6 text-body">
             Signing out ends this session on this device only.
           </p>
           <PortalSignOutButton />

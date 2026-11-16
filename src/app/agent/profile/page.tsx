@@ -24,15 +24,15 @@ export default async function AgentProfilePage() {
     : null;
 
   return (
-    <main className="px-5 py-8 md:px-8 md:py-10 text-stone-900">
-      <div className="mx-auto max-w-4xl rounded-[2rem] border border-stone-900/10 bg-white/85 p-8 shadow-[0_20px_80px_rgba(48,38,24,0.08)]">
-        <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
+    <main className="px-5 py-8 md:px-8 md:py-10 text-ink">
+      <div className="mx-auto max-w-4xl rounded-hero border border-line bg-card p-8 shadow-raised">
+        <p className="text-sm font-medium uppercase tracking-[0.24em] text-subtle">
           Agent profile
         </p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight">
           Set up your public agent identity.
         </h1>
-        <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-700">
+        <p className="mt-4 max-w-3xl text-lg leading-8 text-body">
           This is what a seeker sees when you send them your link.{" "}
           {context.agentProfile ? (
             <Link
@@ -50,7 +50,7 @@ export default async function AgentProfilePage() {
             {context.agentProfile ? (
               <AgentAvatarForm initialAvatarUrl={avatarUrl} />
             ) : (
-              <p className="text-sm leading-6 text-stone-700">
+              <p className="text-sm leading-6 text-body">
                 Save your name below first — a photo needs a profile to belong
                 to.
               </p>

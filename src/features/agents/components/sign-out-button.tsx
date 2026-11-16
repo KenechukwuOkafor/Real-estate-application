@@ -13,7 +13,7 @@ export function PortalSignOutButton() {
   return (
     <SignOutButton redirectUrl="/">
       <button
-        className="w-full rounded-2xl border border-stone-900/15 px-5 py-3 text-left text-sm font-medium text-stone-700 transition-colors hover:bg-stone-900/5"
+        className="w-full rounded-tile border border-line-strong px-5 py-3 text-left text-sm font-medium text-body transition-colors hover:bg-line-faint"
         type="button"
       >
         Sign out

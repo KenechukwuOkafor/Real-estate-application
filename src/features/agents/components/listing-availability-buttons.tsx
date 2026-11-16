@@ -72,7 +72,7 @@ export function MarkTakenButton({
   if (!confirming) {
     return (
       <button
-        className="rounded-full border border-stone-900/15 bg-white px-5 py-3 text-center text-sm font-medium text-stone-900 transition-colors hover:bg-stone-50"
+        className="rounded-full border border-line-strong bg-paper px-5 py-3 text-center text-sm font-medium text-ink transition-colors hover:bg-sunken"
         onClick={() => setConfirming(true)}
         type="button"
       >
@@ -82,8 +82,8 @@ export function MarkTakenButton({
   }
 
   return (
-    <div className="rounded-2xl border border-stone-300 bg-stone-50 p-4">
-      <p className="text-sm font-semibold text-stone-900">
+    <div className="rounded-tile border border-line-bold bg-sunken p-4">
+      <p className="text-sm font-semibold text-ink">
         Take “{listingTitle}” off the market?
       </p>
       {/*
@@ -92,18 +92,18 @@ export function MarkTakenButton({
         listing down is expensive and permanent, so the useful information is
         that this one is neither.
       */}
-      <p className="mt-2 text-sm leading-6 text-stone-700">
+      <p className="mt-2 text-sm leading-6 text-body">
         It stops appearing in search and stops taking new inspection requests.
         Nothing else changes — you keep the listing and the submission slot,
         anyone already arranging a viewing keeps their chat, and you can put it
         back with one click when it frees up.
       </p>
 
-      {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-fix">{error}</p> : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button
-          className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-full bg-action px-4 py-2 text-sm font-medium text-on-action disabled:opacity-60"
           disabled={isPending}
           onClick={async () => {
             if (await run()) setConfirming(false);
@@ -113,7 +113,7 @@ export function MarkTakenButton({
           {isPending ? "Marking..." : "Yes, it's taken"}
         </button>
         <button
-          className="rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-medium text-stone-700 disabled:opacity-60"
+          className="rounded-full border border-line-strong bg-paper px-4 py-2 text-sm font-medium text-body disabled:opacity-60"
           disabled={isPending}
           onClick={() => {
             setConfirming(false);
@@ -134,14 +134,14 @@ export function MarkAvailableButton({ listingId }: { listingId: string }) {
   return (
     <div className="flex flex-col gap-2">
       <button
-        className="rounded-full bg-stone-900 px-5 py-3 text-center text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:opacity-60"
+        className="rounded-full bg-action px-5 py-3 text-center text-sm font-medium text-on-action transition-colors hover:bg-action-hover disabled:opacity-60"
         disabled={isPending}
         onClick={() => void run()}
         type="button"
       >
         {isPending ? "Putting it back..." : "Mark available"}
       </button>
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="text-sm text-fix">{error}</p> : null}
     </div>
   );
 }

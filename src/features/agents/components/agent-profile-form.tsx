@@ -46,32 +46,32 @@ export function AgentProfileForm({
 
   return (
     <form className="flex flex-col gap-5" onSubmit={onSubmit}>
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Display name</span>
         <input
-          className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+          className="h-12 rounded-field border border-line bg-paper px-4"
           onChange={(event) => setDisplayName(event.target.value)}
           placeholder="Prime Homes Nsukka"
           value={displayName}
         />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Bio</span>
         <textarea
-          className="min-h-32 rounded-2xl border border-stone-900/10 bg-white px-4 py-3"
+          className="min-h-32 rounded-field border border-line bg-paper px-4 py-3"
           onChange={(event) => setBio(event.target.value)}
           placeholder="Briefly describe your rental focus and service area."
           value={bio}
         />
       </label>
 
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-      {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
+      {error ? <p className="text-sm text-fix">{error}</p> : null}
+      {message ? <p className="text-sm text-verified">{message}</p> : null}
 
       <div className="flex justify-end">
         <button
-          className="rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-full bg-action px-5 py-3 text-sm font-medium text-on-action disabled:opacity-60"
           disabled={isSaving}
           type="submit"
         >

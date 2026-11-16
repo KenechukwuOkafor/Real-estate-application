@@ -37,12 +37,12 @@ export function ShareProfileLink({ url }: ShareProfileLinkProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-stone-900/10 bg-stone-50 p-2 pl-4">
-      <span className="min-w-0 flex-1 truncate font-mono text-sm text-stone-700">
+    <div className="flex flex-wrap items-center gap-2 rounded-tile border border-line bg-sunken p-2 pl-4">
+      <span className="min-w-0 flex-1 truncate font-mono text-sm text-body">
         {url.replace(/^https?:\/\//, "")}
       </span>
       <button
-        className="shrink-0 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
+        className="shrink-0 rounded-full bg-action px-4 py-2 text-sm font-medium text-on-action"
         onClick={copy}
         type="button"
       >

@@ -60,7 +60,7 @@ export function ListingImageManager({ images, listingId }: ListingImageManagerPr
 
   if (images.length === 0) {
     return (
-      <p className="text-sm text-stone-600">
+      <p className="text-sm text-muted">
         No photos yet. A listing needs at least three before it can be submitted.
       </p>
     );
@@ -72,7 +72,7 @@ export function ListingImageManager({ images, listingId }: ListingImageManagerPr
         {images.map((image) => (
           <li
             key={image.id}
-            className="relative overflow-hidden rounded-2xl border border-stone-900/10 bg-stone-100"
+            className="relative overflow-hidden rounded-tile border border-line bg-sunken-strong"
           >
             <div className="aspect-[4/3]">
               {image.url ? (
@@ -83,7 +83,7 @@ export function ListingImageManager({ images, listingId }: ListingImageManagerPr
                   src={image.url}
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-xs text-stone-500">
+                <div className="flex h-full items-center justify-center text-xs text-subtle">
                   Preview unavailable
                 </div>
               )}
@@ -94,13 +94,13 @@ export function ListingImageManager({ images, listingId }: ListingImageManagerPr
               agent should be able to anticipate: another photo takes its place.
             */}
             {image.isCover ? (
-              <span className="absolute left-2 top-2 rounded-full bg-stone-900/85 px-2.5 py-1 text-xs font-medium text-white">
+              <span className="absolute left-2 top-2 rounded-full bg-action/85 px-2.5 py-1 text-xs font-medium text-on-action">
                 Cover
               </span>
             ) : null}
 
             <button
-              className="absolute right-2 top-2 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-rose-700 shadow-sm transition-colors hover:bg-white disabled:opacity-60"
+              className="absolute right-2 top-2 rounded-full bg-paper/95 px-3 py-1.5 text-xs font-medium text-fix shadow-sm transition-colors hover:bg-paper disabled:opacity-60"
               disabled={removingId !== null}
               onClick={() => onRemove(image.id)}
               type="button"
@@ -111,7 +111,7 @@ export function ListingImageManager({ images, listingId }: ListingImageManagerPr
         ))}
       </ul>
 
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="text-sm text-fix">{error}</p> : null}
     </div>
   );
 }

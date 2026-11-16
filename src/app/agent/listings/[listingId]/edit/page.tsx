@@ -80,12 +80,12 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
   );
 
   return (
-    <main className="px-5 py-8 md:px-8 md:py-10 text-stone-900">
+    <main className="px-5 py-8 md:px-8 md:py-10 text-ink">
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
-        <section className="rounded-[2rem] border border-stone-900/10 bg-white/85 p-8 shadow-[0_20px_80px_rgba(48,38,24,0.08)]">
+        <section className="rounded-hero border border-line bg-card p-8 shadow-raised">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
+              <p className="text-sm font-medium uppercase tracking-[0.24em] text-subtle">
                 {formatListingStatus(listing.status)}
               </p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
@@ -93,7 +93,7 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
               </h1>
             </div>
             <Link
-              className="rounded-full border border-stone-900/10 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700"
+              className="rounded-full border border-line bg-sunken px-4 py-2 text-sm font-medium text-body"
               href="/agent/listings"
             >
               Back to listings
@@ -108,14 +108,14 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
           on this page and it belongs above the fields, not beside the status.
         */}
         {listing.status === "rejected" && listing.rejection_reason ? (
-          <section className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-6">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-900">
+          <section className="rounded-card border border-fix-line bg-fix-surface p-6">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-fix-ink">
               Why this was rejected
             </h2>
-            <p className="mt-3 text-base leading-7 text-rose-900">
+            <p className="mt-3 text-base leading-7 text-fix-ink">
               {listing.rejection_reason}
             </p>
-            <p className="mt-3 text-sm text-rose-800/80">
+            <p className="mt-3 text-sm text-fix-strong/80">
               Make the changes below, then submit it for review again.
             </p>
           </section>
@@ -127,13 +127,13 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
           opens their listing to find out what happened should find out.
         */}
         {hold ? (
-          <section className="rounded-[1.75rem] border border-stone-300 bg-white/85 p-6">
+          <section className="rounded-card border border-line-bold bg-card p-6">
             <h2 className="text-lg font-semibold">{hold.heading}</h2>
-            <p className="mt-3 text-sm font-medium uppercase tracking-[0.18em] text-stone-500">
+            <p className="mt-3 text-sm font-medium uppercase tracking-[0.18em] text-subtle">
               {hold.reasonLabel}
             </p>
-            <p className="mt-1 text-base leading-7 text-stone-900">{hold.reason}</p>
-            <p className="mt-3 text-sm leading-6 text-stone-700">{hold.consequence}</p>
+            <p className="mt-1 text-base leading-7 text-ink">{hold.reason}</p>
+            <p className="mt-3 text-sm leading-6 text-body">{hold.consequence}</p>
             <SupportWhatsAppLink
               agent={supportAgent}
               className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
@@ -150,17 +150,17 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
           missed it.
         */}
         {missingReason ? (
-          <section className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-6">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-900">
+          <section className="rounded-card border border-fix-line bg-fix-surface p-6">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-fix-ink">
               Why this was rejected
             </h2>
-            <p className="mt-3 text-base leading-7 text-rose-900">
+            <p className="mt-3 text-base leading-7 text-fix-ink">
               No reason was recorded. Message us on WhatsApp before resubmitting, so
               you know what to change.
             </p>
             <SupportWhatsAppLink
               agent={supportAgent}
-              className="mt-3 inline-block text-sm font-medium text-rose-900 underline underline-offset-4"
+              className="mt-3 inline-block text-sm font-medium text-fix-ink underline underline-offset-4"
               listing={{ title: listing.title }}
               topic="listing_rejected_without_reason"
             />
@@ -169,9 +169,9 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
 
         {editable ? (
           <>
-            <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+            <section className="rounded-card border border-line bg-card p-6">
               <h2 className="text-xl font-semibold">Listing details</h2>
-              <p className="mt-1 text-sm text-stone-600">
+              <p className="mt-1 text-sm text-muted">
                 Changes are saved to your draft. They do not go live until the
                 listing is submitted and approved.
               </p>
@@ -198,9 +198,9 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
               </div>
             </section>
 
-            <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+            <section className="rounded-card border border-line bg-card p-6">
               <h2 className="text-xl font-semibold">Photos</h2>
-              <p className="mt-1 text-sm text-stone-600">
+              <p className="mt-1 text-sm text-muted">
                 {images.length} image{images.length === 1 ? "" : "s"} on this
                 listing. A listing needs at least three before it can be
                 submitted.
@@ -220,9 +220,9 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
             </section>
           </>
         ) : isLive ? (
-          <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+          <section className="rounded-card border border-line bg-card p-6">
             <h2 className="text-xl font-semibold">Change this listing</h2>
-            <p className="mt-1 text-sm text-stone-600">
+            <p className="mt-1 text-sm text-muted">
               {listing.status === "rented"
                 ? "This listing is off the market, but it has been reviewed — so changes still go to a moderator before it goes back into search."
                 : "This listing is live. Changes go to a moderator before seekers see them."}
@@ -248,9 +248,9 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
             than 404ing. An agent following a link from their own list deserves
             to be told why the listing is locked, not shown a dead end.
           */
-          <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+          <section className="rounded-card border border-line bg-card p-6">
             <h2 className="text-xl font-semibold">This listing cannot be edited</h2>
-            <p className="mt-3 text-sm leading-7 text-stone-700">
+            <p className="mt-3 text-sm leading-7 text-body">
               Only drafts and rejected listings can be changed directly. This one
               is {formatListingStatus(listing.status).toLowerCase()}.
             </p>

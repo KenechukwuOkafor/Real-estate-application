@@ -18,14 +18,14 @@ import type { PerListingRow } from "@/features/agents/dashboard/metrics";
  */
 function reading(row: PerListingRow) {
   if (row.viewers === 0) {
-    return { text: "Not being seen", tone: "text-stone-600" };
+    return { text: "Not being seen", tone: "text-muted" };
   }
 
   if (row.requests === 0) {
-    return { text: "Seen, but not asked about", tone: "text-amber-800" };
+    return { text: "Seen, but not asked about", tone: "text-attention" };
   }
 
-  return { text: "Converting", tone: "text-emerald-800" };
+  return { text: "Converting", tone: "text-verified-strong" };
 }
 
 export function DashboardListingsTable({ rows }: { rows: PerListingRow[] }) {
@@ -37,7 +37,7 @@ export function DashboardListingsTable({ rows }: { rows: PerListingRow[] }) {
     <div className="overflow-x-auto">
       <table className="w-full min-w-[560px] border-collapse text-left text-sm">
         <thead>
-          <tr className="border-b border-stone-900/10 text-xs uppercase tracking-[0.14em] text-stone-500">
+          <tr className="border-b border-line text-xs uppercase tracking-[0.14em] text-subtle">
             <th className="py-2 pr-4 font-semibold">Listing</th>
             <th className="py-2 pr-4 font-semibold">Viewers</th>
             <th className="py-2 pr-4 font-semibold">Requests</th>
@@ -50,7 +50,7 @@ export function DashboardListingsTable({ rows }: { rows: PerListingRow[] }) {
             const read = reading(row);
 
             return (
-              <tr className="border-b border-stone-900/5" key={row.listingId}>
+              <tr className="border-b border-line-faint" key={row.listingId}>
                 <td className="py-3 pr-4">
                   {/*
                     /agent/listings?focus=<id>, not /agent/listings/<id>. The
@@ -66,7 +66,7 @@ export function DashboardListingsTable({ rows }: { rows: PerListingRow[] }) {
                     {row.title}
                   </Link>
                   {row.status !== "approved" ? (
-                    <span className="ml-2 text-xs text-stone-500">{row.status}</span>
+                    <span className="ml-2 text-xs text-subtle">{row.status}</span>
                   ) : null}
                 </td>
                 <td className="py-3 pr-4 tabular-nums">{row.viewers}</td>

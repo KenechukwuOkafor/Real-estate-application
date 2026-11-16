@@ -115,7 +115,7 @@ function Badge({ count }: { count: number }) {
     <span
       // Announced as part of the link's name, so a screen reader hears
       // "Requests, 3 waiting" rather than "Requests 3".
-      className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-stone-900 px-1.5 py-0.5 text-[0.6875rem] font-semibold leading-none text-white"
+      className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-action px-1.5 py-0.5 text-[0.6875rem] font-semibold leading-none text-on-action"
     >
       {count > 9 ? "9+" : count}
       <span className="sr-only"> waiting</span>
@@ -145,10 +145,10 @@ export function PortalNav({ counts }: { counts: PortalNavCounts }) {
       {/* Desktop: a sidebar. Hidden below md, where the bar takes over. */}
       <nav
         aria-label="Agent portal sidebar"
-        className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:gap-1 md:border-r md:border-stone-900/10 md:bg-white/60 md:px-4 md:py-6"
+        className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:gap-1 md:border-r md:border-line md:bg-paper/60 md:px-4 md:py-6"
       >
         <Link
-          className="mb-4 px-3 text-lg font-semibold tracking-tight text-stone-900"
+          className="mb-4 px-3 text-lg font-semibold tracking-tight text-ink"
           href="/agent"
         >
           Ruvo
@@ -160,10 +160,10 @@ export function PortalNav({ counts }: { counts: PortalNavCounts }) {
           return (
             <Link
               aria-current={isActive ? "page" : undefined}
-              className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 rounded-tile px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive
-                  ? "bg-stone-900 text-white"
-                  : "text-stone-600 hover:bg-stone-900/5 hover:text-stone-900"
+                  ? "bg-action text-on-action"
+                  : "text-muted hover:bg-line-faint hover:text-ink"
               }`}
               href={item.href}
               key={item.href}
@@ -184,7 +184,7 @@ export function PortalNav({ counts }: { counts: PortalNavCounts }) {
       */}
       <nav
         aria-label="Agent portal"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-900/10 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
         <ul className="flex items-stretch">
           {NAV_ITEMS.map((item) => {
@@ -195,7 +195,7 @@ export function PortalNav({ counts }: { counts: PortalNavCounts }) {
                 <Link
                   aria-current={isActive ? "page" : undefined}
                   className={`flex min-h-14 flex-col items-center justify-center gap-1 px-1 py-2 text-[0.6875rem] font-medium transition-colors ${
-                    isActive ? "text-stone-900" : "text-stone-500"
+                    isActive ? "text-ink" : "text-subtle"
                   }`}
                   href={item.href}
                 >

@@ -62,7 +62,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   }
 
   return (
-    <span className="text-sm text-rose-700" id={`${id}-error`}>
+    <span className="text-sm text-fix" id={`${id}-error`}>
       {message}
     </span>
   );
@@ -214,21 +214,21 @@ export function ListingForm({ listing }: ListingFormProps) {
 
   return (
     <form className="grid gap-5 md:grid-cols-2" onSubmit={onSubmit}>
-      <label className="flex flex-col gap-2 text-sm text-stone-700 md:col-span-2">
+      <label className="flex flex-col gap-2 text-sm text-body md:col-span-2">
         <span>Title</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.title ? "title-error" : undefined} aria-invalid={Boolean(fieldErrors.title)} onChange={(e) => setTitle(e.target.value)} value={title} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" aria-describedby={fieldErrors.title ? "title-error" : undefined} aria-invalid={Boolean(fieldErrors.title)} onChange={(e) => setTitle(e.target.value)} value={title} />
         <FieldError id="title" message={fieldErrors.title} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700 md:col-span-2">
+      <label className="flex flex-col gap-2 text-sm text-body md:col-span-2">
         <span>Description</span>
-        <textarea className="min-h-32 rounded-2xl border border-stone-900/10 bg-white px-4 py-3" aria-describedby={fieldErrors.description ? "description-error" : undefined} aria-invalid={Boolean(fieldErrors.description)} onChange={(e) => setDescription(e.target.value)} value={description} />
+        <textarea className="min-h-32 rounded-field border border-line bg-paper px-4 py-3" aria-describedby={fieldErrors.description ? "description-error" : undefined} aria-invalid={Boolean(fieldErrors.description)} onChange={(e) => setDescription(e.target.value)} value={description} />
         <FieldError id="description" message={fieldErrors.description} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Property type</span>
-        <select className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.propertyType ? "propertyType-error" : undefined} aria-invalid={Boolean(fieldErrors.propertyType)} onChange={(e) => setPropertyType(e.target.value)} value={propertyType}>
+        <select className="h-12 rounded-field border border-line bg-paper px-4" aria-describedby={fieldErrors.propertyType ? "propertyType-error" : undefined} aria-invalid={Boolean(fieldErrors.propertyType)} onChange={(e) => setPropertyType(e.target.value)} value={propertyType}>
           {listingPropertyTypeOptions.filter((option) => option.value).map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -238,9 +238,9 @@ export function ListingForm({ listing }: ListingFormProps) {
         <FieldError id="propertyType" message={fieldErrors.propertyType} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Duration</span>
-        <select className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.rentalDuration ? "rentalDuration-error" : undefined} aria-invalid={Boolean(fieldErrors.rentalDuration)} onChange={(e) => setRentalDuration(e.target.value as never)} value={rentalDuration}>
+        <select className="h-12 rounded-field border border-line bg-paper px-4" aria-describedby={fieldErrors.rentalDuration ? "rentalDuration-error" : undefined} aria-invalid={Boolean(fieldErrors.rentalDuration)} onChange={(e) => setRentalDuration(e.target.value as never)} value={rentalDuration}>
           {listingRentalDurationOptions.filter((option) => option.value).map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -256,10 +256,10 @@ export function ListingForm({ listing }: ListingFormProps) {
         showing it would invite a 422 the agent could not have predicted.
       */}
       {rentalDuration === "sublet" ? (
-        <label className="flex flex-col gap-2 text-sm text-stone-700">
+        <label className="flex flex-col gap-2 text-sm text-body">
           <span>Sublet length (months)</span>
           <input
-            className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+            className="h-12 rounded-field border border-line bg-paper px-4"
             min={1}
             onChange={(e) => setSubletMonths(e.target.value)}
             required
@@ -268,65 +268,65 @@ export function ListingForm({ listing }: ListingFormProps) {
             value={subletMonths}
           />
           {subletWarning ? (
-            <span className="text-sm text-amber-800">{subletWarning}</span>
+            <span className="text-sm text-attention">{subletWarning}</span>
           ) : null}
         </label>
       ) : null}
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Price (NGN)</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.priceNaira ? "priceNaira-error" : undefined} aria-invalid={Boolean(fieldErrors.priceNaira)} onChange={(e) => setPriceNaira(e.target.value)} type="number" value={priceNaira} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" aria-describedby={fieldErrors.priceNaira ? "priceNaira-error" : undefined} aria-invalid={Boolean(fieldErrors.priceNaira)} onChange={(e) => setPriceNaira(e.target.value)} type="number" value={priceNaira} />
         <FieldError id="priceNaira" message={fieldErrors.priceNaira} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Bedrooms</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.bedrooms ? "bedrooms-error" : undefined} aria-invalid={Boolean(fieldErrors.bedrooms)} onChange={(e) => setBedrooms(e.target.value)} type="number" value={bedrooms} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" aria-describedby={fieldErrors.bedrooms ? "bedrooms-error" : undefined} aria-invalid={Boolean(fieldErrors.bedrooms)} onChange={(e) => setBedrooms(e.target.value)} type="number" value={bedrooms} />
         <FieldError id="bedrooms" message={fieldErrors.bedrooms} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Bathrooms</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.bathrooms ? "bathrooms-error" : undefined} aria-invalid={Boolean(fieldErrors.bathrooms)} onChange={(e) => setBathrooms(e.target.value)} type="number" value={bathrooms} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" aria-describedby={fieldErrors.bathrooms ? "bathrooms-error" : undefined} aria-invalid={Boolean(fieldErrors.bathrooms)} onChange={(e) => setBathrooms(e.target.value)} type="number" value={bathrooms} />
         <FieldError id="bathrooms" message={fieldErrors.bathrooms} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Area</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" aria-describedby={fieldErrors.area ? "area-error" : undefined} aria-invalid={Boolean(fieldErrors.area)} onChange={(e) => setArea(e.target.value)} value={area} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" aria-describedby={fieldErrors.area ? "area-error" : undefined} aria-invalid={Boolean(fieldErrors.area)} onChange={(e) => setArea(e.target.value)} value={area} />
         <FieldError id="area" message={fieldErrors.area} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>City</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setCity(e.target.value)} value={city} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" onChange={(e) => setCity(e.target.value)} value={city} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>State</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setState(e.target.value)} value={state} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" onChange={(e) => setState(e.target.value)} value={state} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Latitude</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setLatitude(e.target.value)} type="number" value={latitude} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" onChange={(e) => setLatitude(e.target.value)} type="number" value={latitude} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Longitude</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setLongitude(e.target.value)} type="number" value={longitude} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" onChange={(e) => setLongitude(e.target.value)} type="number" value={longitude} />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700 md:col-span-2">
+      <label className="flex flex-col gap-2 text-sm text-body md:col-span-2">
         <span>Amenities</span>
-        <input className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4" onChange={(e) => setAmenities(e.target.value)} value={amenities} />
+        <input className="h-12 rounded-field border border-line bg-paper px-4" onChange={(e) => setAmenities(e.target.value)} value={amenities} />
       </label>
 
-      {error ? <p className="text-sm text-rose-700 md:col-span-2">{error}</p> : null}
-      {message ? <p className="text-sm text-emerald-700 md:col-span-2">{message}</p> : null}
+      {error ? <p className="text-sm text-fix md:col-span-2">{error}</p> : null}
+      {message ? <p className="text-sm text-verified md:col-span-2">{message}</p> : null}
 
       <div className="md:col-span-2 flex justify-end">
-        <button className="rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white disabled:opacity-60" disabled={isSubmitting} type="submit">
+        <button className="rounded-full bg-action px-5 py-3 text-sm font-medium text-on-action disabled:opacity-60" disabled={isSubmitting} type="submit">
           {isSubmitting
             ? isEditing
               ? "Saving..."

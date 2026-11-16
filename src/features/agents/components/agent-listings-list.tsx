@@ -179,15 +179,15 @@ export function AgentListingsList({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 rounded-[1.5rem] border border-stone-900/10 bg-white/70 p-4">
+      <div className="flex flex-col gap-3 rounded-inset border border-line bg-paper/70 p-4">
         <div className="flex flex-wrap items-center gap-2">
           {attentionCount > 0 ? (
             <button
               aria-pressed={attentionOnly}
               className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                 attentionOnly
-                  ? "bg-amber-900 text-white"
-                  : "border border-amber-300 bg-amber-50 text-amber-900"
+                  ? "bg-attention-fill text-on-action"
+                  : "border border-attention-line-strong bg-attention-surface text-attention-ink"
               }`}
               onClick={() => setAttentionOnly((on) => !on)}
               type="button"
@@ -207,8 +207,8 @@ export function AgentListingsList({
                 aria-pressed={on}
                 className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 ${
                   on
-                    ? "bg-stone-900 text-white"
-                    : "border border-stone-900/15 bg-white text-stone-800"
+                    ? "bg-action text-on-action"
+                    : "border border-line-strong bg-paper text-ink-soft"
                 }`}
                 disabled={count === 0}
                 key={group.key}
@@ -222,20 +222,20 @@ export function AgentListingsList({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-sm text-stone-700">
+          <label className="flex items-center gap-2 text-sm text-body">
             <input
               checked={showRemoved}
-              className="h-4 w-4 rounded border-stone-400"
+              className="h-4 w-4 rounded border-line-heavy"
               onChange={(event) => setShowRemoved(event.target.checked)}
               type="checkbox"
             />
             Show removed ({counts.get("removed") ?? 0})
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-stone-700">
+          <label className="flex items-center gap-2 text-sm text-body">
             Sort
             <select
-              className="rounded-full border border-stone-900/15 bg-white px-3 py-1.5 text-sm"
+              className="rounded-full border border-line-strong bg-paper px-3 py-1.5 text-sm"
               onChange={(event) => setSort(event.target.value as SortKey)}
               value={sort}
             >
@@ -249,7 +249,7 @@ export function AgentListingsList({
         </div>
 
         {activeSubtitle ? (
-          <p className="text-sm leading-6 text-stone-600">{activeSubtitle}</p>
+          <p className="text-sm leading-6 text-muted">{activeSubtitle}</p>
         ) : null}
 
         {/*
@@ -257,13 +257,13 @@ export function AgentListingsList({
           attached are not a measurement, and this is the same window the
           dashboard defaults to so the two screens agree.
         */}
-        <p className="text-xs uppercase tracking-[0.16em] text-stone-500">
+        <p className="text-xs uppercase tracking-[0.16em] text-subtle">
           Viewers and requests: last {windowDays} days
         </p>
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-[1.5rem] border border-dashed border-stone-900/15 bg-white/60 p-6 text-sm leading-6 text-stone-600">
+        <p className="rounded-inset border border-dashed border-line-strong bg-paper/60 p-6 text-sm leading-6 text-muted">
           {/*
             Says which filter is responsible, because "nothing here" over a list
             the agent knows is not empty reads as a broken page.

@@ -122,7 +122,7 @@ export function AgentAvatarForm({ initialAvatarUrl }: AgentAvatarFormProps) {
       ) : (
         <div
           aria-hidden="true"
-          className="flex h-20 w-20 items-center justify-center rounded-full bg-[linear-gradient(135deg,_#d9d2c4,_#ece6d8)] text-sm uppercase tracking-[0.2em] text-stone-600"
+          className="flex h-20 w-20 items-center justify-center rounded-full bg-(image:--gradient-placeholder) text-sm uppercase tracking-[0.2em] text-muted"
         >
           Ruvo
         </div>
@@ -131,7 +131,7 @@ export function AgentAvatarForm({ initialAvatarUrl }: AgentAvatarFormProps) {
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-2">
           <button
-            className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-full bg-action px-4 py-2 text-sm font-medium text-on-action disabled:opacity-60"
             disabled={isBusy}
             onClick={() => inputRef.current?.click()}
             type="button"
@@ -140,7 +140,7 @@ export function AgentAvatarForm({ initialAvatarUrl }: AgentAvatarFormProps) {
           </button>
           {avatarUrl ? (
             <button
-              className="rounded-full border border-stone-900/10 px-4 py-2 text-sm font-medium text-stone-700 disabled:opacity-60"
+              className="rounded-full border border-line px-4 py-2 text-sm font-medium text-body disabled:opacity-60"
               disabled={isBusy}
               onClick={clear}
               type="button"
@@ -154,11 +154,11 @@ export function AgentAvatarForm({ initialAvatarUrl }: AgentAvatarFormProps) {
           a shop logo, and the honest instruction is that it will be cropped to
           a circle — not a specification nobody can meet from a phone.
         */}
-        <p className="text-xs leading-5 text-stone-600">
+        <p className="text-xs leading-5 text-muted">
           JPG, PNG or WebP, up to 2 MB. It is shown as a circle, so anything
           near the edges gets cropped.
         </p>
-        {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+        {error ? <p className="text-sm text-fix">{error}</p> : null}
       </div>
 
       <input

@@ -63,18 +63,18 @@ function reading(card: CardModel) {
   }
 
   if (card.tooNew) {
-    return { text: "Too new to judge", tone: "text-stone-500" };
+    return { text: "Too new to judge", tone: "text-subtle" };
   }
 
   if (card.viewers === 0) {
-    return { text: "Not being seen", tone: "text-stone-600" };
+    return { text: "Not being seen", tone: "text-muted" };
   }
 
   if (card.requests === 0) {
-    return { text: "Seen, but not asked about", tone: "text-amber-800" };
+    return { text: "Seen, but not asked about", tone: "text-attention" };
   }
 
-  return { text: "Converting", tone: "text-emerald-800" };
+  return { text: "Converting", tone: "text-verified-strong" };
 }
 
 function daysSince(iso: string) {
@@ -82,7 +82,7 @@ function daysSince(iso: string) {
 }
 
 const ACTION_CLASS =
-  "rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-medium text-stone-900 transition-colors hover:bg-stone-50";
+  "rounded-full border border-line-strong bg-paper px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-sunken";
 
 export function AgentListingCard({
   card,
@@ -123,23 +123,23 @@ export function AgentListingCard({
 
   return (
     <article
-      className={`rounded-[1.75rem] border bg-white/85 p-6 shadow-[0_16px_40px_rgba(48,38,24,0.06)] ${
+      className={`rounded-card border bg-card p-6 shadow-lifted ${
         focused
-          ? "border-stone-900/40 ring-2 ring-stone-900/15"
+          ? "border-ink/40 ring-2 ring-line-strong"
           : attention
-            ? "border-amber-300/70"
-            : "border-stone-900/10"
+            ? "border-attention-line-strong/70"
+            : "border-line"
       }`}
       id={card.id}
     >
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 max-w-2xl">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-subtle">
               {formatListingStatus(card.status)}
             </p>
             {card.tooNew ? (
-              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-stone-600">
+              <span className="rounded-full bg-sunken-strong px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
                 New
               </span>
             ) : null}
@@ -147,11 +147,11 @@ export function AgentListingCard({
 
           <h2 className="mt-2 text-2xl font-semibold">{card.title}</h2>
 
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-600">
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
             <span>
               {card.area}, {card.city}
             </span>
-            <span className="font-medium text-stone-900">
+            <span className="font-medium text-ink">
               {formatPriceNaira(card.priceNaira)}{" "}
               {formatRentalDuration(
                 card.rentalDuration as "yearly" | "monthly" | "sublet",
@@ -172,18 +172,18 @@ export function AgentListingCard({
           {card.status === "approved" || card.status === "rented" ? (
             <div className="mt-4 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-sm">
               <span>
-                <strong className="text-base font-semibold text-stone-900">
+                <strong className="text-base font-semibold text-ink">
                   {card.viewers}
                 </strong>{" "}
-                <span className="text-stone-600">
+                <span className="text-muted">
                   viewer{card.viewers === 1 ? "" : "s"}
                 </span>
               </span>
               <span>
-                <strong className="text-base font-semibold text-stone-900">
+                <strong className="text-base font-semibold text-ink">
                   {card.requests}
                 </strong>{" "}
-                <span className="text-stone-600">
+                <span className="text-muted">
                   request{card.requests === 1 ? "" : "s"}
                 </span>
               </span>
@@ -196,7 +196,7 @@ export function AgentListingCard({
           {/* ---------------------------------------------------- signals */}
 
           {card.status === "rejected" && card.rejectionReason ? (
-            <p className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-900">
+            <p className="mt-3 rounded-tile bg-fix-surface px-4 py-3 text-sm leading-6 text-fix-ink">
               Rejected: {card.rejectionReason}
             </p>
           ) : null}
@@ -207,15 +207,15 @@ export function AgentListingCard({
             rose — a flag is a question, not something they must fix.
           */}
           {hold ? (
-            <div className="mt-3 rounded-2xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-800">
-              <p className="font-medium text-stone-900">{hold.heading}</p>
+            <div className="mt-3 rounded-tile border border-line-bold bg-sunken px-4 py-3 text-sm leading-6 text-ink-soft">
+              <p className="font-medium text-ink">{hold.heading}</p>
               <p className="mt-1">
-                <span className="text-stone-600">{hold.reasonLabel}:</span> {hold.reason}
+                <span className="text-muted">{hold.reasonLabel}:</span> {hold.reason}
               </p>
-              <p className="mt-1 text-stone-700">{hold.consequence}</p>
+              <p className="mt-1 text-body">{hold.consequence}</p>
               <SupportWhatsAppLink
                 agent={entitlement.supportAgent}
-                className="mt-2 inline-block font-medium text-stone-900 underline underline-offset-4"
+                className="mt-2 inline-block font-medium text-ink underline underline-offset-4"
                 listing={{ title: card.title }}
                 topic={hold.supportTopic}
               />
@@ -229,7 +229,7 @@ export function AgentListingCard({
             looking at the listing itself saw nothing wrong with it.
           */}
           {card.revision?.status === "rejected" ? (
-            <p className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-900">
+            <p className="mt-3 rounded-tile bg-fix-surface px-4 py-3 text-sm leading-6 text-fix-ink">
               Your change to this listing was refused
               {card.revision.reason ? `: ${card.revision.reason}` : "."} The
               listing is still live with the details a moderator approved.
@@ -237,7 +237,7 @@ export function AgentListingCard({
           ) : null}
 
           {card.revision?.status === "pending_review" ? (
-            <p className="mt-3 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-6 text-stone-700">
+            <p className="mt-3 rounded-tile bg-sunken-strong px-4 py-3 text-sm leading-6 text-body">
               A change to this listing is with a moderator. It stays live with
               its current details until they decide.
             </p>
@@ -249,7 +249,7 @@ export function AgentListingCard({
             cannot claim the sublet is over, and nothing auto-hides on it.
           */}
           {card.subletTermPassed ? (
-            <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+            <p className="mt-3 rounded-tile bg-attention-surface px-4 py-3 text-sm leading-6 text-attention-ink">
               {`This sublet has been live longer than the ${card.subletMonths}-month term it advertises.`}{" "}
               It is still in search. If it has gone, mark it as taken; if the
               dates have moved, change the details.
@@ -257,7 +257,7 @@ export function AgentListingCard({
           ) : null}
 
           {card.status === "rented" ? (
-            <p className="mt-3 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-6 text-stone-700">
+            <p className="mt-3 rounded-tile bg-sunken-strong px-4 py-3 text-sm leading-6 text-body">
               Off the market{card.rentedAt ? ` for ${daysSince(card.rentedAt)} days` : ""}.
               It is not in search and is not taking new requests, but you still
               have it and it is still using no submission slot.
@@ -265,7 +265,7 @@ export function AgentListingCard({
           ) : null}
 
           {card.status === "archived" ? (
-            <p className="mt-3 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-6 text-stone-700">
+            <p className="mt-3 rounded-tile bg-sunken-strong px-4 py-3 text-sm leading-6 text-body">
               Removed. This listing is no longer visible to seekers and cannot be
               restored — list the property again to bring it back.
             </p>

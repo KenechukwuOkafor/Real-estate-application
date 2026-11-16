@@ -73,7 +73,7 @@ export default async function AgentProfilePage({ params }: AgentProfilePageProps
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#efe7da_100%)] px-5 py-10 text-stone-900 md:px-8">
+    <main className="min-h-screen bg-(image:--gradient-ground) px-5 py-10 text-ink md:px-8">
       {/*
         Owner views do not count. An agent checking their own page would
         otherwise be most of the traffic on it, and this data exists to answer
@@ -93,7 +93,7 @@ export default async function AgentProfilePage({ params }: AgentProfilePageProps
 
 function ProfileHeader({ profile }: { profile: PublicAgentProfile }) {
   return (
-    <header className="rounded-[2rem] border border-stone-900/10 bg-white/85 p-6 shadow-[0_20px_80px_rgba(48,38,24,0.08)] md:p-9">
+    <header className="rounded-hero border border-line bg-card p-6 shadow-raised md:p-9">
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         <Avatar profile={profile} />
 
@@ -108,7 +108,7 @@ function ProfileHeader({ profile }: { profile: PublicAgentProfile }) {
             reason this link is worth pasting anywhere.
           */}
           {profile.isVerified ? (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-base font-semibold text-white shadow-[0_8px_24px_rgba(5,120,85,0.25)]">
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-verified-fill px-4 py-2 text-base font-semibold text-on-action shadow-verified-glow">
               <span aria-hidden="true">✓</span>
               Verified by Ruvo
             </div>
@@ -119,7 +119,7 @@ function ProfileHeader({ profile }: { profile: PublicAgentProfile }) {
               not a badge of doubt shown to strangers; it is the one place an
               agent finds out their page is not live yet.
             */
-            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+            <div className="mt-3 rounded-tile border border-attention-line bg-attention-surface px-4 py-3 text-sm leading-6 text-attention-ink">
               <p className="font-semibold">This page is not public yet.</p>
               <p className="mt-1">
                 Only you can see it. Finish verification and it goes live at the
@@ -132,13 +132,13 @@ function ProfileHeader({ profile }: { profile: PublicAgentProfile }) {
           )}
 
           {profile.isVerified && profile.verifiedAt ? (
-            <p className="mt-2 text-sm text-stone-600">
+            <p className="mt-2 text-sm text-muted">
               Verified since {formatVerifiedSince(profile.verifiedAt)}
             </p>
           ) : null}
 
           {profile.bio ? (
-            <p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-7 text-stone-700">
+            <p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-7 text-body">
               {profile.bio}
             </p>
           ) : null}
@@ -150,8 +150,8 @@ function ProfileHeader({ profile }: { profile: PublicAgentProfile }) {
             agent who has done nothing wrong.
           */}
           {profile.responseRate ? (
-            <div className="mt-5 inline-flex flex-col rounded-2xl bg-stone-100 px-4 py-3">
-              <span className="text-base font-semibold text-stone-900">
+            <div className="mt-5 inline-flex flex-col rounded-tile bg-sunken-strong px-4 py-3">
+              <span className="text-base font-semibold text-ink">
                 {profile.responseRate.label}
               </span>
               {/*
@@ -160,7 +160,7 @@ function ProfileHeader({ profile }: { profile: PublicAgentProfile }) {
                 scores full marks here, and the copy must not let a seeker read
                 it as anything else.
               */}
-              <span className="mt-0.5 text-xs text-stone-600">
+              <span className="mt-0.5 text-xs text-muted">
                 Counts replies to inspection requests, not what happened after.
               </span>
             </div>
@@ -193,7 +193,7 @@ function Avatar({ profile }: { profile: PublicAgentProfile }) {
   return (
     <div
       aria-hidden="true"
-      className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,_#d9d2c4,_#ece6d8)] text-2xl font-semibold text-stone-600 md:h-28 md:w-28"
+      className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-(image:--gradient-placeholder) text-2xl font-semibold text-muted md:h-28 md:w-28"
     >
       {profile.displayName.slice(0, 1).toUpperCase()}
     </div>
@@ -204,9 +204,9 @@ function OwnerShareCard({ profile }: { profile: PublicAgentProfile }) {
   const url = `${appEnv.appUrl()}/a/${profile.handle}`;
 
   return (
-    <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-6">
+    <section className="rounded-card border border-line bg-card p-6">
       <h2 className="text-lg font-semibold">Your link</h2>
-      <p className="mt-1.5 mb-4 text-sm leading-6 text-stone-700">
+      <p className="mt-1.5 mb-4 text-sm leading-6 text-body">
         Paste this anywhere — a WhatsApp bio, a status, a flyer. It always shows
         whatever you have available right now, and it does not change when you
         change your display name.
@@ -239,25 +239,25 @@ function ApprovedListings({ profile }: { profile: PublicAgentProfile }) {
     page at all.
   */
   return (
-    <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/85 p-8 text-center">
+    <section className="rounded-card border border-line bg-card p-8 text-center">
       <h2 className="text-xl font-semibold tracking-tight">
         Nothing available right now
       </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-stone-700">
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-body">
         {profile.isOwner
           ? "Your page is live and this is what a seeker sees today. Anything you get approved appears here automatically."
           : `${profile.displayName} has no rooms free at the moment. Places usually come back between tenancies, so this link is worth keeping.`}
       </p>
       {profile.isOwner ? (
         <Link
-          className="mt-6 inline-flex rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white"
+          className="mt-6 inline-flex rounded-full bg-action px-5 py-3 text-sm font-medium text-on-action"
           href="/agent/listings/new"
         >
           Add a listing
         </Link>
       ) : (
         <Link
-          className="mt-6 inline-flex rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white"
+          className="mt-6 inline-flex rounded-full bg-action px-5 py-3 text-sm font-medium text-on-action"
           href="/listings"
         >
           Browse other listings
@@ -280,14 +280,14 @@ function PrivateListings({ profile }: { profile: PublicAgentProfile }) {
   }
 
   return (
-    <section className="rounded-[1.75rem] border border-dashed border-stone-900/20 bg-white/60 p-6">
+    <section className="rounded-card border border-dashed border-ink/20 bg-paper/60 p-6">
       <h2 className="text-lg font-semibold">Not on your public page</h2>
-      <p className="mt-1.5 mb-4 text-sm leading-6 text-stone-700">
+      <p className="mt-1.5 mb-4 text-sm leading-6 text-body">
         Only you can see these. Drafts and listings in review appear above once
         approved; taken and removed ones do not.
       </p>
 
-      <ul className="flex flex-col divide-y divide-stone-900/10">
+      <ul className="flex flex-col divide-y divide-line">
         {profile.privateListings.map((listing) => (
           <li
             key={listing.id}
@@ -295,10 +295,10 @@ function PrivateListings({ profile }: { profile: PublicAgentProfile }) {
           >
             <div className="min-w-0">
               <p className="truncate font-medium">{listing.title}</p>
-              <p className="text-sm text-stone-600">{listing.area}</p>
+              <p className="text-sm text-muted">{listing.area}</p>
             </div>
             <div className="flex items-center gap-3">
-              <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-700">
+              <span className="rounded-full bg-sunken-strong px-3 py-1 text-xs font-semibold text-body">
                 {PRIVATE_STATUS_LABEL[listing.status] ?? listing.status}
               </span>
               <Link

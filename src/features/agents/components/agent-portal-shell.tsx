@@ -26,7 +26,7 @@ export function AgentPortalShell({
 }) {
   return (
     <div
-      className="flex min-h-screen bg-[linear-gradient(180deg,_#f7f4ec_0%,_#efe7da_100%)]"
+      className="flex min-h-screen bg-(image:--gradient-ground)"
       data-portal-shell
     >
       <PortalNav counts={counts} />

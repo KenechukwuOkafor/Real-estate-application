@@ -77,11 +77,11 @@ export default async function AgentListingsPage({
   );
 
   return (
-    <main className="px-5 py-8 text-stone-900 md:px-8 md:py-10">
+    <main className="px-5 py-8 text-ink md:px-8 md:py-10">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-subtle">
               Your listings
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
@@ -89,37 +89,37 @@ export default async function AgentListingsPage({
             </h1>
           </div>
           <Link
-            className="rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white"
+            className="rounded-full bg-action px-5 py-3 text-sm font-medium text-on-action"
             href="/agent/listings/new"
           >
             New draft
           </Link>
         </header>
 
-        <section className="rounded-[1.75rem] border border-stone-900/10 bg-white/80 p-6">
+        <section className="rounded-card border border-line bg-paper/80 p-6">
           <div className="flex flex-wrap items-center gap-3">
             {!entitlement.isVerified ? (
-              <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900">
+              <span className="rounded-full bg-attention-surface px-3 py-1.5 text-xs font-semibold text-attention-ink">
                 Not yet verified
               </span>
             ) : entitlement.activeSubscription ? (
-              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">
+              <span className="rounded-full bg-verified-surface px-3 py-1.5 text-xs font-semibold text-verified-ink">
                 {entitlement.activeSubscription.plan.charAt(0).toUpperCase() +
                   entitlement.activeSubscription.plan.slice(1)}{" "}
                 plan active
               </span>
             ) : entitlement.freeListingQuota > 0 ? (
-              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">
+              <span className="rounded-full bg-verified-surface px-3 py-1.5 text-xs font-semibold text-verified-ink">
                 {entitlement.freeListingQuota} submission slot
                 {entitlement.freeListingQuota === 1 ? "" : "s"} remaining
               </span>
             ) : (
-              <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-800">
+              <span className="rounded-full bg-fix-surface px-3 py-1.5 text-xs font-semibold text-fix-strong">
                 No submission slots
               </span>
             )}
           </div>
-          <p className="mt-3 text-sm leading-7 text-stone-700">
+          <p className="mt-3 text-sm leading-7 text-body">
             {!entitlement.isVerified ? (
               <>
                 Drafts are free and unlimited. To submit one for review you need
@@ -140,7 +140,7 @@ export default async function AgentListingsPage({
         </section>
 
         {cards.length === 0 ? (
-          <div className="rounded-[1.75rem] border border-dashed border-stone-900/15 bg-white/75 p-8 text-stone-600">
+          <div className="rounded-card border border-dashed border-line-strong bg-paper/75 p-8 text-muted">
             No listings yet. Create your first draft to begin.
           </div>
         ) : (

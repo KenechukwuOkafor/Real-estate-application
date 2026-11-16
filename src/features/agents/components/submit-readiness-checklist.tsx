@@ -19,15 +19,15 @@ export function SubmitReadinessChecklist({ items }: SubmitReadinessChecklistProp
 
   if (ready) {
     return (
-      <p className="text-sm font-medium text-emerald-800">
+      <p className="text-sm font-medium text-verified-strong">
         Ready to submit for review.
       </p>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-stone-900/10 bg-stone-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+    <div className="rounded-tile border border-line bg-sunken p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-subtle">
         Before you submit
       </p>
 
@@ -43,24 +43,24 @@ export function SubmitReadinessChecklist({ items }: SubmitReadinessChecklistProp
               aria-hidden="true"
               className={
                 item.met
-                  ? "mt-0.5 text-emerald-700"
-                  : "mt-0.5 text-stone-400"
+                  ? "mt-0.5 text-verified"
+                  : "mt-0.5 text-faint"
               }
             >
               {item.met ? "✓" : "○"}
             </span>
             <span className="flex flex-col gap-0.5">
               <span
-                className={item.met ? "text-stone-500 line-through" : "text-stone-900"}
+                className={item.met ? "text-subtle line-through" : "text-ink"}
               >
                 {item.label}
               </span>
               {!item.met && item.hint ? (
-                <span className="text-stone-600">{item.hint}</span>
+                <span className="text-muted">{item.hint}</span>
               ) : null}
               {!item.met && item.action ? (
                 <a
-                  className="font-medium text-stone-900 underline underline-offset-4"
+                  className="font-medium text-ink underline underline-offset-4"
                   href={item.action.href}
                   rel="noopener noreferrer"
                   target="_blank"

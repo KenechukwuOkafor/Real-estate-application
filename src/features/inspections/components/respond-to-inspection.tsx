@@ -70,11 +70,11 @@ export function RespondToInspection({
 
   if (pending === "accepted") {
     return (
-      <div className="rounded-2xl border border-stone-900/15 bg-stone-50 p-4">
-        <p className="text-sm font-semibold text-stone-900">
+      <div className="rounded-tile border border-line-strong bg-sunken p-4">
+        <p className="text-sm font-semibold text-ink">
           Accepting opens the chat with {requesterName}
         </p>
-        <ul className="mt-2 flex flex-col gap-1 text-sm leading-6 text-stone-700">
+        <ul className="mt-2 flex flex-col gap-1 text-sm leading-6 text-body">
           <li>• They can message you about {listingTitle} straight away.</li>
           <li>• They will be given the exact address of the property.</li>
           <li>
@@ -82,10 +82,10 @@ export function RespondToInspection({
             them the property.
           </li>
         </ul>
-        {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-fix">{error}</p> : null}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
-            className="rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-full bg-action px-5 py-2.5 text-sm font-medium text-on-action disabled:opacity-60"
             disabled={isSubmitting}
             onClick={() => confirm("accepted")}
             type="button"
@@ -93,7 +93,7 @@ export function RespondToInspection({
             {isSubmitting ? "Accepting..." : "Yes, accept and open the chat"}
           </button>
           <button
-            className="rounded-full border border-stone-900/15 px-5 py-2.5 text-sm font-medium text-stone-700 disabled:opacity-60"
+            className="rounded-full border border-line-strong px-5 py-2.5 text-sm font-medium text-body disabled:opacity-60"
             disabled={isSubmitting}
             onClick={() => setPending(null)}
             type="button"
@@ -107,19 +107,19 @@ export function RespondToInspection({
 
   if (pending === "declined") {
     return (
-      <div className="rounded-2xl border border-stone-900/15 bg-stone-50 p-4">
-        <p className="text-sm font-semibold text-stone-900">
+      <div className="rounded-tile border border-line-strong bg-sunken p-4">
+        <p className="text-sm font-semibold text-ink">
           Decline this request?
         </p>
-        <p className="mt-2 text-sm leading-6 text-stone-700">
+        <p className="mt-2 text-sm leading-6 text-body">
           {requesterName} will be told you are not available for this one. No
           chat is opened and your address is not shared. They can ask again
           later.
         </p>
-        {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-fix">{error}</p> : null}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
-            className="rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-full bg-action px-5 py-2.5 text-sm font-medium text-on-action disabled:opacity-60"
             disabled={isSubmitting}
             onClick={() => confirm("declined")}
             type="button"
@@ -127,7 +127,7 @@ export function RespondToInspection({
             {isSubmitting ? "Declining..." : "Yes, decline"}
           </button>
           <button
-            className="rounded-full border border-stone-900/15 px-5 py-2.5 text-sm font-medium text-stone-700 disabled:opacity-60"
+            className="rounded-full border border-line-strong px-5 py-2.5 text-sm font-medium text-body disabled:opacity-60"
             disabled={isSubmitting}
             onClick={() => setPending(null)}
             type="button"
@@ -141,17 +141,17 @@ export function RespondToInspection({
 
   return (
     <div className="flex flex-col gap-2">
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="text-sm text-fix">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
         <button
-          className="rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white"
+          className="rounded-full bg-action px-5 py-2.5 text-sm font-medium text-on-action"
           onClick={() => setPending("accepted")}
           type="button"
         >
           Accept
         </button>
         <button
-          className="rounded-full border border-stone-900/15 px-5 py-2.5 text-sm font-medium text-stone-700"
+          className="rounded-full border border-line-strong px-5 py-2.5 text-sm font-medium text-body"
           onClick={() => setPending("declined")}
           type="button"
         >

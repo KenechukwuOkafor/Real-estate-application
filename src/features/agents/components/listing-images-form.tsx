@@ -128,7 +128,7 @@ export function ListingImagesForm({ listingId }: ListingImagesFormProps) {
     <form className="flex flex-col gap-3" onSubmit={onSubmit}>
       <input
         accept="image/*"
-        className="rounded-2xl border border-stone-900/10 bg-white px-4 py-3 text-sm"
+        className="rounded-field border border-line bg-paper px-4 py-3 text-sm"
         multiple
         onChange={(event) =>
           setSelectedFiles(Array.from(event.target.files ?? []))
@@ -136,12 +136,12 @@ export function ListingImagesForm({ listingId }: ListingImagesFormProps) {
         type="file"
       />
       {selectedFiles.length > 0 ? (
-        <p className="text-xs text-stone-600">
+        <p className="text-xs text-muted">
           {selectedFiles.length} file(s) selected.
         </p>
       ) : null}
-      {error ? <p className="text-xs text-rose-700">{error}</p> : null}
-      {message ? <p className="text-xs text-emerald-700">{message}</p> : null}
+      {error ? <p className="text-xs text-fix">{error}</p> : null}
+      {message ? <p className="text-xs text-verified">{message}</p> : null}
       {uploadedPreviews.length > 0 ? (
         <div className="grid grid-cols-3 gap-2">
           {uploadedPreviews.map((preview) => (
@@ -155,7 +155,7 @@ export function ListingImagesForm({ listingId }: ListingImagesFormProps) {
         </div>
       ) : null}
       <button
-        className="self-start rounded-full border border-stone-900/10 bg-white px-4 py-2 text-sm font-medium text-stone-800 disabled:opacity-60"
+        className="self-start rounded-full border border-line bg-paper px-4 py-2 text-sm font-medium text-ink-soft disabled:opacity-60"
         disabled={isSubmitting}
         type="submit"
       >

@@ -17,10 +17,10 @@ export function SuspensionNoticePanel({ agent, reason }: SuspensionNoticePanelPr
   const notice = suspensionNotice(reason);
 
   return (
-    <section className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-6 text-rose-950">
+    <section className="rounded-card border border-fix-line bg-fix-surface p-6 text-fix-deep">
       <h2 className="text-lg font-semibold">{notice.heading}</h2>
 
-      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-rose-900/80">
+      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-fix-ink/80">
         {notice.reasonLabel}
       </p>
       <p className="mt-1 text-base leading-7">{notice.reason}</p>
@@ -36,7 +36,7 @@ export function SuspensionNoticePanel({ agent, reason }: SuspensionNoticePanelPr
 
       <SupportWhatsAppLink
         agent={agent}
-        className="mt-2 inline-block text-sm font-medium text-rose-950 underline underline-offset-4"
+        className="mt-2 inline-block text-sm font-medium text-fix-deep underline underline-offset-4"
         topic="account_suspended"
       />
     </section>

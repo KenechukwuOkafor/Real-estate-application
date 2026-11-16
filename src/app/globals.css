@@ -12,8 +12,188 @@
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
+/*
+ * DESIGN TOKENS, BY ROLE.
+ *
+ * Named for what a colour does, never for what colour it is: "ink", "line",
+ * "action", "fix". The agent portal reads only these, so a restyle changes
+ * values here and not a single component. Values are today's sand palette,
+ * copied exactly from Tailwind's theme (stone, emerald, amber, rose) so this
+ * extraction changes no pixel — verified by a before/after pixel diff of every
+ * agent and seeker page at 360px and 1280px.
+ *
+ * Not @theme inline: utilities must read var(--color-…) at runtime, or the
+ * portal block below could not override them. And static, so every variable is
+ * emitted even when no utility uses it yet: <body> reads --color-ground from
+ * plain CSS, which Tailwind's tree-shaking cannot see.
+ */
+@theme static {
+  /* Text, strongest to faintest */
+  --color-ink: oklch(21.6% 0.006 56.043);
+  --color-ink-soft: oklch(26.8% 0.007 34.298);
+  --color-body: oklch(37.4% 0.01 67.558);
+  --color-muted: oklch(44.4% 0.011 73.639);
+  --color-subtle: oklch(55.3% 0.013 58.071);
+  --color-faint: oklch(70.9% 0.01 56.259);
+
+  /* The action colour: primary buttons, active nav, selected chips */
+  --color-action: oklch(21.6% 0.006 56.043);
+  --color-action-hover: oklch(26.8% 0.007 34.298);
+  --color-on-action: #fff;
+
+  /* Surfaces */
+  --color-ground: #f1ede4;
+  --color-paper: #fff;
+  --color-card: color-mix(in oklab, #fff 85%, transparent);
+  --color-sunken: oklch(98.5% 0.001 106.423);
+  --color-sunken-strong: oklch(97% 0.001 106.424);
+  --color-track: oklch(92.3% 0.003 48.717);
+  --color-track-strong: oklch(70.9% 0.01 56.259);
+
+  /* Lines */
+  --color-line-faint: color-mix(in oklab, oklch(21.6% 0.006 56.043) 5%, transparent);
+  --color-line: color-mix(in oklab, oklch(21.6% 0.006 56.043) 10%, transparent);
+  --color-line-strong: color-mix(in oklab, oklch(21.6% 0.006 56.043) 15%, transparent);
+  --color-line-soft: oklch(92.3% 0.003 48.717);
+  --color-line-bold: oklch(86.9% 0.005 56.366);
+  --color-line-heavy: oklch(70.9% 0.01 56.259);
+
+  /* Verified and good: the trust signal */
+  --color-verified-surface: oklch(97.9% 0.021 166.113);
+  --color-verified-line: oklch(90.5% 0.093 164.15);
+  --color-verified-fill: oklch(59.6% 0.145 163.225);
+  --color-verified: oklch(50.8% 0.118 165.612);
+  --color-verified-strong: oklch(43.2% 0.095 166.913);
+  --color-verified-ink: oklch(37.8% 0.077 168.94);
+
+  /* Attention: waiting on the agent, or time-bound */
+  --color-attention-surface: oklch(98.7% 0.022 95.277);
+  --color-attention-line: oklch(92.4% 0.12 95.746);
+  --color-attention-line-strong: oklch(87.9% 0.169 91.605);
+  --color-attention: oklch(47.3% 0.137 46.201);
+  --color-attention-ink: oklch(41.4% 0.112 45.904);
+  --color-attention-deep: oklch(27.9% 0.077 45.635);
+  --color-attention-fill: oklch(41.4% 0.112 45.904);
+
+  /* Needs fixing: something the agent must act on */
+  --color-fix-surface: oklch(96.9% 0.015 12.422);
+  --color-fix-line: oklch(89.2% 0.058 10.001);
+  --color-fix: oklch(51.4% 0.222 16.935);
+  --color-fix-strong: oklch(45.5% 0.188 13.697);
+  --color-fix-ink: oklch(41% 0.159 10.272);
+  --color-fix-deep: oklch(27.1% 0.105 12.094);
+
+  /* Radii, by role. Four card radii are a hierarchy today; slice 2 sets them. */
+  --radius-hero: 2rem;
+  --radius-card: 1.75rem;
+  --radius-inset: 1.5rem;
+  --radius-tile: 1rem;
+  --radius-field: 1rem;
+  --radius-control: calc(infinity * 1px);
+
+  /* Shadows */
+  --shadow-raised: 0 20px 80px rgba(48,38,24,0.08);
+  --shadow-raised-soft: 0 18px 50px rgba(48,38,24,0.08);
+  --shadow-lifted: 0 16px 40px rgba(48,38,24,0.06);
+  --shadow-verified-glow: 0 8px 24px rgba(5,120,85,0.25);
+
+  /* Gradients (used as bg-(image:--gradient-…)) */
+  --gradient-ground: linear-gradient(180deg, #f7f4ec 0%, #efe7da 100%);
+  --gradient-placeholder: linear-gradient(135deg, #d9d2c4, #ece6d8);
+}
+
+/*
+ * THE AGENT PORTAL'S VALUES.
+ *
+ * Identical to the defaults above, deliberately, for now. This block is where
+ * the portal restyle happens: change a value here and every portal surface
+ * follows, while the seeker side, which never renders the shell, keeps the
+ * defaults. Shared components (the listing card, the countdown) take whichever
+ * values the page they render on provides, so they need no fork.
+ *
+ * Scoped to body:has([data-portal-shell]) rather than to [data-portal-shell]
+ * itself because the page ground is painted on <body>, and a custom property
+ * set on a descendant cannot reach an ancestor. It is the same selector the
+ * header rule below already uses, and it covers /chats for agents, which
+ * renders the shell too.
+ */
+body:has([data-portal-shell]) {
+  /* Text, strongest to faintest */
+  --color-ink: oklch(21.6% 0.006 56.043);
+  --color-ink-soft: oklch(26.8% 0.007 34.298);
+  --color-body: oklch(37.4% 0.01 67.558);
+  --color-muted: oklch(44.4% 0.011 73.639);
+  --color-subtle: oklch(55.3% 0.013 58.071);
+  --color-faint: oklch(70.9% 0.01 56.259);
+
+  /* The action colour: primary buttons, active nav, selected chips */
+  --color-action: oklch(21.6% 0.006 56.043);
+  --color-action-hover: oklch(26.8% 0.007 34.298);
+  --color-on-action: #fff;
+
+  /* Surfaces */
+  --color-ground: #f1ede4;
+  --color-paper: #fff;
+  --color-card: color-mix(in oklab, #fff 85%, transparent);
+  --color-sunken: oklch(98.5% 0.001 106.423);
+  --color-sunken-strong: oklch(97% 0.001 106.424);
+  --color-track: oklch(92.3% 0.003 48.717);
+  --color-track-strong: oklch(70.9% 0.01 56.259);
+
+  /* Lines */
+  --color-line-faint: color-mix(in oklab, oklch(21.6% 0.006 56.043) 5%, transparent);
+  --color-line: color-mix(in oklab, oklch(21.6% 0.006 56.043) 10%, transparent);
+  --color-line-strong: color-mix(in oklab, oklch(21.6% 0.006 56.043) 15%, transparent);
+  --color-line-soft: oklch(92.3% 0.003 48.717);
+  --color-line-bold: oklch(86.9% 0.005 56.366);
+  --color-line-heavy: oklch(70.9% 0.01 56.259);
+
+  /* Verified and good: the trust signal */
+  --color-verified-surface: oklch(97.9% 0.021 166.113);
+  --color-verified-line: oklch(90.5% 0.093 164.15);
+  --color-verified-fill: oklch(59.6% 0.145 163.225);
+  --color-verified: oklch(50.8% 0.118 165.612);
+  --color-verified-strong: oklch(43.2% 0.095 166.913);
+  --color-verified-ink: oklch(37.8% 0.077 168.94);
+
+  /* Attention: waiting on the agent, or time-bound */
+  --color-attention-surface: oklch(98.7% 0.022 95.277);
+  --color-attention-line: oklch(92.4% 0.12 95.746);
+  --color-attention-line-strong: oklch(87.9% 0.169 91.605);
+  --color-attention: oklch(47.3% 0.137 46.201);
+  --color-attention-ink: oklch(41.4% 0.112 45.904);
+  --color-attention-deep: oklch(27.9% 0.077 45.635);
+  --color-attention-fill: oklch(41.4% 0.112 45.904);
+
+  /* Needs fixing: something the agent must act on */
+  --color-fix-surface: oklch(96.9% 0.015 12.422);
+  --color-fix-line: oklch(89.2% 0.058 10.001);
+  --color-fix: oklch(51.4% 0.222 16.935);
+  --color-fix-strong: oklch(45.5% 0.188 13.697);
+  --color-fix-ink: oklch(41% 0.159 10.272);
+  --color-fix-deep: oklch(27.1% 0.105 12.094);
+
+  /* Radii, by role. Four card radii are a hierarchy today; slice 2 sets them. */
+  --radius-hero: 2rem;
+  --radius-card: 1.75rem;
+  --radius-inset: 1.5rem;
+  --radius-tile: 1rem;
+  --radius-field: 1rem;
+  --radius-control: calc(infinity * 1px);
+
+  /* Shadows */
+  --shadow-raised: 0 20px 80px rgba(48,38,24,0.08);
+  --shadow-raised-soft: 0 18px 50px rgba(48,38,24,0.08);
+  --shadow-lifted: 0 16px 40px rgba(48,38,24,0.06);
+  --shadow-verified-glow: 0 8px 24px rgba(5,120,85,0.25);
+
+  /* Gradients (used as bg-(image:--gradient-…)) */
+  --gradient-ground: linear-gradient(180deg, #f7f4ec 0%, #efe7da 100%);
+  --gradient-placeholder: linear-gradient(135deg, #d9d2c4, #ece6d8);
+}
+
 body {
-  background: var(--background);
+  background: var(--color-ground);
   color: var(--foreground);
   font-family: var(--font-sans);
 }

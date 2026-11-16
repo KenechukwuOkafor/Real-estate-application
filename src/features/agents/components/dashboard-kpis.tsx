@@ -21,7 +21,7 @@ type Kpis = {
  */
 function Delta({ percent, lowerIsBetter = false }: { percent: number | null; lowerIsBetter?: boolean }) {
   if (percent === null) {
-    return <span className="text-xs text-stone-500">No prior period</span>;
+    return <span className="text-xs text-subtle">No prior period</span>;
   }
 
   const good = lowerIsBetter ? percent < 0 : percent > 0;
@@ -30,7 +30,7 @@ function Delta({ percent, lowerIsBetter = false }: { percent: number | null; low
   return (
     <span
       className={`text-xs font-medium ${
-        flat ? "text-stone-500" : good ? "text-emerald-700" : "text-rose-700"
+        flat ? "text-subtle" : good ? "text-verified" : "text-fix"
       }`}
     >
       {percent > 0 ? "+" : ""}
@@ -49,14 +49,14 @@ function Card({
   label: string;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-stone-900/10 bg-white/85 p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+    <div className="rounded-inset border border-line bg-card p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-subtle">
         {label}
       </p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">
+      <p className="mt-2 text-3xl font-semibold tracking-tight text-ink">
         {children}
       </p>
-      {detail ? <p className="mt-1 text-sm text-stone-600">{detail}</p> : null}
+      {detail ? <p className="mt-1 text-sm text-muted">{detail}</p> : null}
     </div>
   );
 }
@@ -84,7 +84,7 @@ export function DashboardKpis({ kpis }: { kpis: Kpis }) {
               one answered request out of one is also 100%, and an agent cannot
               tell those apart from the percentage alone.
             */}
-            <span className="block text-stone-700">
+            <span className="block text-body">
               {kpis.responseRate.answerable === 0
                 ? "Nothing needing an answer yet"
                 : `${kpis.responseRate.answered} of ${kpis.responseRate.answerable} answered in time`}

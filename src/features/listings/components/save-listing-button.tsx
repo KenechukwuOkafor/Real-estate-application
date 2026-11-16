@@ -68,7 +68,7 @@ export function SaveListingButton({
     <button
       aria-label={isSaved ? `Remove ${listingTitle} from saved` : `Save ${listingTitle}`}
       aria-pressed={isSaved}
-      className="relative z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition-colors hover:bg-white disabled:opacity-60"
+      className="relative z-10 flex h-9 w-9 items-center justify-center rounded-full bg-paper/90 text-body shadow-sm backdrop-blur transition-colors hover:bg-paper disabled:opacity-60"
       disabled={isPending}
       onClick={toggleSaved}
       type="button"

@@ -65,8 +65,8 @@ export function InspectionCountdown({
     <span
       className={
         label === passedLabel
-          ? "text-sm font-medium text-stone-500"
-          : "text-sm font-medium text-amber-800"
+          ? "text-sm font-medium text-subtle"
+          : "text-sm font-medium text-attention"
       }
     >
       {label}

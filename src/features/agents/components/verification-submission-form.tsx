@@ -159,23 +159,23 @@ export function VerificationSubmissionForm() {
 
   return (
     <form className="flex flex-col gap-5" onSubmit={onSubmit}>
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Full legal name</span>
         <input
-          className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+          className="h-12 rounded-field border border-line bg-paper px-4"
           onChange={(event) => setFullLegalName(event.target.value)}
           placeholder="As it appears on your ID"
           value={fullLegalName}
         />
       </label>
 
-      <fieldset className="flex flex-col gap-3 rounded-2xl border border-stone-900/10 bg-white p-4">
-        <legend className="px-1 text-sm text-stone-700">Documents</legend>
+      <fieldset className="flex flex-col gap-3 rounded-tile border border-line bg-paper p-4">
+        <legend className="px-1 text-sm text-body">Documents</legend>
 
-        <label className="flex flex-col gap-2 text-sm text-stone-700">
+        <label className="flex flex-col gap-2 text-sm text-body">
           <span>Document type</span>
           <select
-            className="h-12 rounded-2xl border border-stone-900/10 bg-white px-4"
+            className="h-12 rounded-field border border-line bg-paper px-4"
             onChange={(event) => setDocumentType(event.target.value)}
             value={documentType}
           >
@@ -187,11 +187,11 @@ export function VerificationSubmissionForm() {
           </select>
         </label>
 
-        <label className="flex flex-col gap-2 text-sm text-stone-700">
+        <label className="flex flex-col gap-2 text-sm text-body">
           <span>Attach file</span>
           <input
             accept="image/jpeg,image/png,image/webp,application/pdf"
-            className="rounded-2xl border border-stone-900/10 bg-white px-4 py-3 text-sm"
+            className="rounded-field border border-line bg-paper px-4 py-3 text-sm"
             multiple
             onChange={(event) => {
               addFiles(event.target.files);
@@ -201,12 +201,12 @@ export function VerificationSubmissionForm() {
           />
         </label>
 
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-subtle">
           A government ID is required. Add a CAC certificate, utility bill or
           agency licence as well if you have them.
         </p>
 
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-subtle">
           JPG, PNG, WEBP or PDF, up to 10 MB each. Documents are stored
           privately and are visible only to you and Ruvo&apos;s review team.
         </p>
@@ -216,7 +216,7 @@ export function VerificationSubmissionForm() {
             {pending.map((entry, index) => (
               <li
                 key={`${entry.file.name}-${index}`}
-                className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-sm"
+                className="flex items-center justify-between rounded-xl bg-sunken px-3 py-2 text-sm"
               >
                 <span>
                   <span className="font-medium">
@@ -224,10 +224,10 @@ export function VerificationSubmissionForm() {
                       (type) => type.value === entry.documentType,
                     )?.label ?? entry.documentType}
                   </span>
-                  <span className="ml-2 text-stone-600">{entry.file.name}</span>
+                  <span className="ml-2 text-muted">{entry.file.name}</span>
                 </span>
                 <button
-                  className="text-stone-500 hover:text-stone-900"
+                  className="text-subtle hover:text-ink"
                   onClick={() =>
                     setPending((current) =>
                       current.filter((_, position) => position !== index),
@@ -243,22 +243,22 @@ export function VerificationSubmissionForm() {
         ) : null}
       </fieldset>
 
-      <label className="flex flex-col gap-2 text-sm text-stone-700">
+      <label className="flex flex-col gap-2 text-sm text-body">
         <span>Notes</span>
         <textarea
-          className="min-h-28 rounded-2xl border border-stone-900/10 bg-white px-4 py-3"
+          className="min-h-28 rounded-field border border-line bg-paper px-4 py-3"
           onChange={(event) => setNotes(event.target.value)}
           placeholder="Optional explanation for the review team."
           value={notes}
         />
       </label>
 
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-      {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
+      {error ? <p className="text-sm text-fix">{error}</p> : null}
+      {message ? <p className="text-sm text-verified">{message}</p> : null}
 
       <div className="flex justify-end">
         <button
-          className="rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-full bg-action px-5 py-3 text-sm font-medium text-on-action disabled:opacity-60"
           disabled={isSubmitting}
           type="submit"
         >

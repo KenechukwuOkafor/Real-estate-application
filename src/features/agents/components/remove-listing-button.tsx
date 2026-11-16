@@ -64,7 +64,7 @@ export function RemoveListingButton({
   if (!confirming) {
     return (
       <button
-        className="rounded-full border border-stone-900/15 bg-white px-5 py-3 text-sm font-medium text-stone-900 transition-colors hover:bg-stone-50"
+        className="rounded-full border border-line-strong bg-paper px-5 py-3 text-sm font-medium text-ink transition-colors hover:bg-sunken"
         onClick={() => setConfirming(true)}
         type="button"
       >
@@ -74,8 +74,8 @@ export function RemoveListingButton({
   }
 
   return (
-    <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
-      <p className="text-sm font-semibold text-amber-950">
+    <div className="rounded-tile border border-attention-line-strong bg-attention-surface p-4">
+      <p className="text-sm font-semibold text-attention-deep">
         Remove “{listingTitle}” for good?
       </p>
 
@@ -84,7 +84,7 @@ export function RemoveListingButton({
         the third one is the expensive surprise and it is the one most likely to
         be skimmed past in a paragraph.
       */}
-      <ul className="mt-3 flex flex-col gap-1.5 text-sm leading-6 text-amber-900">
+      <ul className="mt-3 flex flex-col gap-1.5 text-sm leading-6 text-attention-ink">
         <li>• Seekers will no longer see it. It disappears from search straight away.</li>
         <li>• This cannot be undone.</li>
         <li>
@@ -104,11 +104,11 @@ export function RemoveListingButton({
         </li>
       </ul>
 
-      {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-fix">{error}</p> : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button
-          className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-full bg-action px-4 py-2 text-sm font-medium text-on-action disabled:opacity-60"
           disabled={isRemoving}
           onClick={onConfirm}
           type="button"
@@ -116,7 +116,7 @@ export function RemoveListingButton({
           {isRemoving ? "Removing..." : "Yes, remove it"}
         </button>
         <button
-          className="rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-medium text-stone-700 disabled:opacity-60"
+          className="rounded-full border border-line-strong bg-paper px-4 py-2 text-sm font-medium text-body disabled:opacity-60"
           disabled={isRemoving}
           onClick={() => {
             setConfirming(false);
