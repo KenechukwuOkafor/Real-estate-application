@@ -37,12 +37,27 @@ export function ShareProfileLink({ url }: ShareProfileLinkProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-stone-900/10 bg-stone-50 p-2 pl-4">
-      <span className="min-w-0 flex-1 truncate font-mono text-sm text-stone-700">
+    /*
+      STACKED UNTIL THERE IS ROOM, and the URL WRAPS rather than truncating.
+      Both halves of that were found by looking at the page at 360px.
+
+      The first version put the URL and the button on one row with `truncate`.
+      On a phone that renders as `localhost:3001/...` — the handle, which is the
+      entire reason this component shows the URL at all, is the part that gets
+      cut. It defeated the paragraph above it on the width most of these agents
+      actually use.
+
+      No test caught it and none of the obvious ones could have. The rendered
+      suite asserts the page contains `/a/<handle>`, and it does: the string is
+      in the DOM and `truncate` is CSS. The overflow probe reported zero
+      offenders, because not overflowing is precisely what truncation achieves.
+    */
+    <div className="flex flex-col gap-2 rounded-2xl border border-stone-900/10 bg-stone-50 p-3 sm:flex-row sm:items-center sm:pl-4">
+      <span className="min-w-0 flex-1 break-all font-mono text-sm text-stone-700">
         {url.replace(/^https?:\/\//, "")}
       </span>
       <button
-        className="shrink-0 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
+        className="shrink-0 self-start rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white sm:self-auto"
         onClick={copy}
         type="button"
       >
